@@ -12,7 +12,7 @@
     "dev:client": "npm run dev --prefix client",
     "install:all": "npm install && npm install --prefix client",
     "build": "npm run build --prefix client",
-    "start": "NODE_ENV=production node server/index.js"
+    "start": "node server/index.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

@@ -15,6 +15,7 @@ ENV DATA_DIR=/data
 
 RUN mkdir -p /data
 
+ENV PORT=3001
 EXPOSE 3001
 
 CMD ["node", "server/index.js"]

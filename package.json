@@ -1,0 +1,27 @@
+{
+  "name": "wc2026-predictor",
+  "version": "1.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "description": "World Cup 2026 friends league score predictor",
+  "scripts": {
+    "dev": "concurrently -n server,client -c blue,green \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "node server/index.js",
+    "dev:client": "npm run dev --prefix client",
+    "install:all": "npm install && npm install --prefix client",
+    "build": "npm run build --prefix client",
+    "start": "NODE_ENV=production node server/index.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "nanoid": "^5.0.9"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

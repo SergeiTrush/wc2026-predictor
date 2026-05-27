@@ -1,0 +1,16 @@
+# https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: wc2026-predictor
+    runtime: node
+    plan: free
+    buildCommand: npm run install:all && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/tournament
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 22.11.0
+      - key: JWT_SECRET
+        generateValue: true

@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { api, getToken, setToken } from './api';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
+import BracketPage from './pages/BracketPage';
 import LeaguePage from './pages/LeaguePage';
 import LeagueGroupsPage from './pages/LeagueGroupsPage';
 import LeagueTablePage from './pages/LeagueTablePage';
@@ -52,7 +53,11 @@ function App() {
       />
       <Route
         path="/league/:id"
-        element={user ? <LeaguePage user={user} /> : <Navigate to="/login" replace />}
+        element={user ? <BracketPage /> : <Navigate to="/login" replace />}
+      />
+      <Route
+        path="/league/:id/matches"
+        element={user ? <LeaguePage /> : <Navigate to="/login" replace />}
       />
       <Route
         path="/league/:id/groups"

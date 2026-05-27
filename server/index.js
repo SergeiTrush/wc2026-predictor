@@ -9,6 +9,17 @@ const db = require('./db');
 const { prepare, transaction } = require('./sqlite-helpers');
 const { seedDatabase } = require('./seed');
 const { totalMatchPoints, matchdayFromKickoff } = require('./scoring');
+const {
+  GROUPS,
+  GROUP_KEYS,
+  KNOCKOUT_TREE,
+  R32_THIRD_SLOTS,
+  ROUND_ORDER,
+  ROUND_LABELS,
+  emptyBracketPicks,
+  buildResolvedBracket,
+  validateBracketPicks,
+} = require('./bracket');
 
 const q = (query) => prepare(db, query);
 
@@ -239,6 +250,77 @@ app.post('/api/leagues/:id/members/:userId/suspend', authMiddleware, (req, res) 
   res.json({ suspended: next === 1 });
 });
 
+app.get('/api/bracket/template', authMiddleware, (_req, res) => {
+  res.json({
+    groups: GROUPS,
+    groupKeys: GROUP_KEYS,
+    knockout: KNOCKOUT_TREE.map((m) => ({
+      id: m.id,
+      round: m.round,
+      label: ROUND_LABELS[m.round],
+    })),
+    thirdSlots: R32_THIRD_SLOTS,
+    roundOrder: ROUND_ORDER,
+    roundLabels: ROUND_LABELS,
+  });
+});
+
+app.get('/api/leagues/:id/bracket', authMiddleware, (req, res) => {
+  const leagueId = Number(req.params.id);
+  if (!isLeagueMember(leagueId, req.user.id)) {
+    return res.status(403).json({ error: 'Not a member' });
+  }
+  const row = q('SELECT picks FROM bracket_picks WHERE league_id = ? AND user_id = ?').get(
+    leagueId,
+    req.user.id
+  );
+  let picks = emptyBracketPicks();
+  if (row?.picks) {
+    try {
+      picks = { ...picks, ...JSON.parse(row.picks) };
+    } catch {
+      /* ignore */
+    }
+  }
+  const resolved = buildResolvedBracket(picks);
+  const matches = Object.values(resolved);
+  res.json({ picks, resolved: matches, groups: GROUPS, thirdSlots: R32_THIRD_SLOTS });
+});
+
+app.put('/api/leagues/:id/bracket', authMiddleware, (req, res) => {
+  const leagueId = Number(req.params.id);
+  const member = isLeagueMember(leagueId, req.user.id);
+  if (!member) return res.status(403).json({ error: 'Not a member' });
+  if (member.suspended) return res.status(403).json({ error: 'Вы отстранены' });
+
+  const picks = req.body.picks || req.body;
+  if (picks.advancingThirds?.length === 8 && !Object.keys(picks.thirdSlotTeams || {}).length) {
+    picks.thirdSlotTeams = {};
+    R32_THIRD_SLOTS.forEach((slot, i) => {
+      picks.thirdSlotTeams[slot] = picks.advancingThirds[i];
+    });
+  }
+  if (picks.winners?.FINAL) {
+    picks.champion = picks.winners.FINAL;
+  }
+
+  const strict = req.query.strict === '1';
+  if (strict) {
+    const errors = validateBracketPicks(picks);
+    if (errors.length) return res.status(400).json({ error: errors[0], errors });
+  }
+
+  q(
+    `INSERT INTO bracket_picks (league_id, user_id, picks, updated_at)
+     VALUES (?, ?, ?, datetime('now'))
+     ON CONFLICT(league_id, user_id) DO UPDATE SET
+       picks = excluded.picks,
+       updated_at = datetime('now')`
+  ).run(leagueId, req.user.id, JSON.stringify(picks));
+
+  res.json({ picks, resolved: Object.values(buildResolvedBracket(picks)) });
+});
+
 app.get('/api/leagues/:id/leaderboard', authMiddleware, (req, res) => {
   const leagueId = Number(req.params.id);
   if (!isLeagueMember(leagueId, req.user.id)) {
@@ -266,7 +348,26 @@ app.get('/api/leagues/:id/leaderboard', authMiddleware, (req, res) => {
       const leaguePreds = leaguePredictionsForMatch(leagueId, match.id);
       total += totalMatchPoints(pred, match, leaguePreds);
     }
-    return { userId: member.id, name: member.name, points: total };
+    const brRow = q('SELECT picks FROM bracket_picks WHERE league_id = ? AND user_id = ?').get(
+      leagueId,
+      member.id
+    );
+    let bracketComplete = 0;
+    if (brRow?.picks) {
+      try {
+        const p = JSON.parse(brRow.picks);
+        if (p.champion && Object.keys(p.winners || {}).length >= 31) bracketComplete = 1;
+      } catch {
+        /* ignore */
+      }
+    }
+    return {
+      userId: member.id,
+      name: member.name,
+      points: total,
+      matchPoints: total,
+      bracketComplete,
+    };
   });
 
   leaderboard.sort((a, b) => b.points - a.points);

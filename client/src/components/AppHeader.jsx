@@ -21,17 +21,17 @@ export default function AppHeader({ active, leagueId, onOpenMenu }) {
       <nav className="header-nav">
         <button
           type="button"
-          className={`nav-link ${active === 'matches' ? 'active' : ''}`}
+          className={`nav-link ${active === 'bracket' ? 'active' : ''}`}
           onClick={() => leagueId && navigate(`/league/${leagueId}`)}
         >
-          Матчи
+          Брекет
         </button>
         <button
           type="button"
-          className={`nav-link ${active === 'groups' ? 'active' : ''}`}
-          onClick={() => leagueId && navigate(`/league/${leagueId}/groups`)}
+          className={`nav-link ${active === 'matches' ? 'active' : ''}`}
+          onClick={() => leagueId && navigate(`/league/${leagueId}/matches`)}
         >
-          Группы
+          Прогнозы
         </button>
         <button
           type="button"

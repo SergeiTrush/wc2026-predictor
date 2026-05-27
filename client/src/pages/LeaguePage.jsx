@@ -80,6 +80,11 @@ export default function LeaguePage() {
     <div className="app-root">
       <AppHeader active="matches" leagueId={id} onOpenMenu={() => setMenuOpen(true)} />
 
+      <div className="predictor-hero">
+        <h2>Прогнозы матчей</h2>
+        <p>Как в Euro Predictor: счёт, первый гол, бустер на тур</p>
+      </div>
+
       {friendsActive > 0 && league && (
         <div className="social-banner">Прогнозы друзей в лиге «{league.name}» →</div>
       )}

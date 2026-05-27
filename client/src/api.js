@@ -39,6 +39,12 @@ export const api = {
   suspendMember: (leagueId, userId) =>
     request(`/leagues/${leagueId}/members/${userId}/suspend`, { method: 'POST' }),
   leaderboard: (leagueId) => request(`/leagues/${leagueId}/leaderboard`),
+  getBracket: (leagueId) => request(`/leagues/${leagueId}/bracket`),
+  saveBracket: (leagueId, picks, strict = false) =>
+    request(`/leagues/${leagueId}/bracket${strict ? '?strict=1' : ''}`, {
+      method: 'PUT',
+      body: JSON.stringify({ picks }),
+    }),
   matchdays: () => request('/matchdays'),
   matches: (params = {}) => {
     const q = new URLSearchParams(params).toString();

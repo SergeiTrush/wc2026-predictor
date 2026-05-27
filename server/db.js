@@ -52,6 +52,14 @@ db.exec(`
     first_scorer_player TEXT
   );
 
+  CREATE TABLE IF NOT EXISTS bracket_picks (
+    league_id INTEGER NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    picks TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (league_id, user_id)
+  );
+
   CREATE TABLE IF NOT EXISTS predictions (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     match_id INTEGER NOT NULL REFERENCES matches(id) ON DELETE CASCADE,

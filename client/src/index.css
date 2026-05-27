@@ -633,3 +633,201 @@ a {
   padding: 2rem 1rem;
   color: var(--text-dim);
 }
+
+.bracket-hero,
+.predictor-hero {
+  padding: 1rem 1rem 0.5rem;
+  text-align: center;
+}
+
+.bracket-hero h2,
+.predictor-hero h2 {
+  font-size: 1.2rem;
+  margin-bottom: 0.25rem;
+}
+
+.bracket-hero p,
+.predictor-hero p {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.step-tabs {
+  display: flex;
+  gap: 0.35rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--navy);
+}
+
+.step-tab {
+  flex: 1;
+  padding: 0.5rem 0.35rem;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.step-tab.active {
+  background: var(--yellow);
+  color: var(--navy-deep);
+  font-weight: 700;
+}
+
+.groups-bracket-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.group-pick-card {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+  padding: 0.75rem;
+}
+
+.group-pick-card h3 {
+  color: var(--yellow);
+  margin-bottom: 0.5rem;
+  font-size: 0.95rem;
+}
+
+.group-pick-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.group-pick-row select {
+  flex: 1;
+  max-width: 55%;
+  padding: 0.35rem;
+  border-radius: 6px;
+  background: var(--navy-deep);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.pos-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  min-width: 4.5rem;
+}
+
+.hint-block {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  margin-bottom: 0.75rem;
+}
+
+.third-pick-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.third-pick-btn {
+  padding: 0.65rem;
+  border-radius: 8px;
+  border: 1px solid var(--text-dim);
+  background: transparent;
+  color: #fff;
+  font-size: 0.75rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.third-pick-btn.selected {
+  border-color: var(--yellow);
+  background: rgba(255, 193, 7, 0.2);
+}
+
+.knockout-round {
+  margin-bottom: 1.25rem;
+}
+
+.round-title {
+  color: var(--yellow);
+  font-size: 0.95rem;
+  margin-bottom: 0.5rem;
+}
+
+.knockout-match {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  padding: 0.65rem;
+  margin-bottom: 0.5rem;
+}
+
+.knockout-match-label {
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  margin-bottom: 0.35rem;
+}
+
+.knockout-teams {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.knockout-team {
+  padding: 0.5rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: var(--navy-deep);
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.knockout-team.picked {
+  border-color: var(--yellow);
+  background: rgba(255, 193, 7, 0.15);
+  font-weight: 700;
+}
+
+.knockout-team:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.knockout-vs {
+  text-align: center;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+}
+
+.champion-banner {
+  text-align: center;
+  padding: 1rem;
+  background: linear-gradient(135deg, #ffc107, #ff9800);
+  color: var(--navy-deep);
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 1.1rem;
+  margin-top: 1rem;
+}
+
+.bracket-footer-bar {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 480px;
+  padding: 0.75rem 1rem;
+  background: var(--navy-deep);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.save-toast {
+  text-align: center;
+  color: var(--yellow);
+  font-size: 0.85rem;
+  padding: 0.25rem;
+}

@@ -12,6 +12,7 @@
     "dev:client": "npm run dev --prefix client",
     "install:all": "npm install && npm install --prefix client",
     "build": "npm run build --prefix client",
+    "render-build": "npm install && npm install --prefix client --include=dev && npm run build",
     "start": "node server/index.js"
   },
   "dependencies": {

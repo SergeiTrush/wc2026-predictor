@@ -4,12 +4,11 @@ services:
     name: wc2026-predictor
     runtime: node
     plan: free
-    buildCommand: npm run install:all && npm run build
-    startCommand: npm start
+    # Do not set NODE_ENV=production during build — Vite is a devDependency
+    buildCommand: npm install && npm install --prefix client --include=dev && npm run build
+    startCommand: NODE_ENV=production npm start
     healthCheckPath: /health
     envVars:
-      - key: NODE_ENV
-        value: production
       - key: NODE_VERSION
         value: 22.11.0
       - key: JWT_SECRET

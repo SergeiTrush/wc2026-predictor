@@ -4,6 +4,9 @@ import { api, getToken, setToken } from './api';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import LeaguePage from './pages/LeaguePage';
+import LeagueGroupsPage from './pages/LeagueGroupsPage';
+import LeagueTablePage from './pages/LeagueTablePage';
+import LeagueSettingsPage from './pages/LeagueSettingsPage';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -29,16 +32,10 @@ function App() {
     navigate('/');
   };
 
-  const logout = () => {
-    setToken(null);
-    setUser(null);
-    navigate('/login');
-  };
-
   if (loading) {
     return (
       <div className="auth-page">
-        <p>Loading…</p>
+        <p>Загрузка…</p>
       </div>
     );
   }
@@ -51,17 +48,23 @@ function App() {
       />
       <Route
         path="/"
-        element={
-          user ? (
-            <DashboardPage user={user} onLogout={logout} />
-          ) : (
-            <Navigate to="/login" replace />
-          )
-        }
+        element={user ? <DashboardPage user={user} /> : <Navigate to="/login" replace />}
       />
       <Route
         path="/league/:id"
-        element={user ? <LeaguePage user={user} onLogout={logout} /> : <Navigate to="/login" replace />}
+        element={user ? <LeaguePage user={user} /> : <Navigate to="/login" replace />}
+      />
+      <Route
+        path="/league/:id/groups"
+        element={user ? <LeagueGroupsPage /> : <Navigate to="/login" replace />}
+      />
+      <Route
+        path="/league/:id/table"
+        element={user ? <LeagueTablePage /> : <Navigate to="/login" replace />}
+      />
+      <Route
+        path="/league/:id/settings"
+        element={user ? <LeagueSettingsPage user={user} /> : <Navigate to="/login" replace />}
       />
       <Route path="*" element={<Navigate to={user ? '/' : '/login'} replace />} />
     </Routes>

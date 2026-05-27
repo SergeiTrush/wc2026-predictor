@@ -131,10 +131,12 @@ const knockoutMatches = [
 function buildMatches() {
   const rows = [];
   for (const [home, away, date, time, group, venue] of groupMatches) {
+    const ko = kickoff(date, time);
     rows.push({
       home_team: home,
       away_team: away,
-      kickoff: kickoff(date, time),
+      kickoff: ko,
+      matchday: date,
       stage: 'group',
       group_name: group,
       venue,
@@ -142,10 +144,12 @@ function buildMatches() {
     });
   }
   for (const [home, away, date, time, stage, label, venue] of knockoutMatches) {
+    const ko = kickoff(date, time);
     rows.push({
       home_team: home,
       away_team: away,
-      kickoff: kickoff(date, time),
+      kickoff: ko,
+      matchday: date,
       stage,
       group_name: null,
       venue,
@@ -165,8 +169,8 @@ function seedDatabase(db) {
 
   const insert = prepare(
     db,
-    `INSERT INTO matches (home_team, away_team, kickoff, stage, group_name, venue, match_label)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO matches (home_team, away_team, kickoff, matchday, stage, group_name, venue, match_label)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   );
 
   const matches = buildMatches();
@@ -176,6 +180,7 @@ function seedDatabase(db) {
         m.home_team,
         m.away_team,
         m.kickoff,
+        m.matchday,
         m.stage,
         m.group_name,
         m.venue,

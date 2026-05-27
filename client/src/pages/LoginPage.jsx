@@ -5,12 +5,17 @@ export default function LoginPage({ onAuth }) {
   const [isRegister, setIsRegister] = useState(false);
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const submit = async (e) => {
     e.preventDefault();
     setError('');
+    if (isRegister && password !== confirm) {
+      setError('Пароли не совпадают');
+      return;
+    }
     setLoading(true);
     try {
       const data = isRegister
@@ -26,50 +31,56 @@ export default function LoginPage({ onAuth }) {
 
   return (
     <div className="auth-page">
-      <div className="card auth-card">
-        <div className="logo" style={{ marginBottom: '1.5rem' }}>
-          <div className="logo-icon">⚽</div>
-          <div>
-            <h1>WC 2026 Predictor</h1>
-            <p>USA · Mexico · Canada</p>
-          </div>
-        </div>
-        <h2>{isRegister ? 'Create account' : 'Welcome back'}</h2>
+      <div className="auth-card">
+        <h1>🏆 ЧМ 2026</h1>
         <p className="subtitle">
-          Predict scores with friends — Euro-style scoring, private leagues.
+          {isRegister ? 'Создай аккаунт и играй с друзьями' : 'Войди, чтобы делать прогнозы'}
         </p>
         {error && <div className="error-banner">{error}</div>}
         <form onSubmit={submit}>
           <div className="form-group">
-            <label>Display name</label>
+            <label>Имя</label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Alex"
+              placeholder="Например, Андрей"
               required
-              autoComplete="username"
             />
           </div>
           <div className="form-group">
-            <label>Password</label>
+            <label>Пароль</label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Min 4 characters"
               required
               minLength={4}
-              autoComplete={isRegister ? 'new-password' : 'current-password'}
             />
           </div>
-          <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={loading}>
-            {loading ? 'Please wait…' : isRegister ? 'Sign up' : 'Log in'}
+          {isRegister && (
+            <div className="form-group">
+              <label>Подтверждение пароля</label>
+              <input
+                type="password"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                required
+                minLength={4}
+              />
+            </div>
+          )}
+          <button type="submit" className="btn-primary" disabled={loading}>
+            {loading ? 'Подождите…' : isRegister ? 'Создать аккаунт' : 'Войти'}
           </button>
         </form>
-        <p className="auth-toggle">
-          {isRegister ? 'Already have an account?' : 'New here?'}{' '}
-          <button type="button" onClick={() => setIsRegister(!isRegister)}>
-            {isRegister ? 'Log in' : 'Sign up'}
+        <p style={{ textAlign: 'center', marginTop: '1rem', fontSize: '0.85rem', color: 'var(--text-dim)' }}>
+          {isRegister ? 'Уже есть аккаунт?' : 'Новичок?'}{' '}
+          <button
+            type="button"
+            style={{ background: 'none', border: 'none', color: 'var(--yellow)', cursor: 'pointer' }}
+            onClick={() => setIsRegister(!isRegister)}
+          >
+            {isRegister ? 'Войти' : 'Регистрация'}
           </button>
         </p>
       </div>

@@ -31,6 +31,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS league_members (
     league_id INTEGER NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    suspended INTEGER NOT NULL DEFAULT 0,
     joined_at TEXT NOT NULL DEFAULT (datetime('now')),
     PRIMARY KEY (league_id, user_id)
   );
@@ -40,12 +41,15 @@ db.exec(`
     home_team TEXT NOT NULL,
     away_team TEXT NOT NULL,
     kickoff TEXT NOT NULL,
+    matchday TEXT,
     stage TEXT NOT NULL,
     group_name TEXT,
     venue TEXT,
     match_label TEXT,
     home_score INTEGER,
-    away_score INTEGER
+    away_score INTEGER,
+    first_scorer_team TEXT,
+    first_scorer_player TEXT
   );
 
   CREATE TABLE IF NOT EXISTS predictions (
@@ -53,10 +57,40 @@ db.exec(`
     match_id INTEGER NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
     home_pred INTEGER NOT NULL,
     away_pred INTEGER NOT NULL,
+    first_team TEXT,
+    first_player TEXT,
+    booster INTEGER NOT NULL DEFAULT 0,
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     PRIMARY KEY (user_id, match_id),
     CHECK (home_pred >= 0 AND away_pred >= 0)
   );
 `);
+
+function migrate() {
+  const alters = [
+    'ALTER TABLE league_members ADD COLUMN suspended INTEGER NOT NULL DEFAULT 0',
+    'ALTER TABLE matches ADD COLUMN matchday TEXT',
+    'ALTER TABLE matches ADD COLUMN first_scorer_team TEXT',
+    'ALTER TABLE matches ADD COLUMN first_scorer_player TEXT',
+    'ALTER TABLE predictions ADD COLUMN first_team TEXT',
+    'ALTER TABLE predictions ADD COLUMN first_player TEXT',
+    'ALTER TABLE predictions ADD COLUMN booster INTEGER NOT NULL DEFAULT 0',
+  ];
+  for (const sql of alters) {
+    try {
+      db.exec(sql);
+    } catch {
+      /* column exists */
+    }
+  }
+}
+
+migrate();
+
+try {
+  db.exec(`UPDATE matches SET matchday = substr(kickoff, 1, 10) WHERE matchday IS NULL`);
+} catch {
+  /* ignore */
+}
 
 module.exports = db;

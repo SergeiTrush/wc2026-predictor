@@ -16,9 +16,7 @@ async function request(path, options = {}) {
 
   const res = await fetch(`/api${path}`, { ...options, headers });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data.error || 'Request failed');
-  }
+  if (!res.ok) throw new Error(data.error || 'Ошибка запроса');
   return data;
 }
 
@@ -30,23 +28,24 @@ export const api = {
   me: () => request('/auth/me'),
   tournament: () => request('/tournament'),
   leagues: () => request('/leagues'),
+  league: (id) => request(`/leagues/${id}`),
   createLeague: (name) =>
     request('/leagues', { method: 'POST', body: JSON.stringify({ name }) }),
   joinLeague: (code) =>
     request('/leagues/join', { method: 'POST', body: JSON.stringify({ code }) }),
+  updateLeague: (id, name) =>
+    request(`/leagues/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }),
+  deleteLeague: (id) => request(`/leagues/${id}`, { method: 'DELETE' }),
+  suspendMember: (leagueId, userId) =>
+    request(`/leagues/${leagueId}/members/${userId}/suspend`, { method: 'POST' }),
   leaderboard: (leagueId) => request(`/leagues/${leagueId}/leaderboard`),
+  matchdays: () => request('/matchdays'),
   matches: (params = {}) => {
     const q = new URLSearchParams(params).toString();
     return request(`/matches${q ? `?${q}` : ''}`);
   },
-  savePrediction: (matchId, homeScore, awayScore) =>
-    request('/predictions', {
-      method: 'POST',
-      body: JSON.stringify({ matchId, homeScore, awayScore }),
-    }),
-  setResult: (matchId, homeScore, awayScore) =>
-    request(`/matches/${matchId}/result`, {
-      method: 'PUT',
-      body: JSON.stringify({ homeScore, awayScore }),
-    }),
+  savePrediction: (body) =>
+    request('/predictions', { method: 'POST', body: JSON.stringify(body) }),
+  setResult: (matchId, body) =>
+    request(`/matches/${matchId}/result`, { method: 'PUT', body: JSON.stringify(body) }),
 };

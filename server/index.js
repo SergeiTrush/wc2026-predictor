@@ -20,7 +20,10 @@ if (process.env.NODE_ENV === 'production' && JWT_SECRET.includes('dev-secret')) 
   console.warn('WARNING: Set JWT_SECRET in production.');
 }
 
-seedDatabase(db);
+const seedResult = seedDatabase(db);
+if (seedResult.matchCount === 0) {
+  console.warn('No matches in database — seed may have failed.');
+}
 
 const app = express();
 app.use(cors());
@@ -282,10 +285,15 @@ app.get('/api/matches', authMiddleware, (req, res) => {
     params.push(group);
   }
   if (matchday) {
-    query += ' AND matchday = ?';
+    query += ' AND COALESCE(matchday, substr(kickoff, 1, 10)) = ?';
     params.push(matchday);
+  } else if (!stage && !group) {
+    query += ` AND kickoff >= datetime('now', '-1 day')`;
   }
   query += ' ORDER BY kickoff ASC';
+  if (!matchday && !stage && !group) {
+    query += ' LIMIT 48';
+  }
   const matches = q(query).all(...params);
 
   const getPred = q('SELECT * FROM predictions WHERE user_id = ? AND match_id = ?');

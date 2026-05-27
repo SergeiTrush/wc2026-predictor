@@ -164,6 +164,7 @@ const { prepare, transaction } = require('./sqlite-helpers');
 function seedDatabase(db) {
   const count = prepare(db, 'SELECT COUNT(*) AS n FROM matches').get().n;
   if (count > 0) {
+    prepare(db, `UPDATE matches SET matchday = substr(kickoff, 1, 10) WHERE matchday IS NULL`).run();
     return { seeded: false, matchCount: count };
   }
 

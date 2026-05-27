@@ -24,8 +24,8 @@ export default function LeaguePage() {
   const [showScoring, setShowScoring] = useState(false);
 
   const loadMatches = useCallback(
-    (day) => {
-      setLoading(true);
+    (day, { silent = false } = {}) => {
+      if (!silent) setLoading(true);
       setError('');
       const params = { leagueId: id };
       if (day) params.matchday = day;
@@ -41,7 +41,9 @@ export default function LeaguePage() {
           }
         })
         .catch((e) => setError(e.message))
-        .finally(() => setLoading(false));
+        .finally(() => {
+          if (!silent) setLoading(false);
+        });
     },
     [id]
   );
@@ -105,7 +107,12 @@ export default function LeaguePage() {
         {loading && <p className="empty-hint">Загрузка матчей…</p>}
         {!loading &&
           matches.map((m) => (
-            <MatchCard key={m.id} match={m} leagueId={id} onSaved={() => loadMatches(matchday)} />
+            <MatchCard
+              key={m.id}
+              match={m}
+              leagueId={id}
+              onSaved={() => loadMatches(matchday, { silent: true })}
+            />
           ))}
         {!loading && !error && matches.length === 0 && (
           <p className="empty-hint">

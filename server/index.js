@@ -53,8 +53,10 @@ function isLeagueOwner(leagueId, userId) {
 }
 
 function matchIsLocked(match) {
-  if (match.home_score != null) return true;
-  return new Date(match.kickoff) <= new Date();
+  if (match.home_score != null && match.away_score != null) return true;
+  const kickoff = new Date(match.kickoff).getTime();
+  if (Number.isNaN(kickoff)) return false;
+  return kickoff <= Date.now();
 }
 
 function leagueMemberIds(leagueId) {
@@ -358,10 +360,18 @@ app.post('/api/predictions', authMiddleware, (req, res) => {
     firstTeam,
     firstPlayer,
     booster,
+    leagueId,
   } = req.body;
   const id = Number(matchId);
   const match = q('SELECT * FROM matches WHERE id = ?').get(id);
   if (!match) return res.status(404).json({ error: 'Матч не найден' });
+  if (leagueId) {
+    const member = isLeagueMember(Number(leagueId), req.user.id);
+    if (!member) return res.status(403).json({ error: 'Вы не в этой лиге' });
+    if (member.suspended) {
+      return res.status(403).json({ error: 'Вы отстранены от лиги' });
+    }
+  }
   if (matchIsLocked(match)) {
     return res.status(400).json({ error: 'Прогнозы закрыты' });
   }

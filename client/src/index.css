@@ -180,8 +180,29 @@ a {
   text-align: center;
 }
 
-.score-box:disabled {
-  opacity: 0.6;
+.score-box:read-only {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.btn-save-prediction {
+  background: var(--yellow);
+  color: var(--navy-deep);
+  border: none;
+  border-radius: 8px;
+  padding: 0.5rem 1.25rem;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.btn-save-prediction:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.locked-badge {
+  font-size: 0.75rem;
 }
 
 .score-sep {

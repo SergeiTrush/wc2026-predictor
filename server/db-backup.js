@@ -7,8 +7,8 @@ const OBJECT = 'wc2026.db';
 const uploadScript = path.join(__dirname, 'db-backup-upload.js');
 
 function enabled() {
-  // VPS Docker: SQLite persists on the compose volume
-  if (process.env.DATA_DIR === '/data' && !process.env.SUPABASE_FORCE_BACKUP) return false;
+  // Render Starter + disk: SQLite already persists under DATA_DIR
+  if (process.env.DATA_DIR === '/var/data' && process.env.RENDER) return false;
   return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
 
@@ -17,7 +17,7 @@ function storageUrl() {
   return `${base}/storage/v1/object/${BUCKET}/${OBJECT}`;
 }
 
-/** Download remote DB before SQLite opens (optional off-site backup). */
+/** Download remote DB before SQLite opens (cold start on Render). */
 function restoreSync(dbPath) {
   if (!enabled()) return;
   const tmp = `${dbPath}.remote`;

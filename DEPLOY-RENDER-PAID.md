@@ -1,8 +1,6 @@
-# Legacy: Render Starter + disk
+# Render production — Starter + disk (always on, persistent DB)
 
-**Not used.** Production deploy: [DEPLOY-VPS.md](../../DEPLOY-VPS.md).
-
----
+> **Card declined?** Render and Fly often reject Belarusian/EU-sanctioned cards. You cannot use this paid setup without a card Render accepts. Use **[DEPLOY-EASY.md](DEPLOY-EASY.md)** instead (Render **free** + Supabase — no Render payment, usually no Supabase card).
 
 Fixes both problems on Render:
 

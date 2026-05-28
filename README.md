@@ -24,7 +24,7 @@ Private league app in the style of the [Euro 2024 Match Predictor](https://www.y
 | Underdog bonus (&lt;10% in league) | 5 |
 | Booster | ×2–×5 by stage |
 
-## Quick start (local)
+## Quick start
 
 ```bash
 cd prediction-app
@@ -35,19 +35,15 @@ npm run dev
 - App: http://localhost:5173  
 - API: http://localhost:3001  
 
-## Deploy (production)
+## Deploy
 
-**VPS + Docker** — persistent database, always on.
+**Recommended (card issues / always on):** [VPS + Docker](DEPLOY-VPS.md) — persistent DB, no cold start.
 
-→ **[DEPLOY-VPS.md](DEPLOY-VPS.md)**
+**Stay on Render free:** [Render + Supabase](DEPLOY-EASY.md) — $0, short cold start OK.
 
-```bash
-bash scripts/vps-bootstrap.sh   # once on Ubuntu server
-cp .env.example .env && nano .env
-bash scripts/vps-deploy.sh
-```
+Also: [Render paid](DEPLOY-RENDER-PAID.md) · [Oracle free VM](DEPLOY-ORACLE.md) · [Fly.io](DEPLOY.md).
 
-Requires **Node.js 22+** for local dev; production runs in Docker.
+Requires **Node.js 22+**.
 
 ## Automatic results (API-Football)
 

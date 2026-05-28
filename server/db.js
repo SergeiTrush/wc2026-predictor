@@ -49,7 +49,14 @@ db.exec(`
     home_score INTEGER,
     away_score INTEGER,
     first_scorer_team TEXT,
-    first_scorer_player TEXT
+    first_scorer_player TEXT,
+    external_fixture_id INTEGER
+  );
+
+  CREATE TABLE IF NOT EXISTS app_meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
   CREATE TABLE IF NOT EXISTS bracket_picks (
@@ -61,6 +68,7 @@ db.exec(`
   );
 
   CREATE TABLE IF NOT EXISTS predictions (
+    league_id INTEGER NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     match_id INTEGER NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
     home_pred INTEGER NOT NULL,
@@ -69,7 +77,7 @@ db.exec(`
     first_player TEXT,
     booster INTEGER NOT NULL DEFAULT 0,
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    PRIMARY KEY (user_id, match_id),
+    PRIMARY KEY (league_id, user_id, match_id),
     CHECK (home_pred >= 0 AND away_pred >= 0)
   );
 `);
@@ -83,6 +91,7 @@ function migrate() {
     'ALTER TABLE predictions ADD COLUMN first_team TEXT',
     'ALTER TABLE predictions ADD COLUMN first_player TEXT',
     'ALTER TABLE predictions ADD COLUMN booster INTEGER NOT NULL DEFAULT 0',
+    'ALTER TABLE matches ADD COLUMN external_fixture_id INTEGER',
   ];
   for (const sql of alters) {
     try {
@@ -95,10 +104,49 @@ function migrate() {
 
 migrate();
 
+function migratePredictionsPerLeague() {
+  const cols = db.prepare('PRAGMA table_info(predictions)').all();
+  if (cols.some((c) => c.name === 'league_id')) {
+    return;
+  }
+  db.exec(`
+    CREATE TABLE predictions_by_league (
+      league_id INTEGER NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      match_id INTEGER NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+      home_pred INTEGER NOT NULL,
+      away_pred INTEGER NOT NULL,
+      first_team TEXT,
+      first_player TEXT,
+      booster INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (league_id, user_id, match_id),
+      CHECK (home_pred >= 0 AND away_pred >= 0)
+    );
+    DROP TABLE predictions;
+    ALTER TABLE predictions_by_league RENAME TO predictions;
+  `);
+}
+
+migratePredictionsPerLeague();
+
+// Clear results entered before kickoff (e.g. test data) so predictions stay open
 try {
-  db.exec(`UPDATE matches SET matchday = substr(kickoff, 1, 10) WHERE matchday IS NULL`);
+  db.exec(`
+    UPDATE matches
+    SET home_score = NULL, away_score = NULL,
+        first_scorer_team = NULL, first_scorer_player = NULL
+    WHERE home_score IS NOT NULL
+      AND datetime(kickoff) > datetime('now')
+  `);
 } catch {
   /* ignore */
 }
 
+function predictionsSchemaOk() {
+  const cols = db.prepare('PRAGMA table_info(predictions)').all();
+  return cols.some((c) => c.name === 'league_id');
+}
+
 module.exports = db;
+module.exports.predictionsSchemaOk = predictionsSchemaOk;

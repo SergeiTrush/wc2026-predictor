@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import AppHeader from '../components/AppHeader';
+import { useLeagueOwner } from '../hooks/useLeagueOwner';
 import ScoringModal from '../components/ScoringModal';
 import { teamFlag } from '../utils';
 
@@ -26,6 +27,7 @@ export default function BracketPage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showScoring, setShowScoring] = useState(false);
   const [error, setError] = useState('');
+  const isOwner = useLeagueOwner(id);
 
   const load = useCallback(() => {
     api
@@ -101,7 +103,7 @@ export default function BracketPage() {
 
   return (
     <div className="app-root">
-      <AppHeader active="bracket" leagueId={id} onOpenMenu={() => setMenuOpen(true)} />
+      <AppHeader active="bracket" leagueId={id} />
 
       <div className="bracket-hero">
         <h2>Bracket Challenge</h2>
@@ -270,17 +272,18 @@ export default function BracketPage() {
             >
               Как начисляются очки
             </button>
-            <button
-              type="button"
-              className="btn-primary"
-              style={{ background: 'transparent', border: '1px solid var(--text-dim)', color: '#fff' }}
-              onClick={() => {
-                setMenuOpen(false);
-                navigate(`/league/${id}/settings`);
-              }}
-            >
-              Настройки лиги
-            </button>
+            {isOwner && (
+              <button
+                type="button"
+                className="btn-primary btn-menu-owner"
+                onClick={() => {
+                  setMenuOpen(false);
+                  navigate(`/league/${id}/settings`);
+                }}
+              >
+                Настройки лиги
+              </button>
+            )}
           </div>
         </div>
       )}

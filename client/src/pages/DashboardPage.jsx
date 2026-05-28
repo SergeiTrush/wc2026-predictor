@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { api } from '../api';
+import AuthExitButton from '../components/AuthExitButton';
 
-export default function DashboardPage({ user }) {
+export default function DashboardPage({ user, onLogout }) {
   const [leagues, setLeagues] = useState([]);
   const [error, setError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
@@ -10,6 +11,8 @@ export default function DashboardPage({ user }) {
   const [leagueName, setLeagueName] = useState('');
   const [joinCode, setJoinCode] = useState('');
   const navigate = useNavigate();
+  const location = useLocation();
+  const leagueAccessError = location.state?.leagueError;
 
   const load = () => {
     api.leagues().then((d) => setLeagues(d.leagues)).catch((e) => setError(e.message));
@@ -44,21 +47,25 @@ export default function DashboardPage({ user }) {
 
   return (
     <div className="app-root">
-      <div className="auth-page" style={{ minHeight: 'auto', padding: '1.5rem 1rem' }}>
-        <h1 style={{ marginBottom: '0.25rem' }}>Привет, {user.name}!</h1>
-        <p className="subtitle" style={{ marginBottom: '1rem' }}>
-          Выбери лигу или создай новую
-        </p>
-        {error && <div className="error-banner">{error}</div>}
+      <div className="auth-page auth-page--dashboard">
+        <div className="dashboard-top">
+          <div className="dashboard-top-text">
+            <h1>Привет, {user.name}!</h1>
+            <p className="subtitle">Лига друзей · прогнозы на все матчи ЧМ 2026</p>
+          </div>
+          <AuthExitButton onClick={onLogout} label="Выйти" />
+        </div>
+        {(leagueAccessError || error) && (
+          <div className="error-banner">{leagueAccessError || error}</div>
+        )}
 
-        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-          <button type="button" className="btn-primary" style={{ flex: 1 }} onClick={() => setShowCreate(true)}>
+        <div className="dashboard-actions">
+          <button type="button" className="btn-primary" onClick={() => setShowCreate(true)}>
             Создать лигу
           </button>
           <button
             type="button"
-            className="btn-primary"
-            style={{ flex: 1, background: 'transparent', border: '1px solid var(--yellow)', color: 'var(--yellow)' }}
+            className="btn-primary btn-outline-yellow"
             onClick={() => setShowJoin(true)}
           >
             Код лиги
@@ -74,9 +81,13 @@ export default function DashboardPage({ user }) {
             onClick={() => navigate(`/league/${l.id}`)}
           >
             <div>
-              <strong>{l.name}</strong>
+              <strong>
+                {l.name}
+                {l.is_owner && <span className="owner-badge">Владелец</span>}
+              </strong>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginTop: '0.25rem' }}>
                 {l.member_count} участников
+                {l.owner_name && !l.is_owner && ` · владелец: ${l.owner_name}`}
               </p>
             </div>
             <span className="league-code">{l.code}</span>

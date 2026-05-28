@@ -1,20 +1,67 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
+import { IconBack } from '../components/AuthExitButton';
+import { redirectIfLeagueForbidden } from '../leagueAccess';
 
-export default function LeagueSettingsPage({ user }) {
+export default function LeagueSettingsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
+  const [error, setError] = useState('');
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState('');
   const [copied, setCopied] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
-  const load = () => api.league(id).then(setData);
+  const load = async () => {
+    setError('');
+    const leagueRes = await api.league(id);
+    if (!Boolean(Number(leagueRes.league?.is_owner))) {
+      const err = new Error('Только владелец лиги');
+      err.forbidden = true;
+      throw err;
+    }
+    if (leagueRes.members) {
+      return { league: leagueRes.league, members: leagueRes.members };
+    }
+    return api.leagueSettings(id);
+  };
 
   useEffect(() => {
-    load();
-  }, [id]);
+    load()
+      .then(setData)
+      .catch((e) => {
+        if (redirectIfLeagueForbidden(e, navigate)) return;
+        if (e.forbidden) {
+          navigate(`/league/${id}`, { replace: true });
+          return;
+        }
+        setError(e.message || 'Не удалось загрузить настройки');
+      });
+  }, [id, navigate]);
+
+  if (error) {
+    return (
+      <div className="app-root">
+        <div className="app-header settings-header">
+          <div className="settings-header-row">
+            <button
+              type="button"
+              className="header-icon-btn header-icon-btn--back"
+              aria-label="Назад"
+              onClick={() => navigate(`/league/${id}`)}
+            >
+              <IconBack />
+            </button>
+            <h1 className="settings-header-title">Настройки лиги</h1>
+          </div>
+        </div>
+        <p className="error-banner" style={{ margin: '1rem' }}>{error}</p>
+      </div>
+    );
+  }
 
   if (!data) return <div className="settings-page">Загрузка…</div>;
 
@@ -24,7 +71,7 @@ export default function LeagueSettingsPage({ user }) {
   const saveName = async () => {
     await api.updateLeague(id, name);
     setEditing(false);
-    load();
+    load().then(setData).catch((e) => setError(e.message));
   };
 
   const copyCode = () => {
@@ -35,30 +82,35 @@ export default function LeagueSettingsPage({ user }) {
 
   const toggleSuspend = async (userId) => {
     await api.suspendMember(id, userId);
-    load();
+    load().then(setData).catch((e) => setError(e.message));
   };
 
   const deleteLeague = async () => {
-    if (!confirm('Удалить лигу? Это нельзя отменить.')) return;
-    await api.deleteLeague(id);
-    navigate('/');
+    setDeleting(true);
+    setError('');
+    try {
+      await api.deleteLeague(id);
+      navigate('/');
+    } catch (e) {
+      setError(e.message);
+      setDeleting(false);
+    }
   };
 
   return (
     <div className="app-root">
-      <div
-        className="app-header"
-        style={{ background: 'var(--navy)', padding: '1rem' }}
-      >
-        <button
-          type="button"
-          className="nav-link"
-          onClick={() => navigate(`/league/${id}`)}
-          style={{ marginBottom: '0.5rem' }}
-        >
-          ← Назад
-        </button>
-        <h1 style={{ fontSize: '1.1rem' }}>Настройки лиги</h1>
+      <div className="app-header settings-header">
+        <div className="settings-header-row">
+          <button
+            type="button"
+            className="header-icon-btn header-icon-btn--back"
+            aria-label="Назад"
+            onClick={() => navigate(`/league/${id}`)}
+          >
+            <IconBack />
+          </button>
+          <h1 className="settings-header-title">Настройки лиги</h1>
+        </div>
       </div>
 
       <div className="settings-page">
@@ -104,13 +156,14 @@ export default function LeagueSettingsPage({ user }) {
 
         <div className="members-title">Участники: {members.length}</div>
         {members.map((m) => (
-          <div key={m.id} className="member-row">
-            <span>
+          <div key={m.id} className={`member-row ${m.is_owner ? 'member-row-owner' : ''}`}>
+            <span className="member-name-cell">
               {m.name}
-              {m.is_you ? ' (Ты)' : ''}
-              {m.suspended ? ' — отстранён' : ''}
+              {m.is_owner && <span className="owner-badge">Владелец</span>}
+              {m.is_you && !m.is_owner && <span className="you-badge">Вы</span>}
+              {m.suspended ? <span className="suspended-badge">Отстранён</span> : ''}
             </span>
-            {isOwner && !m.is_you && (
+            {isOwner && !m.is_you && !m.is_owner && (
               <button type="button" className="member-action" onClick={() => toggleSuspend(m.id)}>
                 {m.suspended ? 'Вернуть' : 'Отстранить'}
               </button>
@@ -121,9 +174,44 @@ export default function LeagueSettingsPage({ user }) {
 
       {isOwner && (
         <div className="delete-league-bar">
-          <button type="button" className="delete-league-btn" onClick={deleteLeague}>
+          <button type="button" className="delete-league-btn" onClick={() => setShowDeleteConfirm(true)}>
             🗑 Удалить лигу
           </button>
+        </div>
+      )}
+
+      {showDeleteConfirm && data && (
+        <div
+          className="modal-overlay"
+          onClick={() => {
+            if (!deleting) setShowDeleteConfirm(false);
+          }}
+        >
+          <div className="modal-sheet confirm-sheet" onClick={(e) => e.stopPropagation()}>
+            <h3 className="confirm-sheet-title">Удалить лигу?</h3>
+            <p className="confirm-sheet-text">
+              Лига «{data.league.name}» и все прогнозы участников будут удалены. Это действие нельзя
+              отменить.
+            </p>
+            <div className="confirm-sheet-actions">
+              <button
+                type="button"
+                className="btn-primary btn-confirm-cancel"
+                disabled={deleting}
+                onClick={() => setShowDeleteConfirm(false)}
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                className="btn-primary btn-confirm-danger"
+                disabled={deleting}
+                onClick={deleteLeague}
+              >
+                {deleting ? 'Удаление…' : 'Удалить'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

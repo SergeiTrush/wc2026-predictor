@@ -1,4 +1,6 @@
 import { useNavigate } from 'react-router-dom';
+import { IconBack } from './AuthExitButton';
+import { HeaderMenuButton } from './LeagueMoreMenu';
 
 export default function AppHeader({ active, leagueId, onOpenMenu }) {
   const navigate = useNavigate();
@@ -6,32 +8,37 @@ export default function AppHeader({ active, leagueId, onOpenMenu }) {
   return (
     <header className="app-header">
       <div className="header-top">
+        {leagueId && (
+          <button
+            type="button"
+            className="header-icon-btn header-icon-btn--back"
+            aria-label="Все лиги"
+            onClick={() => navigate('/')}
+          >
+            <IconBack />
+          </button>
+        )}
         <div className="brand">
-          <div className="brand-logo">🏆</div>
+          <img src="/wc2026-logo.png" alt="FIFA World Cup 2026" className="brand-logo" />
           <div className="brand-title">
-            FIFA WORLD CUP
+            WC 2026
             <br />
-            2026
+            MATCH PREDICTOR
           </div>
         </div>
-        <button type="button" className="nav-link" onClick={onOpenMenu}>
-          Ещё ▾
-        </button>
+        {leagueId && (
+          <div className="header-actions">
+            {onOpenMenu && <HeaderMenuButton leagueId={leagueId} onOpen={onOpenMenu} />}
+          </div>
+        )}
       </div>
       <nav className="header-nav">
         <button
           type="button"
-          className={`nav-link ${active === 'bracket' ? 'active' : ''}`}
+          className={`nav-link ${active === 'matches' ? 'active' : ''}`}
           onClick={() => leagueId && navigate(`/league/${leagueId}`)}
         >
-          Брекет
-        </button>
-        <button
-          type="button"
-          className={`nav-link ${active === 'matches' ? 'active' : ''}`}
-          onClick={() => leagueId && navigate(`/league/${leagueId}/matches`)}
-        >
-          Прогнозы
+          Матчи
         </button>
         <button
           type="button"

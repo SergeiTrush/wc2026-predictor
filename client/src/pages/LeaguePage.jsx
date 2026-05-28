@@ -1,113 +1,179 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
+import {
+  matchdaysFromMatches,
+  filterMatchesByDay,
+  pickDefaultMatchday,
+  formatMatchdayTabDate,
+  matchdayKey,
+} from '../matchdays';
 import AppHeader from '../components/AppHeader';
+import LeagueMoreMenu from '../components/LeagueMoreMenu';
 import MatchCard from '../components/MatchCard';
-import ScoringModal from '../components/ScoringModal';
-
-function pickDefaultMatchday(days) {
-  if (!days.length) return '';
-  const today = new Date().toISOString().slice(0, 10);
-  return days.find((day) => day >= today) || days[0];
-}
+import { isMatchLiveScoreBarVisible } from '../utils';
+import { redirectIfLeagueForbidden } from '../leagueAccess';
 
 export default function LeaguePage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [league, setLeague] = useState(null);
+  const [allMatches, setAllMatches] = useState([]);
   const [matchdays, setMatchdays] = useState([]);
-  const [matchday, setMatchday] = useState('');
-  const [matches, setMatches] = useState([]);
+  const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
-  const [showScoring, setShowScoring] = useState(false);
+  const topRef = useRef(null);
+  const [topHeight, setTopHeight] = useState(0);
 
-  const loadMatches = useCallback(
-    (day, { silent = false } = {}) => {
+  const loadAll = useCallback(
+    async ({ silent = false } = {}) => {
       if (!silent) setLoading(true);
       setError('');
-      const params = { leagueId: id };
-      if (day) params.matchday = day;
-
-      api
-        .matches(params)
-        .then((d) => {
-          setMatches(d.matches);
-          if (d.matches.length === 0 && day) {
-            return api.matches({ leagueId: id }).then((all) => {
-              if (all.matches.length > 0) setMatches(all.matches);
-            });
+      try {
+        const { matches } = await api.allMatches(id);
+        const list = matches || [];
+        setAllMatches(list);
+        const days = matchdaysFromMatches(list);
+        setMatchdays(days);
+        setSelected((prev) => {
+          if (prev && days.some((d) => d.day === prev.day)) {
+            return days.find((d) => d.day === prev.day);
           }
-        })
-        .catch((e) => setError(e.message))
-        .finally(() => {
-          if (!silent) setLoading(false);
+          return pickDefaultMatchday(days);
         });
+      } catch (e) {
+        if (redirectIfLeagueForbidden(e, navigate)) return;
+        setError(e.message);
+      } finally {
+        if (!silent) setLoading(false);
+      }
     },
-    [id]
+    [id, navigate]
   );
 
   useEffect(() => {
-    api.league(id).then((d) => setLeague(d.league)).catch(() => {});
-
     api
-      .matchdays()
+      .league(id)
       .then((d) => {
-        const days = d.matchdays || [];
-        setMatchdays(days);
-        const picked = pickDefaultMatchday(days);
-        setMatchday(picked);
-        if (!picked) {
-          loadMatches('');
-        }
+        setLeague(d.league);
       })
       .catch((e) => {
+        if (redirectIfLeagueForbidden(e, navigate)) return;
         setError(e.message);
-        loadMatches('');
       });
-  }, [id, loadMatches]);
+    loadAll();
+  }, [id, loadAll, navigate]);
 
-  useEffect(() => {
-    if (matchday) {
-      loadMatches(matchday);
+  const matches = useMemo(() => {
+    const list = !selected?.day
+      ? allMatches
+      : (() => {
+          const filtered = filterMatchesByDay(allMatches, selected.day);
+          return filtered.length > 0 ? filtered : allMatches;
+        })();
+    return [...list].sort((a, b) => String(a.kickoff).localeCompare(String(b.kickoff)));
+  }, [allMatches, selected]);
+
+  const onSaved = () => loadAll({ silent: true });
+
+  const activeMd = selected || matchdays[0];
+  const progress = useMemo(() => {
+    if (activeMd?.count) {
+      return { done: activeMd.predicted ?? 0, total: activeMd.count };
     }
-  }, [matchday, loadMatches]);
+    const done = matches.filter((m) => m.prediction?.home_pred != null).length;
+    return { done, total: matches.length };
+  }, [activeMd, matches]);
 
   const friendsActive = matches.reduce((n, m) => n + (m.friendsPredicted > 0 ? 1 : 0), 0);
+  const boosterMatch = useMemo(() => {
+    if (!selected?.day) return null;
+    return (
+      allMatches.find((m) => {
+        return matchdayKey(m) === selected.day && Number(m.prediction?.booster) === 1;
+      }) ?? null
+    );
+  }, [allMatches, selected?.day]);
+  const boosterMatchId = boosterMatch?.id ?? null;
+  const boosterLocked = boosterMatch ? isMatchLiveScoreBarVisible(boosterMatch) : false;
+  const boosterUsed = boosterMatchId != null;
+
+  useEffect(() => {
+    const el = topRef.current;
+    if (!el) return;
+
+    const update = () => setTopHeight(el.offsetHeight);
+    update();
+
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [matchdays.length, friendsActive, league, activeMd, progress.total, boosterUsed]);
 
   return (
     <div className="app-root">
-      <AppHeader active="matches" leagueId={id} onOpenMenu={() => setMenuOpen(true)} />
+      <div className="league-top-fixed" ref={topRef}>
+        <AppHeader active="matches" leagueId={id} onOpenMenu={() => setMenuOpen(true)} />
 
-      <div className="predictor-hero">
-        <h2>Прогнозы матчей</h2>
-        <p>Как в Euro Predictor: счёт, первый гол, бустер на тур</p>
+        <div className="predictor-hero">
+          <h2>ЧМ 2026 — прогнозы матчей</h2>
+          <p>
+            {allMatches.length > 0
+              ? `${allMatches.length} матчей · счёт, первый гол, бустер на тур`
+              : 'Счёт, первый гол, один бустер на тур — как в Euro Predictor'}
+          </p>
+        </div>
+
+        {friendsActive > 0 && league && (
+          <div className="social-banner">Друзья в лиге «{league.name}» уже сделали прогнозы →</div>
+        )}
+
+        {matchdays.length > 0 && (
+          <>
+            <div className="matchday-tabs">
+              {matchdays.map((md) => (
+                <button
+                  key={md.day}
+                  type="button"
+                  className={`matchday-tab ${selected?.day === md.day ? 'active' : ''}`}
+                  onClick={() => setSelected(md)}
+                >
+                  <span className="matchday-tab-md">{md.label}</span>
+                  <span className="matchday-tab-date">{formatMatchdayTabDate(md.day)}</span>
+                </button>
+              ))}
+            </div>
+
+            {activeMd && progress.total > 0 && (
+              <div className="matchday-progress">
+                <div className="matchday-progress-label">
+                  <span>
+                    {activeMd.label} · {formatMatchdayTabDate(activeMd.day)}
+                  </span>
+                  <span>
+                    {progress.done}/{progress.total} матчей
+                  </span>
+                </div>
+                <div className="matchday-progress-bar">
+                  <div
+                    className="matchday-progress-fill"
+                    style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }}
+                  />
+                </div>
+                {!boosterUsed && progress.done > 0 && (
+                  <p className="matchday-hint">
+                    Один бустер на тур — нажми «Переставить бустер» на выбранном матче
+                  </p>
+                )}
+              </div>
+            )}
+          </>
+        )}
       </div>
 
-      {friendsActive > 0 && league && (
-        <div className="social-banner">Прогнозы друзей в лиге «{league.name}» →</div>
-      )}
-
-      {matchdays.length > 0 && (
-        <div className="matchday-tabs">
-          {matchdays.map((day) => (
-            <button
-              key={day}
-              type="button"
-              className={`matchday-tab ${matchday === day ? 'active' : ''}`}
-              onClick={() => setMatchday(day)}
-            >
-              {new Date(day + 'T12:00:00').toLocaleDateString('ru-RU', {
-                day: 'numeric',
-                month: 'short',
-              })}
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div className="page-content">
+      <div className="page-content" style={{ paddingTop: topHeight }}>
         {error && <div className="error-banner">{error}</div>}
         {loading && <p className="empty-hint">Загрузка матчей…</p>}
         {!loading &&
@@ -116,65 +182,21 @@ export default function LeaguePage() {
               key={m.id}
               match={m}
               leagueId={id}
-              onSaved={() => loadMatches(matchday, { silent: true })}
+              boosterMatchId={boosterMatchId}
+              boosterLocked={boosterLocked}
+              onSaved={onSaved}
             />
           ))}
         {!loading && !error && matches.length === 0 && (
           <p className="empty-hint">
-            {matchdays.length === 0
-              ? 'Расписание не загружено. Перезапустите сервер или обновите страницу.'
-              : 'Нет матчей на выбранный день — выберите другую дату выше.'}
+            {allMatches.length === 0
+              ? 'Матчи не найдены. Перезапустите сервер: npm run dev'
+              : 'Нет матчей на выбранный тур — выбери другой MD выше.'}
           </p>
         )}
       </div>
 
-      {menuOpen && (
-        <div className="modal-overlay" onClick={() => setMenuOpen(false)}>
-          <div className="modal-sheet" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Меню</h2>
-              <button type="button" className="modal-close" onClick={() => setMenuOpen(false)}>
-                ×
-              </button>
-            </div>
-            <button
-              type="button"
-              className="btn-primary"
-              style={{ marginBottom: '0.5rem' }}
-              onClick={() => {
-                setMenuOpen(false);
-                setShowScoring(true);
-              }}
-            >
-              Как начисляются очки
-            </button>
-            <button
-              type="button"
-              className="btn-primary"
-              style={{ marginBottom: '0.5rem', background: 'var(--card-blue-light)' }}
-              onClick={() => {
-                setMenuOpen(false);
-                navigate(`/league/${id}/settings`);
-              }}
-            >
-              Настройки лиги
-            </button>
-            <button
-              type="button"
-              className="btn-primary"
-              style={{ background: 'transparent', border: '1px solid var(--text-dim)', color: '#fff' }}
-              onClick={() => {
-                setMenuOpen(false);
-                navigate('/');
-              }}
-            >
-              Все лиги
-            </button>
-          </div>
-        </div>
-      )}
-
-      {showScoring && <ScoringModal onClose={() => setShowScoring(false)} />}
+      <LeagueMoreMenu leagueId={id} open={menuOpen} onClose={() => setMenuOpen(false)} />
     </div>
   );
 }

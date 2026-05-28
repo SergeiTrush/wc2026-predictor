@@ -32,9 +32,11 @@ export default function LoginPage({ onAuth }) {
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <h1>🏆 ЧМ 2026</h1>
-        <p className="subtitle">
-          {isRegister ? 'Создай аккаунт и играй с друзьями' : 'Войди, чтобы делать прогнозы'}
+        <img src="/wc2026-logo.png" alt="" className="auth-hero-logo" />
+        <h1 className="auth-hero-title">Match Predictor</h1>
+        <p className="auth-hero-event">
+          <span className="auth-hero-event-label">World Cup</span>
+          <span className="auth-hero-event-year">2026</span>
         </p>
         {error && <div className="error-banner">{error}</div>}
         <form onSubmit={submit}>
@@ -43,7 +45,6 @@ export default function LoginPage({ onAuth }) {
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Например, Андрей"
               required
             />
           </div>

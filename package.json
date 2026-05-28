@@ -13,7 +13,8 @@
     "install:all": "npm install && npm install --prefix client",
     "build": "npm run build --prefix client",
     "render-build": "npm install && npm install --prefix client --include=dev && npm run build",
-    "start": "node server/index.js"
+    "start": "node server/index.js",
+    "test": "node --test server/scoring.test.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

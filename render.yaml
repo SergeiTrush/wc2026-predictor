@@ -13,3 +13,9 @@ services:
         value: 22.11.0
       - key: JWT_SECRET
         generateValue: true
+      - key: API_FOOTBALL_KEY
+        sync: false
+      - key: API_FOOTBALL_LEAGUE_ID
+        value: "1"
+      - key: API_FOOTBALL_SEASON
+        value: "2026"

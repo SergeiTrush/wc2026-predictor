@@ -1,6 +1,10 @@
-# Easy deploy — Render free + Supabase
+# Legacy: Render free + Supabase
 
-**Use this if Render/Fly decline your card.**
+**Not used.** Production deploy: [DEPLOY-VPS.md](../../DEPLOY-VPS.md).
+
+---
+
+**Use this only if you still host on Render.**
 
 ---
 

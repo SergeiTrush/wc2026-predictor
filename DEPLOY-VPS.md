@@ -1,11 +1,10 @@
-# Deploy on any VPS with Docker
+# Deploy on VPS with Docker
 
-Run the World Cup predictor on a small Linux server (Timeweb, Hetzner, hoster.by, Oracle, etc.).
+Production hosting for the World Cup predictor: a small Linux server (Timeweb, Hetzner, hoster.by, Oracle, etc.).
 
 - **Persistent SQLite** in a Docker volume (`/data` inside the container)
-- **Always on** — no Render cold start
-- **No Fly/Render billing** — pay your VPS provider in local currency if needed
-- **Supabase not required** on VPS (optional backup only)
+- **Always on** — no spin-down or lost logins
+- Pay your VPS provider in local currency (no Western PaaS required)
 
 ---
 
@@ -135,7 +134,7 @@ Edit `.env` on the server first: `ssh root@YOUR_SERVER_IP 'nano /opt/wc2026-pred
 | `API_FOOTBALL_KEY` | No | Auto sync results |
 | `DATA_DIR` | Auto | Set to `/data` in `docker-compose.yml` |
 
-On VPS you do **not** need `SUPABASE_*` unless you want extra off-site backup.
+Optional: set `SUPABASE_*` in `.env` for off-site DB backup (see `.env.example`).
 
 ---
 

@@ -41,7 +41,7 @@ function App() {
 
   if (loading) {
     return (
-      <div className="auth-page">
+      <div className="auth-page" aria-busy="true" aria-live="polite">
         <p>Загрузка…</p>
       </div>
     );

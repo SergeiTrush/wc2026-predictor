@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { IconBack } from './AuthExitButton';
 import { HeaderMenuButton } from './LeagueMoreMenu';
 
-export default function AppHeader({ active, leagueId, onOpenMenu }) {
+export default function AppHeader({ active, leagueId, onOpenMenu, isOwner }) {
   const navigate = useNavigate();
 
   return (
@@ -28,7 +28,7 @@ export default function AppHeader({ active, leagueId, onOpenMenu }) {
         </div>
         {leagueId && (
           <div className="header-actions">
-            {onOpenMenu && <HeaderMenuButton leagueId={leagueId} onOpen={onOpenMenu} />}
+            {onOpenMenu && <HeaderMenuButton leagueId={leagueId} onOpen={onOpenMenu} isOwner={isOwner} />}
           </div>
         )}
       </div>

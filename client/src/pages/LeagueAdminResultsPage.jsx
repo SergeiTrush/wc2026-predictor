@@ -187,9 +187,19 @@ export default function LeagueAdminResultsPage() {
 
   if (loading) {
     return (
-      <div className="app-root">
-        <p className="empty-hint" style={{ padding: '2rem' }}>
-          Загрузка…
+      <div
+        aria-busy="true"
+        aria-live="polite"
+        style={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'transparent',
+        }}
+      >
+        <p className="empty-hint" style={{ margin: 0 }}>
+          <span style={{ color: '#ffffff' }}>Загрузка…</span>
         </p>
       </div>
     );

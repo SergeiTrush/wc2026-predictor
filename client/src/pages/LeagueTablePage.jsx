@@ -6,7 +6,6 @@ import LeagueMoreMenu from '../components/LeagueMoreMenu';
 import ScoringModal from '../components/ScoringModal';
 import { formatDateTime } from '../utils';
 import { redirectIfLeagueForbidden } from '../leagueAccess';
-import { useLeagueOwner } from '../hooks/useLeagueOwner';
 import { matchdaysFromMatches, formatMatchdayTabDate } from '../matchdays';
 
 const MATCHDAY_TAGS = [
@@ -49,7 +48,8 @@ export default function LeagueTablePage() {
   const [selectedDayKey, setSelectedDayKey] = useState(null);
   const [expandedUserId, setExpandedUserId] = useState(null);
   const [userBreakdown, setUserBreakdown] = useState({});
-  const isOwner = useLeagueOwner(id);
+  const [pageReady, setPageReady] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
 
   const loadLeaderboard = useCallback(() => {
     api
@@ -62,23 +62,55 @@ export default function LeagueTablePage() {
   }, [id, navigate, selectedDayKey]);
 
   useEffect(() => {
-    loadLeaderboard();
-    api
-      .allMatches(id)
-      .then((d) => {
-        const days = matchdaysFromMatches(d.matches || []);
-        setMatchdays(days);
-      })
-      .catch((e) => {
-        if (redirectIfLeagueForbidden(e, navigate)) return;
-        setSyncMsg(e.message);
-      });
+    let active = true;
+    setPageReady(false);
+    setSelectedDayKey(null);
 
-    api
-      .resultsSyncStatus()
-      .then(setSyncStatus)
-      .catch(() => setSyncStatus({ enabled: false }));
-  }, [id, navigate, loadLeaderboard]);
+    Promise.allSettled([api.leaderboard(id), api.allMatches(id), api.resultsSyncStatus(), api.league(id)]).then((results) => {
+      if (!active) return;
+
+      const [leaderboardResult, matchesResult, syncResult, leagueResult] = results;
+
+      if (leaderboardResult.status === 'fulfilled') {
+        setLeaderboard(leaderboardResult.value.leaderboard || []);
+      } else {
+        const e = leaderboardResult.reason;
+        if (!redirectIfLeagueForbidden(e, navigate)) setSyncMsg(e.message);
+      }
+
+      if (matchesResult.status === 'fulfilled') {
+        const days = matchdaysFromMatches(matchesResult.value.matches || []);
+        setMatchdays(days);
+      } else {
+        const e = matchesResult.reason;
+        if (!redirectIfLeagueForbidden(e, navigate)) setSyncMsg(e.message);
+      }
+
+      if (syncResult.status === 'fulfilled') {
+        setSyncStatus(syncResult.value);
+      } else {
+        setSyncStatus({ enabled: false });
+      }
+
+      if (leagueResult.status === 'fulfilled') {
+        setIsOwner(Boolean(Number(leagueResult.value?.league?.is_owner)));
+      } else {
+        const e = leagueResult.reason;
+        if (!redirectIfLeagueForbidden(e, navigate)) setIsOwner(false);
+      }
+
+      setPageReady(true);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [id, navigate]);
+
+  useEffect(() => {
+    if (!pageReady) return;
+    loadLeaderboard();
+  }, [pageReady, loadLeaderboard]);
 
   const tableTitle = useMemo(() => {
     if (!selectedDayKey) return 'Таблица лиги';
@@ -164,10 +196,25 @@ export default function LeagueTablePage() {
     }
   };
 
+  if (!pageReady) {
+    return (
+      <div className="app-root">
+        <div className="auth-page" aria-busy="true" aria-live="polite">
+          <p>Загрузка таблицы…</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="app-root">
       <div>
-        <AppHeader active="table" leagueId={id} onOpenMenu={() => setMenuOpen(true)} />
+        <AppHeader
+          active="table"
+          leagueId={id}
+          onOpenMenu={() => setMenuOpen(true)}
+          isOwner={isOwner}
+        />
       </div>
       <LeagueMoreMenu leagueId={id} open={menuOpen} onClose={() => setMenuOpen(false)} />
       <div className="page-content page-content--table">

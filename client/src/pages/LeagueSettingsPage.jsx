@@ -63,7 +63,15 @@ export default function LeagueSettingsPage() {
     );
   }
 
-  if (!data) return <div className="settings-page">Загрузка…</div>;
+  if (!data) {
+    return (
+      <div className="auth-page" aria-busy="true" aria-live="polite">
+        <p className="empty-hint" style={{ margin: 0, color: '#fff' }}>
+          Загрузка…
+        </p>
+      </div>
+    );
+  }
 
   const { league, members } = data;
   const isOwner = league.is_owner;

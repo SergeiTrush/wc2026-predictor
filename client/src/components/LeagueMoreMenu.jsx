@@ -13,8 +13,9 @@ function IconMenu() {
   );
 }
 
-export function HeaderMenuButton({ leagueId, onOpen }) {
-  const isOwner = useLeagueOwner(leagueId);
+export function HeaderMenuButton({ leagueId, onOpen, isOwner: isOwnerProp }) {
+  const hookIsOwner = useLeagueOwner(leagueId);
+  const isOwner = isOwnerProp ?? hookIsOwner;
   if (!leagueId || !isOwner) return null;
   return (
     <button type="button" className="header-icon-btn" aria-label="Меню" onClick={onOpen}>

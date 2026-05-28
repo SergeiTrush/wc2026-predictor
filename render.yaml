@@ -1,5 +1,4 @@
 # https://render.com/docs/blueprint-spec
-# Free tier + Supabase backup (see DEPLOY-EASY.md). Paid disk: DEPLOY-RENDER-PAID.md
 services:
   - type: web
     name: wc2026-predictor
@@ -11,7 +10,7 @@ services:
     healthCheckPath: /health
     envVars:
       - key: NODE_VERSION
-        value: "22.11.0"
+        value: 22.11.0
       - key: JWT_SECRET
         generateValue: true
       - key: API_FOOTBALL_KEY
@@ -20,5 +19,3 @@ services:
         value: "1"
       - key: API_FOOTBALL_SEASON
         value: "2026"
-      # Add in Render Dashboard (not secrets in git):
-      # SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_DB_BUCKET=app-db

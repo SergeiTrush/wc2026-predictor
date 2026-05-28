@@ -19,7 +19,7 @@ const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { customAlphabet } = require('nanoid');
+const crypto = require('crypto');
 const path = require('path');
 
 const db = require('./db');
@@ -55,7 +55,15 @@ const q = (query) => prepare(db, query);
 
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'wc2026-dev-secret-change-in-production';
-const inviteCode = customAlphabet('ABCDEFGHJKLMNPQRSTUVWXYZ23456789', 6);
+const INVITE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+function inviteCode() {
+  let code = '';
+  for (let i = 0; i < 6; i += 1) {
+    code += INVITE_ALPHABET[crypto.randomInt(0, INVITE_ALPHABET.length)];
+  }
+  return code;
+}
 
 if (process.env.NODE_ENV === 'production' && JWT_SECRET.includes('dev-secret')) {
   console.warn('WARNING: Set JWT_SECRET in production.');

@@ -1,4 +1,4 @@
-const { DatabaseSync } = require('node:sqlite');
+const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 
@@ -8,7 +8,7 @@ if (!fs.existsSync(dataDir)) {
 }
 
 const dbPath = path.join(dataDir, 'wc2026.db');
-const db = new DatabaseSync(dbPath);
+const db = new Database(dbPath);
 
 db.exec('PRAGMA foreign_keys = ON');
 

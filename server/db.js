@@ -1,6 +1,7 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
+const { restoreSync, scheduleBackups } = require('./db-backup');
 
 const dataDir = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 if (!fs.existsSync(dataDir)) {
@@ -8,7 +9,9 @@ if (!fs.existsSync(dataDir)) {
 }
 
 const dbPath = path.join(dataDir, 'wc2026.db');
+restoreSync(dbPath);
 const db = new Database(dbPath);
+scheduleBackups(dbPath);
 
 db.exec('PRAGMA foreign_keys = ON');
 

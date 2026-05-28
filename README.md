@@ -37,7 +37,11 @@ npm run dev
 
 ## Deploy
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/SergeiTrush/wc2026-predictor)
+**Recommended (card issues / always on):** [VPS + Docker](DEPLOY-VPS.md) — persistent DB, no cold start.
+
+**Stay on Render free:** [Render + Supabase](DEPLOY-EASY.md) — $0, short cold start OK.
+
+Also: [Render paid](DEPLOY-RENDER-PAID.md) · [Oracle free VM](DEPLOY-ORACLE.md) · [Fly.io](DEPLOY.md).
 
 Requires **Node.js 22+**.
 

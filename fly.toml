@@ -1,5 +1,6 @@
 # fly launch && fly deploy
 # Requires: fly auth login, Node 22 (see Dockerfile)
+# See DEPLOY.md for full setup (volume + secrets).
 
 app = 'wc2026-predictor'
 primary_region = 'ams'

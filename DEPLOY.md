@@ -9,7 +9,7 @@
 
 Your app will be at `https://wc2026-predictor.onrender.com` (name may vary).
 
-**Persistent data (Render):** `render.yaml` attaches a 1 GB disk at `/data` and sets `DATA_DIR=/data`, so SQLite survives redeploys. This requires the **Starter** plan (~$7/mo) — [free web services cannot use persistent disks](https://render.com/docs/free).
+**Persistent data (Render):** `render.yaml` attaches a 1 GB disk at `/opt/render/project/src/data` (the app’s default `./data` folder). This requires the **Starter** plan (~$7/mo) — [free web services cannot use persistent disks](https://render.com/docs/free). Do **not** set `DATA_DIR=/data` on Node.js — that path is not the disk mount; logs should show `SQLite database: /opt/render/project/src/data/wc2026.db`.
 
 After pushing this config, sync the blueprint in the Render Dashboard (or redeploy). Register your account again once — the disk starts empty. Existing env vars (including `JWT_SECRET`) are kept.
 

@@ -9,7 +9,9 @@
 
 Your app will be at `https://wc2026-predictor.onrender.com` (name may vary).
 
-**Note (free tier):** Data is stored in SQLite on the server disk. It resets if the service sleeps or redeploys. Fine for friends testing; upgrade Render or add a volume for persistence.
+**Persistent data (Render):** `render.yaml` attaches a 1 GB disk at `/data` and sets `DATA_DIR=/data`, so SQLite survives redeploys. This requires the **Starter** plan (~$7/mo) — [free web services cannot use persistent disks](https://render.com/docs/free).
+
+After pushing this config, sync the blueprint in the Render Dashboard (or redeploy). Register your account again once — the disk starts empty. Existing env vars (including `JWT_SECRET`) are kept.
 
 **Render build failed (`client/package.json` not found)?** In the service **Settings → Build & Deploy**, set **Root Directory** to empty (repo root), not `client`. Build command: `npm install --include=dev && npm run build`. If Root Directory must stay `client`, the shim `client/package.json` delegates install/build to the parent folder.
 

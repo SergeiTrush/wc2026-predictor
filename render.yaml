@@ -3,16 +3,23 @@ services:
   - type: web
     name: wc2026-predictor
     runtime: node
-    plan: free
+    # Persistent disks require a paid instance (free tier uses ephemeral storage).
+    plan: starter
     # Repo root (not client/) — single package.json for app + Vite
     rootDir: .
     # Do not set NODE_ENV=production during build — Vite is a devDependency
     buildCommand: npm install --include=dev && npm run build
     startCommand: NODE_ENV=production npm start
     healthCheckPath: /health
+    disk:
+      name: wc2026-data
+      mountPath: /data
+      sizeGB: 1
     envVars:
       - key: NODE_VERSION
         value: 22.11.0
+      - key: DATA_DIR
+        value: /data
       - key: JWT_SECRET
         generateValue: true
       - key: API_FOOTBALL_KEY

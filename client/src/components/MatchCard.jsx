@@ -19,6 +19,7 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
   const [showFriendsPredictions, setShowFriendsPredictions] = useState(false);
   const [squadPlayers, setSquadPlayers] = useState(null);
   const [squadLoading, setSquadLoading] = useState(false);
+  const [squadError, setSquadError] = useState('');
 
   const hasResult = match.hasResult ?? matchHasResult(match);
   const locked = !!match.locked;
@@ -39,19 +40,26 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
   useEffect(() => {
     setSquadPlayers(null);
     setSquadLoading(false);
+    setSquadError('');
   }, [match.id]);
 
   const loadSquadPlayers = useCallback(() => {
     if (inputsLocked || squadLoading || Array.isArray(squadPlayers)) return;
     setSquadLoading(true);
+    setSquadError('');
     loadMatchSquads(match.home_team, match.away_team)
       .then((merged) => setSquadPlayers(merged))
       .catch((e) => {
         setSquadPlayers([]);
-        if (e?.message) console.warn(e.message);
+        setSquadError(e?.message || 'Не удалось загрузить игроков');
       })
       .finally(() => setSquadLoading(false));
   }, [inputsLocked, squadLoading, squadPlayers, match.home_team, match.away_team]);
+
+  useEffect(() => {
+    if (inputsLocked) return;
+    loadSquadPlayers();
+  }, [match.id, inputsLocked, loadSquadPlayers]);
 
   const playerOptions = useMemo(() => {
     if (!Array.isArray(squadPlayers)) return [];
@@ -165,6 +173,14 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
               : `${friends} ${friends === 1 ? 'друг сделал' : friends < 5 ? 'друга сделали' : 'друзей сделали'} прогноз на этот матч`;
 
   const canSave = !inputsLocked && home !== '' && away !== '';
+
+  const playerPlaceholder = squadLoading
+    ? 'Загрузка…'
+    : squadError
+      ? 'Нет списка игроков'
+      : Array.isArray(squadPlayers) && squadPlayers.length === 0
+        ? 'Состав не найден'
+        : 'Фамилия';
 
   const pointsDetail = useMemo(() => {
     if (match.pointsDetail) return match.pointsDetail;
@@ -295,8 +311,9 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
             onMouseDown={loadSquadPlayers}
             onBlur={() => canSave && save()}
             disabled={inputsLocked}
+            title={squadError || undefined}
           >
-            <option value="">{squadLoading ? 'Загрузка…' : 'Фамилия'}</option>
+            <option value="">{playerPlaceholder}</option>
             {playerOptions.map((p) => (
               <option key={`${p.team}-${p.id}`} value={p.surname}>
                 {p.surname}
@@ -306,6 +323,9 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
             ))}
           </select>
         </div>
+        {squadError && !inputsLocked && (
+          <p className="squad-hint squad-hint--error">{squadError}</p>
+        )}
         <div
           className={`extra-row booster-row ${isBoosterHere ? 'booster-active' : ''} ${!canChangeBooster ? 'booster-row-disabled' : ''}`}
           onClick={() => moveBooster()}

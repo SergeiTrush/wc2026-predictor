@@ -2,6 +2,18 @@ const { mapApiTeamName, normalizeKey } = require('./team-map');
 
 const API_BASE = process.env.API_FOOTBALL_BASE || 'https://v3.football.api-sports.io';
 
+/** Extra search terms when league index misses a national team. */
+const SEARCH_HINTS = {
+  'united states': ['USA'],
+  'south korea': ['Korea Republic'],
+  'dr congo': ['Congo DR', 'DR Congo'],
+  'ivory coast': ["Cote d'Ivoire", 'Côte d\'Ivoire'],
+  'bosnia and herzegovina': ['Bosnia'],
+  'cape verde': ['Cabo Verde'],
+  'czechia': ['Czech Republic'],
+  'curacao': ['Curaçao'],
+};
+
 function isEnabled() {
   return Boolean(process.env.API_FOOTBALL_KEY?.trim());
 }
@@ -48,30 +60,120 @@ function extractSurname(fullName) {
   return last;
 }
 
+function normalizePlayers(rawPlayers) {
+  return rawPlayers
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      surname: extractSurname(p.name),
+      number: p.number ?? null,
+      position: p.position ?? null,
+    }))
+    .filter((p) => p.surname)
+    .sort((a, b) => a.surname.localeCompare(b.surname, 'ru'));
+}
+
 let teamIdByCanonical = null;
+const teamIdCache = new Map();
 const squadCache = new Map();
 
 async function ensureTeamIndex() {
   if (teamIdByCanonical) return teamIdByCanonical;
 
   const { leagueId, season } = getConfig();
-  const data = await apiFetch(`/teams?league=${leagueId}&season=${season}`);
   const map = new Map();
 
-  for (const row of data.response || []) {
-    const canonical = mapApiTeamName(row.team?.name);
-    if (canonical && row.team?.id) {
-      map.set(normalizeKey(canonical), row.team.id);
+  try {
+    const data = await apiFetch(`/teams?league=${leagueId}&season=${season}`);
+    for (const row of data.response || []) {
+      const canonical = mapApiTeamName(row.team?.name);
+      if (canonical && row.team?.id) {
+        map.set(normalizeKey(canonical), row.team.id);
+      }
     }
+  } catch (e) {
+    console.warn('API-Football team index:', e.message);
   }
 
   teamIdByCanonical = map;
   return map;
 }
 
+function searchTermsForTeam(teamName) {
+  const key = normalizeKey(teamName);
+  const terms = new Set([teamName]);
+  for (const hint of SEARCH_HINTS[key] || []) {
+    terms.add(hint);
+  }
+  return [...terms];
+}
+
+async function searchTeamId(teamName) {
+  for (const term of searchTermsForTeam(teamName)) {
+    const data = await apiFetch(`/teams?search=${encodeURIComponent(term)}`);
+    for (const row of data.response || []) {
+      const apiTeam = row.team;
+      if (!apiTeam?.id) continue;
+      const mapped = mapApiTeamName(apiTeam.name);
+      if (mapped && normalizeKey(mapped) === normalizeKey(teamName)) {
+        return apiTeam.id;
+      }
+    }
+  }
+  return null;
+}
+
 async function getTeamApiId(teamName) {
-  const map = await ensureTeamIndex();
-  return map.get(normalizeKey(teamName)) || null;
+  const key = normalizeKey(teamName);
+  if (teamIdCache.has(key)) return teamIdCache.get(key);
+
+  const index = await ensureTeamIndex();
+  let teamId = index.get(key) || null;
+  if (!teamId) {
+    teamId = await searchTeamId(teamName);
+  }
+
+  if (teamId) teamIdCache.set(key, teamId);
+  return teamId;
+}
+
+async function fetchSquadFromSquadsEndpoint(teamId) {
+  const data = await apiFetch(`/players/squads?team=${teamId}`);
+  const squad = data.response?.[0];
+  return normalizePlayers(squad?.players || []);
+}
+
+async function fetchSquadFromPlayersEndpoint(teamId, seasons) {
+  const byId = new Map();
+
+  for (const season of seasons) {
+    let page = 1;
+    let totalPages = 1;
+
+    while (page <= totalPages && page <= 6) {
+      const data = await apiFetch(`/players?team=${teamId}&season=${season}&page=${page}`);
+      totalPages = Number(data.paging?.total) || 1;
+
+      for (const row of data.response || []) {
+        const player = row.player;
+        if (!player?.id || byId.has(player.id)) continue;
+
+        const stats = row.statistics?.[0];
+        byId.set(player.id, {
+          id: player.id,
+          name: player.name,
+          surname: extractSurname(player.name),
+          number: stats?.games?.number ?? null,
+          position: stats?.games?.position ?? player.position ?? null,
+        });
+      }
+
+      if (!(data.response || []).length) break;
+      page += 1;
+    }
+  }
+
+  return normalizePlayers([...byId.values()]);
 }
 
 async function getTeamSquad(teamName) {
@@ -83,21 +185,16 @@ async function getTeamSquad(teamName) {
     return cached.players;
   }
 
-  const data = await apiFetch(`/players/squads?team=${teamId}`);
-  const squad = data.response?.[0];
-  const players = (squad?.players || [])
-    .map((p) => ({
-      id: p.id,
-      name: p.name,
-      surname: extractSurname(p.name),
-      number: p.number ?? null,
-      position: p.position ?? null,
-    }))
-    .filter((p) => p.surname)
-    .sort((a, b) => a.surname.localeCompare(b.surname, 'ru'));
+  const { season } = getConfig();
+  const fallbackSeasons = [...new Set([season, 2024, 2022, 2023])];
+
+  let players = await fetchSquadFromSquadsEndpoint(teamId);
+  if (!players.length) {
+    players = await fetchSquadFromPlayersEndpoint(teamId, fallbackSeasons);
+  }
 
   squadCache.set(teamId, { at: Date.now(), players });
-  return players;
+  return players.length ? players : null;
 }
 
 module.exports = {
@@ -107,4 +204,6 @@ module.exports = {
   extractSurname,
   getTeamSquad,
   getTeamApiId,
+  searchTeamId,
+  normalizePlayers,
 };

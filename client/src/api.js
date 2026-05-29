@@ -26,6 +26,9 @@ function apiErrorMessage(status, data, path) {
     return 'Сервер устарел — остановите и снова запустите: npm run dev';
   }
   if (status === 502 || status === 503) {
+    if (path?.includes('/teams/') && path?.includes('/players')) {
+      return data?.error || 'Добавьте API_FOOTBALL_KEY в .env на сервере (api-football.com).';
+    }
     return 'API не запущен. В отдельном терминале: npm run dev';
   }
   if (status >= 500) {

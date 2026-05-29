@@ -199,12 +199,6 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
         </span>
       </div>
 
-      {lockBannerText && (
-        <p className="match-card-status" role="status">
-          {lockBannerText}
-        </p>
-      )}
-
       {hasResult && liveBarVisible && (
         <div className="live-score-bar">
           <div className="live-score-label">
@@ -351,6 +345,12 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
             footerText
           )}
         </div>
+      )}
+
+      {lockBannerText && (
+        <p className="match-card-status" role="status">
+          {lockBannerText}
+        </p>
       )}
 
       {showFriendsPredictions && (

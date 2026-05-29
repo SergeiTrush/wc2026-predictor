@@ -267,6 +267,7 @@ a {
 
 /* Match card */
 .match-card {
+  --match-card-footer-padding: 0.6rem 1rem calc(0.6rem + 2px);
   display: flex;
   flex-direction: column;
   background: var(--card-blue-light);
@@ -286,17 +287,27 @@ a {
 
 .match-card-status {
   margin: 0;
-  padding: 0.55rem 1rem;
-  background: #fff;
-  color: var(--navy);
+  padding: var(--match-card-footer-padding);
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--text-muted);
   font-size: 0.8rem;
   font-weight: 600;
   text-align: center;
-  border-bottom: 1px solid rgba(12, 40, 79, 0.12);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0 0 12px 12px;
 }
 
-.match-card-locked .match-card-header {
-  border-bottom: none;
+.match-card-footer + .match-card-status {
+  border-radius: 0 0 12px 12px;
+}
+
+.match-card-footer:has(+ .match-card-status) {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.match-card-footer:has(+ .match-card-status)::after {
+  display: none;
 }
 
 .match-card-header {
@@ -473,7 +484,7 @@ a {
   margin: 0;
   background: #fff;
   color: var(--navy);
-  padding: 0.6rem 1rem calc(0.6rem + 2px);
+  padding: var(--match-card-footer-padding);
   font-size: 0.8rem;
   font-weight: 600;
   text-align: center;

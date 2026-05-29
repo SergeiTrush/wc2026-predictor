@@ -4,6 +4,8 @@ services:
     name: wc2026-predictor
     runtime: node
     plan: free
+    # Repo root (not client/) — single package.json for app + Vite
+    rootDir: .
     # Do not set NODE_ENV=production during build — Vite is a devDependency
     buildCommand: npm install --include=dev && npm run build
     startCommand: NODE_ENV=production npm start

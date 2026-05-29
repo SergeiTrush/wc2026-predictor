@@ -11,6 +11,8 @@ Your app will be at `https://wc2026-predictor.onrender.com` (name may vary).
 
 **Note (free tier):** Data is stored in SQLite on the server disk. It resets if the service sleeps or redeploys. Fine for friends testing; upgrade Render or add a volume for persistence.
 
+**Render build failed (`client/package.json` not found)?** In the service **Settings → Build & Deploy**, set **Root Directory** to empty (repo root), not `client`. Build command: `npm install --include=dev && npm run build`. If Root Directory must stay `client`, the shim `client/package.json` delegates install/build to the parent folder.
+
 ---
 
 ## Option B — Docker (Fly.io, Railway, any VPS)

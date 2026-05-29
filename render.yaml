@@ -1,0 +1,21 @@
+# https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: wc2026-predictor
+    runtime: node
+    plan: free
+    # Do not set NODE_ENV=production during build — Vite is a devDependency
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: NODE_ENV=production npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.11.0
+      - key: JWT_SECRET
+        generateValue: true
+      - key: API_FOOTBALL_KEY
+        sync: false
+      - key: API_FOOTBALL_LEAGUE_ID
+        value: "1"
+      - key: API_FOOTBALL_SEASON
+        value: "2026"

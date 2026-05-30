@@ -1,9 +1,13 @@
-import { useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { IconBack } from './AuthExitButton';
-import { HeaderMenuButton } from './LeagueMoreMenu';
 
-export default function AppHeader({ active, leagueId, onOpenMenu, isOwner, fixed = false }) {
+function navClass({ isActive }) {
+  return `nav-link${isActive ? ' active' : ''}`;
+}
+
+export default function AppHeader({ active, leagueId, isOwner = false, fixed = false }) {
   const navigate = useNavigate();
+  const base = leagueId ? `/league/${leagueId}` : null;
 
   return (
     <header className={`app-header${fixed ? ' app-header--fixed' : ''}`}>
@@ -26,28 +30,37 @@ export default function AppHeader({ active, leagueId, onOpenMenu, isOwner, fixed
             MATCH PREDICTOR
           </div>
         </div>
-        {leagueId && (
-          <div className="header-actions">
-            {onOpenMenu && <HeaderMenuButton leagueId={leagueId} onOpen={onOpenMenu} isOwner={isOwner} />}
-          </div>
-        )}
       </div>
-      <nav className="header-nav">
-        <button
-          type="button"
-          className={`nav-link ${active === 'matches' ? 'active' : ''}`}
-          onClick={() => leagueId && navigate(`/league/${leagueId}`)}
-        >
-          Матчи
-        </button>
-        <button
-          type="button"
-          className={`nav-link ${active === 'table' ? 'active' : ''}`}
-          onClick={() => leagueId && navigate(`/league/${leagueId}/table`)}
-        >
-          Таблица
-        </button>
-      </nav>
+      {base && (
+        <nav className="header-nav" aria-label="Разделы лиги">
+          <NavLink to={base} end className={navClass} aria-current={active === 'matches' ? 'page' : undefined}>
+            Матчи
+          </NavLink>
+          <NavLink
+            to={`${base}/table`}
+            className={navClass}
+            aria-current={active === 'table' ? 'page' : undefined}
+          >
+            Таблица
+          </NavLink>
+          <NavLink
+            to={`${base}/admin/results`}
+            className={navClass}
+            aria-current={active === 'results' ? 'page' : undefined}
+          >
+            Ввод Результатов
+          </NavLink>
+          {isOwner && (
+            <NavLink
+              to={`${base}/settings`}
+              className={navClass}
+              aria-current={active === 'settings' ? 'page' : undefined}
+            >
+              Настройки лиги
+            </NavLink>
+          )}
+        </nav>
+      )}
     </header>
   );
 }

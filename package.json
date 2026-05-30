@@ -7,15 +7,17 @@
   },
   "description": "World Cup 2026 friends league score predictor",
   "scripts": {
-    "dev": "concurrently -n server,client -c blue,green \"npm run dev:server\" \"npm run dev:client\"",
+    "dev": "concurrently --kill-others-on-fail -n server,client -c blue,green \"npm run dev:server\" \"npm run dev:client\"",
     "postinstall": "node scripts/ensure-sqlite.js",
-    "dev:server": "node scripts/ensure-sqlite.js && node server/index.js",
+    "dev:server": "node scripts/ensure-sqlite.js && node scripts/free-port.js && node server/index.js",
     "dev:client": "vite --config client/vite.config.js",
+    "clean:vite": "node scripts/clear-vite-cache.js",
     "build": "vite build --config client/vite.config.js",
     "preview": "vite preview --config client/vite.config.js",
     "render-build": "npm install --include=dev && npm run build",
     "start": "node server/index.js",
-    "test": "node --test server/scoring.test.js"
+    "test": "node --test server/scoring.test.js",
+    "export:squads": "node scripts/export-squads.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

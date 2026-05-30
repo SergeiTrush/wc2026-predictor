@@ -20,7 +20,7 @@ Your app will be at `https://wc2026-predictor.onrender.com` (name may vary).
 
 If the disk is missing, the app **fails to start** on Render (instead of silently losing data).
 
-**Render build failed (`client/package.json` not found)?** In the service **Settings → Build & Deploy**, set **Root Directory** to empty (repo root), not `client`. Build command: `npm install --include=dev && npm run build`. If Root Directory must stay `client`, the shim `client/package.json` delegates install/build to the parent folder.
+**Render build failed?** Set **Root Directory** to `.` (repo root), not `client`. Build command: `npm install --include=dev && npm run build`.
 
 ---
 

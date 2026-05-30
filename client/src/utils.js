@@ -82,11 +82,23 @@ export function matchHasResult(match) {
   return match?.home_score != null && match?.away_score != null;
 }
 
+export function matchHasLiveScore(match) {
+  const ls = match?.liveScore;
+  return ls?.homeScore != null && ls?.awayScore != null;
+}
+
+/** Match kicked off but final result not in DB yet — may have live score feed. */
+export function isMatchInPlayWindow(match) {
+  if (!match || matchHasResult(match)) return false;
+  const kickoff = new Date(match.kickoff).getTime();
+  return !Number.isNaN(kickoff) && kickoff <= Date.now();
+}
+
 /** Same condition as showing `.live-score-bar` / `.live-score-pending` on the match card. */
 export function isMatchLiveScoreBarVisible(match) {
   if (!match) return false;
   const hasResult = match.hasResult ?? matchHasResult(match);
-  return hasResult || !!match.locked;
+  return hasResult || !!match.locked || matchHasLiveScore(match);
 }
 
 /** @deprecated use isMatchLiveScoreBarVisible */

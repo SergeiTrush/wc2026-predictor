@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import PointsBreakdownPanel from './PointsBreakdownPanel';
 
-export default function PointsTooltip({ pointsDetail }) {
+export default function PointsTooltip({ pointsDetail, provisional = false }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
 
@@ -21,8 +21,10 @@ export default function PointsTooltip({ pointsDetail }) {
   const { total } = pointsDetail;
 
   return (
-    <div className="points-tooltip-wrap" ref={wrapRef}>
-      <span className="points-badge">+{total} оч.</span>
+    <div className={`points-tooltip-wrap${provisional ? ' points-tooltip-wrap--live' : ''}`} ref={wrapRef}>
+      <span className="points-badge">
+        {provisional ? '~' : ''}+{total} оч.
+      </span>
       <button
         type="button"
         className="points-info-btn"
@@ -39,6 +41,7 @@ export default function PointsTooltip({ pointsDetail }) {
         <PointsBreakdownPanel
           pointsDetail={pointsDetail}
           className="points-tooltip"
+          provisional={provisional}
         />
       )}
     </div>

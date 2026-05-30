@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
-import { IconBack } from '../components/AuthExitButton';
 import ModalOverlay from '../components/ModalOverlay';
 import { redirectIfLeagueForbidden } from '../leagueAccess';
 
@@ -19,9 +18,9 @@ export default function LeagueSettingsPage() {
   const load = async () => {
     setError('');
     const leagueRes = await api.league(id);
-    if (!Boolean(Number(leagueRes.league?.is_owner))) {
-      const err = new Error('Только владелец лиги');
-      err.forbidden = true;
+    if (!leagueRes.league?.is_owner) {
+      const err = new Error('Только владелец лиги может изменять настройки');
+      err.status = 403;
       throw err;
     }
     if (leagueRes.members) {
@@ -34,48 +33,30 @@ export default function LeagueSettingsPage() {
     load()
       .then(setData)
       .catch((e) => {
-        if (redirectIfLeagueForbidden(e, navigate)) return;
-        if (e.forbidden) {
+        if (e?.status === 403) {
           navigate(`/league/${id}`, { replace: true });
           return;
         }
+        if (redirectIfLeagueForbidden(e, navigate)) return;
         setError(e.message || 'Не удалось загрузить настройки');
       });
   }, [id, navigate]);
 
   if (error) {
     return (
-      <div className="app-root">
-        <div className="app-header settings-header">
-          <div className="settings-header-row">
-            <button
-              type="button"
-              className="header-icon-btn header-icon-btn--back"
-              aria-label="Назад"
-              onClick={() => navigate(`/league/${id}`)}
-            >
-              <IconBack />
-            </button>
-            <h1 className="settings-header-title">Настройки лиги</h1>
-          </div>
-        </div>
-        <p className="error-banner" style={{ margin: '1rem' }}>{error}</p>
-      </div>
+      <p className="error-banner league-settings-error">{error}</p>
     );
   }
 
   if (!data) {
     return (
-      <div className="auth-page" aria-busy="true" aria-live="polite">
-        <p className="empty-hint" style={{ margin: 0, color: '#fff' }}>
-          Загрузка…
-        </p>
+      <div className="league-page-loading" aria-busy="true" aria-live="polite">
+        <p>Загрузка…</p>
       </div>
     );
   }
 
   const { league, members } = data;
-  const isOwner = league.is_owner;
 
   const saveName = async () => {
     await api.updateLeague(id, name);
@@ -107,22 +88,8 @@ export default function LeagueSettingsPage() {
   };
 
   return (
-    <div className="app-root">
-      <div className="app-header settings-header">
-        <div className="settings-header-row">
-          <button
-            type="button"
-            className="header-icon-btn header-icon-btn--back"
-            aria-label="Назад"
-            onClick={() => navigate(`/league/${id}`)}
-          >
-            <IconBack />
-          </button>
-          <h1 className="settings-header-title">Настройки лиги</h1>
-        </div>
-      </div>
-
-      <div className="settings-page">
+    <>
+    <div className="settings-page">
         <div className="settings-label">Название лиги</div>
         <div className="settings-name-row">
           {editing ? (
@@ -142,18 +109,16 @@ export default function LeagueSettingsPage() {
           ) : (
             <>
               <span className="settings-name">{league.name}</span>
-              {isOwner && (
-                <button
-                  type="button"
-                  style={{ background: 'none', border: 'none', color: 'var(--yellow)', cursor: 'pointer' }}
-                  onClick={() => {
-                    setName(league.name);
-                    setEditing(true);
-                  }}
-                >
-                  ✎
-                </button>
-              )}
+              <button
+                type="button"
+                style={{ background: 'none', border: 'none', color: 'var(--yellow)', cursor: 'pointer' }}
+                onClick={() => {
+                  setName(league.name);
+                  setEditing(true);
+                }}
+              >
+                ✎
+              </button>
             </>
           )}
         </div>
@@ -172,24 +137,22 @@ export default function LeagueSettingsPage() {
               {m.is_you && !m.is_owner && <span className="you-badge">Вы</span>}
               {m.suspended ? <span className="suspended-badge">Отстранён</span> : ''}
             </span>
-            {isOwner && !m.is_you && !m.is_owner && (
+            {!m.is_you && !m.is_owner && (
               <button type="button" className="member-action" onClick={() => toggleSuspend(m.id)}>
                 {m.suspended ? 'Вернуть' : 'Отстранить'}
               </button>
             )}
           </div>
         ))}
-      </div>
+    </div>
 
-      {isOwner && (
-        <div className="delete-league-bar">
-          <button type="button" className="delete-league-btn" onClick={() => setShowDeleteConfirm(true)}>
-            🗑 Удалить лигу
-          </button>
-        </div>
-      )}
+    <div className="delete-league-bar">
+      <button type="button" className="delete-league-btn" onClick={() => setShowDeleteConfirm(true)}>
+        🗑 Удалить лигу
+      </button>
+    </div>
 
-      {showDeleteConfirm && data && (
+    {showDeleteConfirm && data && (
         <ModalOverlay
           onClick={() => {
             if (!deleting) setShowDeleteConfirm(false);
@@ -222,6 +185,6 @@ export default function LeagueSettingsPage() {
           </div>
         </ModalOverlay>
       )}
-    </div>
+    </>
   );
 }

@@ -1,11 +1,16 @@
-export default function PointsBreakdownPanel({ pointsDetail, className = '' }) {
+export default function PointsBreakdownPanel({ pointsDetail, className = '', provisional = false }) {
   if (!pointsDetail) return null;
 
   const { lines, total } = pointsDetail;
 
   return (
     <div className={`points-breakdown-panel ${className}`.trim()}>
-      <div className="points-breakdown-title">Как начислены очки</div>
+      <div className="points-breakdown-title">
+        {provisional ? 'Очки по текущему счёту' : 'Как начислены очки'}
+      </div>
+      {provisional && (
+        <p className="points-breakdown-live-note">Счёт может измениться до финального свистка</p>
+      )}
       {lines.length === 0 ? (
         <p className="points-breakdown-empty">Ни одна категория не совпала</p>
       ) : (

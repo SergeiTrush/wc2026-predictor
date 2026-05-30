@@ -8,19 +8,22 @@ const repoRoot = path.resolve(clientRoot, '..');
 
 export default defineConfig({
   root: clientRoot,
+  // Single node_modules at repo root; Vite cache lives there too
+  cacheDir: path.join(repoRoot, 'node_modules/.vite'),
   plugins: [react()],
   resolve: {
+    // Do NOT alias react/react-dom — that bypasses optimizeDeps and loads a 2nd copy
     dedupe: ['react', 'react-dom', 'react-router-dom'],
-    alias: {
-      react: path.join(repoRoot, 'node_modules/react'),
-      'react-dom': path.join(repoRoot, 'node_modules/react-dom'),
-    },
+    modules: [path.join(repoRoot, 'node_modules'), 'node_modules'],
   },
   optimizeDeps: {
-    include: ['react', 'react-dom', 'react-router-dom'],
+    include: ['react', 'react-dom', 'react-dom/client', 'react-router-dom'],
   },
   server: {
     port: 5173,
+    fs: {
+      allow: [repoRoot],
+    },
     proxy: {
       '/api': 'http://localhost:3001',
     },

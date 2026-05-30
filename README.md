@@ -44,20 +44,39 @@ SQLite data is stored in `./data/wc2026.db`. If you see `attempt to write a read
 
 Requires **Node.js 22+**.
 
-## Automatic results (API-Football)
+## Bzzoiro BSD (data provider)
 
-1. Register at [api-football.com](https://www.api-football.com/) (free tier: 100 requests/day).
-2. Copy `.env.example` to `.env` and set `API_FOOTBALL_KEY`.
-3. Restart the server — it syncs every 15 minutes and on demand from **Таблица → Обновить результаты**.
+All live data comes from [Bzzoiro BSD](https://sports.bzzoiro.com/) — free football REST API.
+
+1. Register at [sports.bzzoiro.com/register](https://sports.bzzoiro.com/register)
+2. Copy `.env.example` to `.env` and set `BZZOIRO_API_TOKEN`
+3. Restart the server — results sync every 15 minutes and on demand from **Таблица → Обновить результаты**
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `API_FOOTBALL_KEY` | — | Required for auto sync |
-| `API_FOOTBALL_LEAGUE_ID` | `1` | World Cup on api-sports |
-| `API_FOOTBALL_SEASON` | `2026` | Season year |
+| `BZZOIRO_API_TOKEN` | — | Required for squads + results sync |
+| `BZZOIRO_LEAGUE_ID` | auto | World Cup league id (optional) |
 | `RESULTS_SYNC_INTERVAL_MS` | `900000` | Auto sync interval |
+| `RESULTS_SYNC_MAX_EVENTS` | `15` | Max incident fetches per sync (first scorer) |
+| `SQUAD_PROVIDER_ORDER` | `local,bzzoiro` | Squad lookup order |
+| `EXPORT_SQUAD_DELAY_MS` | `400` | Delay between API calls during export |
 
 Scores update the `matches` table; the leaderboard recalculates using `shared/scoring.js`.
+
+## Player squads (Фамилия dropdown)
+
+Squads load from:
+
+1. **`server/data/squads.json`** — local cache (recommended for production)
+2. **Bzzoiro BSD** — `BZZOIRO_API_TOKEN`
+
+Export all squads once:
+
+```bash
+npm run export:squads
+```
+
+This writes `server/data/squads.json` with `{ surname, name, number, position }` per player.
 
 ## Data
 

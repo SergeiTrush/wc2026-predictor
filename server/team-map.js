@@ -1,4 +1,4 @@
-/** Map API-Football team names → names used in our seed database. */
+/** Map external API team names → names used in our seed database. */
 const ALIASES = {
   'united states': 'United States',
   usa: 'United States',
@@ -22,6 +22,8 @@ const ALIASES = {
   'new zealand': 'New Zealand',
   'cape verde': 'Cape Verde',
   'cabo verde': 'Cape Verde',
+  turkiye: 'Turkey',
+  türkiye: 'Turkey',
 };
 
 const CANONICAL = new Set([

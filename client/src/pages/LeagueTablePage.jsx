@@ -1,8 +1,6 @@
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { Fragment, useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
-import AppHeader from '../components/AppHeader';
-import LeagueMoreMenu from '../components/LeagueMoreMenu';
 import ScoringModal from '../components/ScoringModal';
 import { formatDateTime } from '../utils';
 import { redirectIfLeagueForbidden } from '../leagueAccess';
@@ -22,9 +20,9 @@ const MATCHDAY_TAGS = [
 
 const SYNC_DISABLED_MSG = (
   <>
-    Автосинхронизация выключена. Добавьте API_FOOTBALL_KEY на сервере (
-    <a href="https://www.api-football.com/" target="_blank" rel="noopener noreferrer">
-      api-football.com
+    Автосинхронизация выключена. Добавьте BZZOIRO_API_TOKEN на сервере (
+    <a href="https://sports.bzzoiro.com/register" target="_blank" rel="noopener noreferrer">
+      sports.bzzoiro.com
     </a>
     ).
   </>
@@ -43,14 +41,11 @@ export default function LeagueTablePage() {
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState('');
   const [showScoring, setShowScoring] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [matchdays, setMatchdays] = useState([]);
   const [selectedDayKey, setSelectedDayKey] = useState(null);
   const [expandedUserId, setExpandedUserId] = useState(null);
   const [userBreakdown, setUserBreakdown] = useState({});
   const [pageReady, setPageReady] = useState(false);
-  const [isOwner, setIsOwner] = useState(false);
-  const headerRef = useRef(null);
 
   const loadLeaderboard = useCallback(() => {
     api
@@ -67,10 +62,10 @@ export default function LeagueTablePage() {
     setPageReady(false);
     setSelectedDayKey(null);
 
-    Promise.allSettled([api.leaderboard(id), api.allMatches(id), api.resultsSyncStatus(), api.league(id)]).then((results) => {
+    Promise.allSettled([api.leaderboard(id), api.allMatches(id), api.resultsSyncStatus()]).then((results) => {
       if (!active) return;
 
-      const [leaderboardResult, matchesResult, syncResult, leagueResult] = results;
+      const [leaderboardResult, matchesResult, syncResult] = results;
 
       if (leaderboardResult.status === 'fulfilled') {
         setLeaderboard(leaderboardResult.value.leaderboard || []);
@@ -93,13 +88,6 @@ export default function LeagueTablePage() {
         setSyncStatus({ enabled: false });
       }
 
-      if (leagueResult.status === 'fulfilled') {
-        setIsOwner(Boolean(Number(leagueResult.value?.league?.is_owner)));
-      } else {
-        const e = leagueResult.reason;
-        if (!redirectIfLeagueForbidden(e, navigate)) setIsOwner(false);
-      }
-
       setPageReady(true);
     });
 
@@ -112,25 +100,6 @@ export default function LeagueTablePage() {
     if (!pageReady) return;
     loadLeaderboard();
   }, [pageReady, loadLeaderboard]);
-
-  useLayoutEffect(() => {
-    if (!pageReady) return;
-    const el = headerRef.current;
-    if (!el) return;
-
-    const update = () => {
-      document.documentElement.style.setProperty('--table-header-height', `${el.offsetHeight}px`);
-    };
-    update();
-
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    window.addEventListener('resize', update);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener('resize', update);
-    };
-  }, [pageReady]);
 
   const tableTitle = useMemo(() => {
     if (!selectedDayKey) return 'Таблица лиги';
@@ -218,62 +187,46 @@ export default function LeagueTablePage() {
 
   if (!pageReady) {
     return (
-      <div className="app-root">
-        <div className="auth-page" aria-busy="true" aria-live="polite">
-          <p>Загрузка таблицы…</p>
-        </div>
+      <div className="league-page-loading" aria-busy="true" aria-live="polite">
+        <p>Загрузка таблицы…</p>
       </div>
     );
   }
 
   return (
-    <div className="app-root league-table-page">
-      <div className="league-table-header-fixed" ref={headerRef}>
-        <AppHeader
-          active="table"
-          leagueId={id}
-          onOpenMenu={() => setMenuOpen(true)}
-          isOwner={isOwner}
-          fixed
-        />
-      </div>
-      <LeagueMoreMenu
-        leagueId={id}
-        open={menuOpen}
-        onClose={() => setMenuOpen(false)}
-      />
+    <>
       <div className="page-content page-content--table">
-        {syncStatus && (syncStatus.enabled || isOwner) && (
+        {syncStatus && syncStatus.enabled && (
           <div className="sync-status-card">
             <div className="sync-status-title">Результаты матчей</div>
-            {syncStatus.enabled ? (
-              <>
-                <p className="sync-status-text">
-                  Источник: {syncStatus.provider}
-                  <br />
-                  Последняя синхронизация: {formatSyncTime(syncStatus.lastSync)}
-                  {syncStatus.lastSummary?.updated != null && (
-                    <>
-                      <br />
-                      Обновлено: {syncStatus.lastSummary.updated} матчей
-                    </>
-                  )}
-                </p>
-                {isOwner && (
-                  <button
-                    type="button"
-                    className="btn-primary btn-sync"
-                    disabled={syncing}
-                    onClick={runSync}
-                  >
-                    {syncing ? 'Загрузка…' : 'Обновить результаты'}
-                  </button>
+            <>
+              <p className="sync-status-text">
+                Источник: {syncStatus.provider}
+                <br />
+                Последняя синхронизация: {formatSyncTime(syncStatus.lastSync)}
+                {syncStatus.lastSummary?.updated != null && (
+                  <>
+                    <br />
+                    Обновлено: {syncStatus.lastSummary.updated} матчей
+                  </>
                 )}
-              </>
-            ) : (
-              <p className="sync-status-text">{SYNC_DISABLED_MSG}</p>
-            )}
+              </p>
+              <button
+                type="button"
+                className="btn-primary btn-sync"
+                disabled={syncing}
+                onClick={runSync}
+              >
+                {syncing ? 'Загрузка…' : 'Обновить результаты'}
+              </button>
+            </>
             {syncMsg && <p className="sync-status-msg">{syncMsg}</p>}
+          </div>
+        )}
+        {syncStatus && !syncStatus.enabled && (
+          <div className="sync-status-card">
+            <div className="sync-status-title">Результаты матчей</div>
+            <p className="sync-status-text">{SYNC_DISABLED_MSG}</p>
           </div>
         )}
 
@@ -491,6 +444,6 @@ export default function LeagueTablePage() {
       </div>
 
       {showScoring && <ScoringModal onClose={() => setShowScoring(false)} />}
-    </div>
+    </>
   );
 }

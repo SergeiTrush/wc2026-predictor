@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { api } from '../api';
 import { loadMatchSquads } from '../teamSquads';
-import { teamFlag, formatMatchTime, boosterLabel, isMatchLiveScoreBarVisible, matchHasResult } from '../utils';
+import { teamFlag, formatMatchTime, boosterLabel, isMatchLiveScoreBarVisible, matchHasResult, matchHasLiveScore } from '../utils';
 import { breakdownMatchPoints, formatPointsBreakdown } from '../scoring';
 import PointsTooltip from './PointsTooltip';
 import FriendsPredictionsModal, { friendsLinkLabel } from './FriendsPredictionsModal';
+import FirstTeamSelect from './FirstTeamSelect';
+import FirstPlayerSelect from './FirstPlayerSelect';
 
 export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, boosterLocked }) {
   const pred = match.prediction;
@@ -18,10 +20,13 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
   const [saved, setSaved] = useState(false);
   const [showFriendsPredictions, setShowFriendsPredictions] = useState(false);
   const [squadPlayers, setSquadPlayers] = useState(null);
+  const [squadTeams, setSquadTeams] = useState(null);
   const [squadLoading, setSquadLoading] = useState(false);
   const [squadError, setSquadError] = useState('');
 
   const hasResult = match.hasResult ?? matchHasResult(match);
+  const liveScore = match.liveScore;
+  const showLiveScore = hasResult || matchHasLiveScore(match);
   const locked = !!match.locked;
   const liveBarVisible = isMatchLiveScoreBarVisible(match);
   const inputsLocked = liveBarVisible;
@@ -39,36 +44,35 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
 
   useEffect(() => {
     setSquadPlayers(null);
+    setSquadTeams(null);
     setSquadLoading(false);
     setSquadError('');
   }, [match.id]);
 
   const loadSquadPlayers = useCallback(() => {
-    if (inputsLocked || squadLoading || Array.isArray(squadPlayers)) return;
+    if (inputsLocked || squadLoading) return;
+    if (squadTeams !== null && !squadError) return;
+
     setSquadLoading(true);
     setSquadError('');
     loadMatchSquads(match.home_team, match.away_team)
-      .then((merged) => setSquadPlayers(merged))
+      .then((data) => {
+        setSquadTeams(data.teams || []);
+        setSquadPlayers(data.players || []);
+        setSquadError(data.warnings?.length ? data.warnings.join(' · ') : '');
+      })
       .catch((e) => {
+        setSquadTeams([]);
         setSquadPlayers([]);
         setSquadError(e?.message || 'Не удалось загрузить игроков');
       })
       .finally(() => setSquadLoading(false));
-  }, [inputsLocked, squadLoading, squadPlayers, match.home_team, match.away_team]);
-
-  useEffect(() => {
-    if (inputsLocked) return;
-    loadSquadPlayers();
-  }, [match.id, inputsLocked, loadSquadPlayers]);
+  }, [inputsLocked, squadLoading, squadTeams, squadError, match.home_team, match.away_team]);
 
   const playerOptions = useMemo(() => {
     if (!Array.isArray(squadPlayers)) return [];
-    if (firstTeam === 'home' || firstTeam === 'away') {
-      const teamName = firstTeam === 'home' ? match.home_team : match.away_team;
-      return squadPlayers.filter((p) => p.team === teamName);
-    }
     return squadPlayers;
-  }, [squadPlayers, firstTeam, match.home_team, match.away_team]);
+  }, [squadPlayers]);
 
   const mult = boosterLabel(match.stage);
   const lockMessage =
@@ -180,11 +184,26 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
       ? 'Нет списка игроков'
       : Array.isArray(squadPlayers) && squadPlayers.length === 0
         ? 'Состав не найден'
-        : 'Фамилия';
+        : 'Игрок';
 
   const pointsDetail = useMemo(() => {
     if (match.pointsDetail) return match.pointsDetail;
-    if (!hasResult || !pred) return null;
+    if (!pred) return null;
+
+    let actual = null;
+    if (hasResult) {
+      actual = match;
+    } else if (matchHasLiveScore(match)) {
+      actual = {
+        home_score: liveScore.homeScore,
+        away_score: liveScore.awayScore,
+        first_scorer_team: match.first_scorer_team ?? null,
+        first_scorer_player: match.first_scorer_player ?? null,
+        stage: match.stage,
+      };
+    }
+    if (!actual) return null;
+
     const raw = breakdownMatchPoints(
       {
         home_pred: pred.home_pred,
@@ -193,11 +212,13 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
         first_player: pred.first_player,
         booster: pred.booster ? 1 : 0,
       },
-      match,
+      actual,
       []
     );
     return formatPointsBreakdown(raw);
-  }, [match, pred, hasResult]);
+  }, [match, pred, hasResult, liveScore]);
+
+  const isProvisionalPoints = !hasResult && matchHasLiveScore(match) && !!pointsDetail;
 
   const lockBannerText = inputsLocked
     ? hasResult
@@ -215,23 +236,27 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
         </span>
       </div>
 
-      {hasResult && liveBarVisible && (
-        <div className="live-score-bar">
+      {showLiveScore && liveBarVisible && (
+        <div className={`live-score-bar ${!hasResult && liveScore?.isLive ? 'live-score-bar--inplay' : ''}`}>
           <div className="live-score-label">
-            <span className="live-tag">Счёт матча</span>
+            <span className={`live-tag ${!hasResult && liveScore?.isLive ? 'live-tag--pulse' : ''}`}>
+              {hasResult ? 'Счёт матча' : liveScore?.isLive ? 'LIVE' : 'Счёт'}
+              {!hasResult && liveScore?.minute != null ? ` ${liveScore.minute}'` : ''}
+            </span>
             <span className="live-score">
-              {match.home_score} : {match.away_score}
+              {hasResult ? match.home_score : liveScore.homeScore} :{' '}
+              {hasResult ? match.away_score : liveScore.awayScore}
             </span>
           </div>
           {pointsDetail ? (
-            <PointsTooltip pointsDetail={pointsDetail} />
-          ) : (
+            <PointsTooltip pointsDetail={pointsDetail} provisional={isProvisionalPoints} />
+          ) : showLiveScore ? (
             <span className="points-no-pred">Нет прогноза</span>
-          )}
+          ) : null}
         </div>
       )}
 
-      {liveBarVisible && !hasResult && (
+      {liveBarVisible && !showLiveScore && (
         <div className="live-score-bar live-score-pending">
           <span className="live-tag">Матч идёт</span>
           <span className="live-score-muted">Результат появится после финального свистка</span>
@@ -290,38 +315,29 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
       <div className="extra-predictions">
         <div className="extra-row">
           <span>Какая команда откроет счёт</span>
-          <select
+          <FirstTeamSelect
             value={firstTeam}
-            onChange={(e) => setFirstTeam(e.target.value)}
-            onBlur={() => canSave && save()}
+            onChange={setFirstTeam}
+            homeTeam={match.home_team}
+            awayTeam={match.away_team}
             disabled={inputsLocked}
-          >
-            <option value="">—</option>
-            <option value="home">{match.home_team}</option>
-            <option value="away">{match.away_team}</option>
-            <option value="none">Никто / 0:0</option>
-          </select>
+            onBlur={() => canSave && save()}
+          />
         </div>
         <div className="extra-row">
           <span>Какой игрок откроет счёт</span>
-          <select
+          <FirstPlayerSelect
             value={firstPlayer}
-            onChange={(e) => setFirstPlayer(e.target.value)}
-            onFocus={loadSquadPlayers}
-            onMouseDown={loadSquadPlayers}
-            onBlur={() => canSave && save()}
+            onChange={setFirstPlayer}
+            teams={squadTeams}
+            players={playerOptions}
+            loading={squadLoading}
+            placeholder={playerPlaceholder}
             disabled={inputsLocked}
             title={squadError || undefined}
-          >
-            <option value="">{playerPlaceholder}</option>
-            {playerOptions.map((p) => (
-              <option key={`${p.team}-${p.id}`} value={p.surname}>
-                {p.surname}
-                {firstTeam !== 'home' && firstTeam !== 'away' ? ` (${p.team})` : ''}
-                {p.number != null ? ` #${p.number}` : ''}
-              </option>
-            ))}
-          </select>
+            onOpen={loadSquadPlayers}
+            onBlur={() => canSave && save()}
+          />
         </div>
         {squadError && !inputsLocked && (
           <p className="squad-hint squad-hint--error">{squadError}</p>

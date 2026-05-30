@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { api, getToken, setToken } from './api';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
@@ -7,7 +7,12 @@ import LeaguePage from './pages/LeaguePage';
 import LeagueTablePage from './pages/LeagueTablePage';
 import LeagueSettingsPage from './pages/LeagueSettingsPage';
 import LeagueAdminResultsPage from './pages/LeagueAdminResultsPage';
-import LeagueGuard from './components/LeagueGuard';
+import LeagueLayout from './components/LeagueLayout';
+
+function LeagueMatchesRedirect() {
+  const { id } = useParams();
+  return <Navigate to={`/league/${id}`} replace />;
+}
 
 function App() {
   const [user, setUser] = useState(null);
@@ -59,64 +64,14 @@ function App() {
       />
       <Route
         path="/league/:id"
-        element={
-          user ? (
-            <LeagueGuard>
-              <LeaguePage />
-            </LeagueGuard>
-          ) : (
-            <Navigate to="/login" replace />
-          )
-        }
-      />
-      <Route
-        path="/league/:id/matches"
-        element={
-          user ? (
-            <LeagueGuard>
-              <LeaguePage />
-            </LeagueGuard>
-          ) : (
-            <Navigate to="/login" replace />
-          )
-        }
-      />
-      <Route
-        path="/league/:id/table"
-        element={
-          user ? (
-            <LeagueGuard>
-              <LeagueTablePage />
-            </LeagueGuard>
-          ) : (
-            <Navigate to="/login" replace />
-          )
-        }
-      />
-      <Route
-        path="/league/:id/settings"
-        element={
-          user ? (
-            <LeagueGuard>
-              <LeagueSettingsPage />
-            </LeagueGuard>
-          ) : (
-            <Navigate to="/login" replace />
-          )
-        }
-      />
-      <Route
-        path="/league/:id/admin/results"
-        element={
-          user ? (
-            <LeagueGuard>
-              <LeagueAdminResultsPage />
-            </LeagueGuard>
-          ) : (
-            <Navigate to="/login" replace />
-          )
-        }
-      />
+        element={user ? <LeagueLayout /> : <Navigate to="/login" replace />}
+      >
+        <Route index element={<LeaguePage />} />
+        <Route path="table" element={<LeagueTablePage />} />
+        <Route path="settings" element={<LeagueSettingsPage />} />
+        <Route path="admin/results" element={<LeagueAdminResultsPage />} />
+      </Route>
+      <Route path="/league/:id/matches" element={<LeagueMatchesRedirect />} />
       <Route path="*" element={<Navigate to={user ? '/' : '/login'} replace />} />
     </Routes>
   );

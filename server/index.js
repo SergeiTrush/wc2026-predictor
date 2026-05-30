@@ -39,7 +39,8 @@ const {
   startResultsSyncScheduler,
   isEnabled: resultsSyncEnabled,
 } = require('./sync-results');
-const { isEnabled: apiFootballEnabled, getTeamSquad } = require('./api-football');
+const { isSquadEnabled, getTeamSquad, getMatchSquads } = require('./squad-service');
+const { refreshIfStale, getLiveScoreForMatch, startLiveScoresScheduler } = require('./live-scores');
 const {
   GROUPS,
   GROUP_KEYS,
@@ -53,6 +54,11 @@ const {
 } = require('./bracket');
 
 const q = (query) => prepare(db, query);
+
+function finalScoreColumnsOk() {
+  const cols = new Set(db.prepare('PRAGMA table_info(matches)').all().map((c) => c.name));
+  return cols.has('final_home_score') && cols.has('final_away_score');
+}
 
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'wc2026-dev-secret-change-in-production';
@@ -138,6 +144,20 @@ function requireActiveLeagueMember(leagueId, userId, res) {
   return member;
 }
 
+function requireLeagueOwner(leagueId, userId, res) {
+  if (!requireActiveLeagueMember(leagueId, userId, res)) return false;
+  const league = q('SELECT owner_id FROM leagues WHERE id = ?').get(Number(leagueId));
+  if (!league) {
+    res.status(404).json({ error: 'Лига не найдена' });
+    return false;
+  }
+  if (Number(league.owner_id) !== Number(userId)) {
+    res.status(403).json({ error: 'Только владелец лиги может изменять настройки' });
+    return false;
+  }
+  return true;
+}
+
 function requireLeagueIdQuery(rawLeagueId, userId, res) {
   if (rawLeagueId == null || rawLeagueId === '') return null;
   const lid = Number(rawLeagueId);
@@ -146,13 +166,6 @@ function requireLeagueIdQuery(rawLeagueId, userId, res) {
     return false;
   }
   return requireActiveLeagueMember(lid, userId, res) ? lid : false;
-}
-
-function isLeagueOwner(leagueId, userId) {
-  return q('SELECT 1 FROM leagues WHERE id = ? AND owner_id = ?').get(
-    Number(leagueId),
-    Number(userId)
-  );
 }
 
 function leagueDetailPayload(leagueId, userId) {
@@ -384,10 +397,7 @@ app.get('/api/leagues/:id', authMiddleware, (req, res) => {
 
 app.get('/api/leagues/:id/settings', authMiddleware, (req, res) => {
   const leagueId = Number(req.params.id);
-  if (!requireActiveLeagueMember(leagueId, req.user.id, res)) return;
-  if (!isLeagueOwner(leagueId, req.user.id)) {
-    return res.status(403).json({ error: 'Только владелец лиги' });
-  }
+  if (!requireLeagueOwner(leagueId, req.user.id, res)) return;
   const payload = leagueDetailPayload(leagueId, req.user.id);
   if (!payload) return res.status(404).json({ error: 'Лига не найдена' });
   res.json(payload);
@@ -395,9 +405,7 @@ app.get('/api/leagues/:id/settings', authMiddleware, (req, res) => {
 
 app.patch('/api/leagues/:id', authMiddleware, (req, res) => {
   const leagueId = Number(req.params.id);
-  if (!isLeagueOwner(leagueId, req.user.id)) {
-    return res.status(403).json({ error: 'Только владелец лиги' });
-  }
+  if (!requireLeagueOwner(leagueId, req.user.id, res)) return;
   const { name } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'Название обязательно' });
   q('UPDATE leagues SET name = ? WHERE id = ?').run(name.trim(), leagueId);
@@ -406,9 +414,7 @@ app.patch('/api/leagues/:id', authMiddleware, (req, res) => {
 
 app.delete('/api/leagues/:id', authMiddleware, (req, res) => {
   const leagueId = Number(req.params.id);
-  if (!isLeagueOwner(leagueId, req.user.id)) {
-    return res.status(403).json({ error: 'Только владелец лиги' });
-  }
+  if (!requireLeagueOwner(leagueId, req.user.id, res)) return;
   q('DELETE FROM leagues WHERE id = ?').run(leagueId);
   res.json({ ok: true });
 });
@@ -453,9 +459,7 @@ app.post('/api/leagues/join', authMiddleware, (req, res) => {
 app.post('/api/leagues/:id/members/:userId/suspend', authMiddleware, (req, res) => {
   const leagueId = Number(req.params.id);
   const userId = Number(req.params.userId);
-  if (!isLeagueOwner(leagueId, req.user.id)) {
-    return res.status(403).json({ error: 'Только владелец лиги' });
-  }
+  if (!requireLeagueOwner(leagueId, req.user.id, res)) return;
   const row = q('SELECT suspended FROM league_members WHERE league_id = ? AND user_id = ?').get(
     leagueId,
     userId
@@ -661,7 +665,7 @@ app.get('/api/leagues/:id/users/:userId/matchday-points', authMiddleware, (req, 
 });
 
 // ——— Matches ———
-app.get('/api/matches', authMiddleware, (req, res) => {
+app.get('/api/matches', authMiddleware, async (req, res) => {
   const { stage, group, matchday, leagueId, all } = req.query;
   const returnAll = all === '1' || all === 'true';
   let query = 'SELECT * FROM matches WHERE 1=1';
@@ -685,6 +689,8 @@ app.get('/api/matches', authMiddleware, (req, res) => {
     query += ' LIMIT 48';
   }
   const matches = q(query).all(...params);
+
+  await refreshIfStale(db);
 
   const getPred = q(
     'SELECT * FROM predictions WHERE league_id = ? AND user_id = ? AND match_id = ?'
@@ -710,7 +716,10 @@ app.get('/api/matches', authMiddleware, (req, res) => {
         pointsDetail = formatPointsBreakdown(raw);
       }
     }
-    const { locked, lockReason } = matchLockState(m);
+    const liveScore = !hasResult ? getLiveScoreForMatch(m.id) : null;
+    const baseLock = matchLockState(m);
+    const locked = baseLock.locked || !!liveScore;
+    const lockReason = locked ? baseLock.lockReason || (liveScore ? 'started' : null) : null;
     const friendPredictions =
       lid && isActiveLeagueMember(lid, req.user.id)
         ? friendPredictionsForMatch(lid, m.id, req.user.id, m)
@@ -725,6 +734,7 @@ app.get('/api/matches', authMiddleware, (req, res) => {
       friendPredictions,
       hasResult,
       pointsDetail,
+      liveScore,
     };
   });
 
@@ -762,10 +772,34 @@ app.get('/api/leagues/:leagueId/matches/:matchId/predictions', authMiddleware, (
   sendFriendPredictions(req, res, req.params.leagueId, req.params.matchId);
 });
 
-app.get('/api/teams/:teamName/players', authMiddleware, async (req, res) => {
-  if (!apiFootballEnabled()) {
+app.get('/api/matches/:matchId/players', authMiddleware, async (req, res) => {
+  if (!isSquadEnabled()) {
     return res.status(503).json({
-      error: 'Список игроков недоступен. Добавьте API_FOOTBALL_KEY в .env на сервере.',
+      error:
+        'Список игроков недоступен. Запустите npm run export:squads или добавьте BZZOIRO_API_TOKEN в .env.',
+    });
+  }
+
+  const matchId = Number(req.params.matchId);
+  const match = q('SELECT home_team, away_team FROM matches WHERE id = ?').get(matchId);
+  if (!match) return res.status(404).json({ error: 'Матч не найден' });
+
+  try {
+    const result = await getMatchSquads(match.home_team, match.away_team);
+    res.json(result);
+  } catch (e) {
+    res.status(e.warnings?.length ? 502 : 404).json({
+      error: e.message,
+      warnings: e.warnings || [],
+    });
+  }
+});
+
+app.get('/api/teams/:teamName/players', authMiddleware, async (req, res) => {
+  if (!isSquadEnabled()) {
+    return res.status(503).json({
+      error:
+        'Список игроков недоступен. Запустите npm run export:squads или добавьте BZZOIRO_API_TOKEN в .env.',
     });
   }
 
@@ -775,13 +809,13 @@ app.get('/api/teams/:teamName/players', authMiddleware, async (req, res) => {
   }
 
   try {
-    const players = await getTeamSquad(teamName);
-    if (!players) {
+    const result = await getTeamSquad(teamName);
+    if (!result?.players?.length) {
       return res.status(404).json({
-        error: `Состав для «${teamName}» не найден в API-Football`,
+        error: `Состав для «${teamName}» не найден`,
       });
     }
-    res.json({ team: teamName, players });
+    res.json({ team: teamName, players: result.players, source: result.source });
   } catch (e) {
     res.status(502).json({ error: e.message });
   }
@@ -826,19 +860,12 @@ app.get('/api/matchdays', authMiddleware, (req, res) => {
   res.json({ matchdays });
 });
 
-function assertLeagueOwner(leagueId, userId, res) {
-  if (!leagueId || !isLeagueOwner(leagueId, userId)) {
-    res.status(403).json({ error: 'Только владелец этой лиги' });
-    return false;
-  }
-  return true;
-}
-
 app.put('/api/matches/:id/result', authMiddleware, (req, res) => {
   const matchId = Number(req.params.id);
-  const { leagueId, homeScore, awayScore, firstScorerTeam, firstScorerPlayer } = req.body;
+  const { leagueId, homeScore, awayScore, firstScorerTeam, firstScorerPlayer, finalHomeScore, finalAwayScore } =
+    req.body;
   const lid = Number(leagueId);
-  if (!assertLeagueOwner(lid, req.user.id, res)) return;
+  if (!lid || !requireActiveLeagueMember(lid, req.user.id, res)) return;
 
   const match = q('SELECT * FROM matches WHERE id = ?').get(matchId);
   if (!match) return res.status(404).json({ error: 'Матч не найден' });
@@ -847,10 +874,41 @@ app.put('/api/matches/:id/result', authMiddleware, (req, res) => {
     return res.status(400).json({ error: 'Укажите счёт' });
   }
 
+  let finalHome = match.final_home_score ?? null;
+  let finalAway = match.final_away_score ?? null;
+  if ('finalHomeScore' in req.body || 'finalAwayScore' in req.body) {
+    finalHome =
+      finalHomeScore === undefined || finalHomeScore === null || finalHomeScore === ''
+        ? null
+        : Number(finalHomeScore);
+    finalAway =
+      finalAwayScore === undefined || finalAwayScore === null || finalAwayScore === ''
+        ? null
+        : Number(finalAwayScore);
+    if (
+      (finalHome != null && (Number.isNaN(finalHome) || finalHome < 0)) ||
+      (finalAway != null && (Number.isNaN(finalAway) || finalAway < 0))
+    ) {
+      return res.status(400).json({ error: 'Некорректный итоговый счёт' });
+    }
+    if ((finalHome == null) !== (finalAway == null)) {
+      return res.status(400).json({ error: 'Укажите оба значения итогового счёта' });
+    }
+  }
+
   q(
     `UPDATE matches SET home_score = ?, away_score = ?,
-     first_scorer_team = ?, first_scorer_player = ? WHERE id = ?`
-  ).run(homeScore, awayScore, firstScorerTeam || null, firstScorerPlayer || null, matchId);
+     first_scorer_team = ?, first_scorer_player = ?,
+     final_home_score = ?, final_away_score = ? WHERE id = ?`
+  ).run(
+    homeScore,
+    awayScore,
+    firstScorerTeam || null,
+    firstScorerPlayer || null,
+    finalHome,
+    finalAway,
+    matchId
+  );
 
   res.json({ match: q('SELECT * FROM matches WHERE id = ?').get(matchId) });
 });
@@ -858,14 +916,15 @@ app.put('/api/matches/:id/result', authMiddleware, (req, res) => {
 app.delete('/api/matches/:id/result', authMiddleware, (req, res) => {
   const matchId = Number(req.params.id);
   const lid = Number(req.query.leagueId);
-  if (!assertLeagueOwner(lid, req.user.id, res)) return;
+  if (!lid || !requireActiveLeagueMember(lid, req.user.id, res)) return;
 
   const match = q('SELECT * FROM matches WHERE id = ?').get(matchId);
   if (!match) return res.status(404).json({ error: 'Матч не найден' });
 
   q(
     `UPDATE matches SET home_score = NULL, away_score = NULL,
-     first_scorer_team = NULL, first_scorer_player = NULL WHERE id = ?`
+     first_scorer_team = NULL, first_scorer_player = NULL,
+     final_home_score = NULL, final_away_score = NULL WHERE id = ?`
   ).run(matchId);
 
   res.json({ ok: true });
@@ -1037,16 +1096,9 @@ app.get('/api/results/sync-status', (_req, res) => {
 });
 
 app.post('/api/results/sync', authMiddleware, async (req, res) => {
-  const isOwner = q('SELECT 1 FROM leagues WHERE owner_id = ? LIMIT 1').get(req.user.id);
-  const adminSecret = process.env.ADMIN_SYNC_SECRET;
-  const headerSecret = req.headers['x-sync-secret'];
-  if (!isOwner && (!adminSecret || headerSecret !== adminSecret)) {
-    return res.status(403).json({ error: 'Только владелец лиги или администратор' });
-  }
   if (!resultsSyncEnabled()) {
     return res.status(503).json({
-      error:
-        'Автосинхронизация выключена. Добавьте API_FOOTBALL_KEY на сервере (api-football.com).',
+      error: 'Автосинхронизация выключена. Добавьте BZZOIRO_API_TOKEN в .env.',
     });
   }
   try {
@@ -1092,11 +1144,24 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: err.message || 'Ошибка сервера' });
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   if (!predictionsSchemaOk()) {
     console.error('FATAL: predictions table missing league_id — restart after db migration');
   }
+  if (!finalScoreColumnsOk()) {
+    console.error('FATAL: matches table missing final_home_score/final_away_score columns');
+  }
   startResultsSyncScheduler(db);
+  startLiveScoresScheduler(db);
   console.log(`WC 2026 Predictor API on http://localhost:${PORT}`);
-  console.log('  GET /api/teams/:teamName/players — squad list (requires API_FOOTBALL_KEY)');
+  console.log('  Final score fields (admin):', finalScoreColumnsOk() ? 'ready' : 'MISSING');
+  console.log('  GET /api/teams/:teamName/players — squad list (local JSON or API provider)');
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use. Stop the other process or run: lsof -ti :${PORT} | xargs kill`);
+    process.exit(1);
+  }
+  throw err;
 });

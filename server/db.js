@@ -123,6 +123,8 @@ db.exec(`
     match_label TEXT,
     home_score INTEGER,
     away_score INTEGER,
+    final_home_score INTEGER,
+    final_away_score INTEGER,
     first_scorer_team TEXT,
     first_scorer_player TEXT,
     external_fixture_id INTEGER
@@ -167,6 +169,8 @@ function migrate() {
     'ALTER TABLE predictions ADD COLUMN first_player TEXT',
     'ALTER TABLE predictions ADD COLUMN booster INTEGER NOT NULL DEFAULT 0',
     'ALTER TABLE matches ADD COLUMN external_fixture_id INTEGER',
+    'ALTER TABLE matches ADD COLUMN final_home_score INTEGER',
+    'ALTER TABLE matches ADD COLUMN final_away_score INTEGER',
   ];
   for (const sql of alters) {
     try {
@@ -178,6 +182,18 @@ function migrate() {
 }
 
 migrate();
+
+function ensureFinalScoreColumns() {
+  const cols = new Set(db.prepare('PRAGMA table_info(matches)').all().map((c) => c.name));
+  if (!cols.has('final_home_score')) {
+    db.exec('ALTER TABLE matches ADD COLUMN final_home_score INTEGER');
+  }
+  if (!cols.has('final_away_score')) {
+    db.exec('ALTER TABLE matches ADD COLUMN final_away_score INTEGER');
+  }
+}
+
+ensureFinalScoreColumns();
 
 function migratePredictionsPerLeague() {
   const cols = db.prepare('PRAGMA table_info(predictions)').all();

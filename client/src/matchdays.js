@@ -85,3 +85,21 @@ export function pickDefaultMatchday(days) {
   }
   return days[days.length - 1];
 }
+
+export const KNOCKOUT_MATCHDAYS = [
+  'round_of_32',
+  'round_of_16',
+  'quarter_final',
+  'semi_final',
+  'third_place',
+  'final',
+];
+
+export function isKnockoutMatchday(day) {
+  return KNOCKOUT_MATCHDAYS.includes(day);
+}
+
+export function isKnockoutMatch(match) {
+  const day = match.matchday || match.stage || '';
+  return isKnockoutMatchday(day);
+}

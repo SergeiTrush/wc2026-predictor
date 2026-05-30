@@ -11,6 +11,10 @@ export function setToken(token) {
 
 const DEV_HINT = 'Запустите API из корня проекта: npm run dev';
 
+function isPlayersPath(path) {
+  return path?.includes('/players');
+}
+
 function apiErrorMessage(status, data, path) {
   if (data?.error) return data.error;
   if (status >= 500 && !data?.error) {
@@ -20,14 +24,14 @@ function apiErrorMessage(status, data, path) {
     if (path?.includes('friend-predictions') || path?.includes('/predictions')) {
       return 'Не удалось загрузить прогнозы друзей — перезапустите сервер: npm run dev';
     }
-    if (path?.includes('/teams/') && path?.includes('/players')) {
+    if (isPlayersPath(path)) {
       return 'Список игроков недоступен — перезапустите API: npm run dev';
     }
     return 'Сервер устарел — остановите и снова запустите: npm run dev';
   }
   if (status === 502 || status === 503) {
-    if (path?.includes('/teams/') && path?.includes('/players')) {
-      return data?.error || 'Добавьте API_FOOTBALL_KEY в .env на сервере (api-football.com).';
+    if (isPlayersPath(path)) {
+      return data?.error || 'Запустите npm run export:squads или добавьте BZZOIRO_API_TOKEN в .env.';
     }
     return 'API не запущен. В отдельном терминале: npm run dev';
   }
@@ -58,9 +62,11 @@ async function request(path, options = {}) {
       if (!res.ok) {
         const isHtml = text.trimStart().startsWith('<');
         const err = new Error(
-          isHtml || (res.status >= 500 && !data?.error)
-            ? `API не запущен. ${DEV_HINT}`
-            : apiErrorMessage(res.status, data, path)
+          isHtml
+            ? apiErrorMessage(res.status, data, path)
+            : res.status >= 500 && !data?.error
+              ? `API не запущен. ${DEV_HINT}`
+              : apiErrorMessage(res.status, data, path)
         );
         err.status = res.status;
         throw err;
@@ -98,12 +104,6 @@ export const api = {
     request(`/leagues/${leagueId}/leaderboard${matchday ? `?matchday=${encodeURIComponent(matchday)}` : ''}`),
   userMatchdayPoints: (leagueId, userId) =>
     request(`/leagues/${leagueId}/users/${userId}/matchday-points`),
-  getBracket: (leagueId) => request(`/leagues/${leagueId}/bracket`),
-  saveBracket: (leagueId, picks, strict = false) =>
-    request(`/leagues/${leagueId}/bracket${strict ? '?strict=1' : ''}`, {
-      method: 'PUT',
-      body: JSON.stringify({ picks }),
-    }),
   matchdays: () => request('/matchdays'),
   matches: (params = {}) => {
     const q = new URLSearchParams(params).toString();
@@ -143,6 +143,7 @@ export const api = {
     request(`/matches/${matchId}/friend-predictions?leagueId=${leagueId}`),
   teamPlayers: (teamName) =>
     request(`/teams/${encodeURIComponent(teamName)}/players`),
+  matchPlayers: (matchId) => request(`/matches/${matchId}/players`),
   setResult: (matchId, body) =>
     request(`/matches/${matchId}/result`, { method: 'PUT', body: JSON.stringify(body) }),
   clearResult: (matchId, leagueId) =>

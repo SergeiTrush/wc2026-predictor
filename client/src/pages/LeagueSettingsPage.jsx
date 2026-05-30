@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { IconBack } from '../components/AuthExitButton';
+import ModalOverlay from '../components/ModalOverlay';
 import { redirectIfLeagueForbidden } from '../leagueAccess';
 
 export default function LeagueSettingsPage() {
@@ -189,8 +190,7 @@ export default function LeagueSettingsPage() {
       )}
 
       {showDeleteConfirm && data && (
-        <div
-          className="modal-overlay"
+        <ModalOverlay
           onClick={() => {
             if (!deleting) setShowDeleteConfirm(false);
           }}
@@ -220,7 +220,7 @@ export default function LeagueSettingsPage() {
               </button>
             </div>
           </div>
-        </div>
+        </ModalOverlay>
       )}
     </div>
   );

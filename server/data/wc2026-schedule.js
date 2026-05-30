@@ -14,7 +14,7 @@ const GROUP = [
   ['Qatar', 'Switzerland', '2026-06-13', '15:00', 'B', "Levi's Stadium", 'md1'],
   ['Brazil', 'Morocco', '2026-06-13', '18:00', 'C', 'MetLife Stadium', 'md1'],
   ['Haiti', 'Scotland', '2026-06-13', '21:00', 'C', 'Gillette Stadium', 'md1'],
-  ['Australia', 'Turkey', '2026-06-13', '00:00', 'D', 'BC Place', 'md1'],
+  ['Australia', 'Turkey', '2026-06-14', '00:00', 'D', 'BC Place', 'md1'],
   ['Germany', 'Curacao', '2026-06-14', '13:00', 'E', 'NRG Stadium', 'md1'],
   ['Ivory Coast', 'Ecuador', '2026-06-14', '19:00', 'E', 'Lincoln Financial Field', 'md1'],
   ['Netherlands', 'Japan', '2026-06-14', '16:00', 'F', 'AT&T Stadium', 'md1'],
@@ -26,7 +26,7 @@ const GROUP = [
   ['France', 'Senegal', '2026-06-16', '15:00', 'I', 'MetLife Stadium', 'md1'],
   ['Iraq', 'Norway', '2026-06-16', '18:00', 'I', 'Gillette Stadium', 'md1'],
   ['Argentina', 'Algeria', '2026-06-16', '21:00', 'J', 'Arrowhead Stadium', 'md1'],
-  ['Austria', 'Jordan', '2026-06-16', '00:00', 'J', "Levi's Stadium", 'md1'],
+  ['Austria', 'Jordan', '2026-06-17', '00:00', 'J', "Levi's Stadium", 'md1'],
   ['Portugal', 'DR Congo', '2026-06-17', '13:00', 'K', 'NRG Stadium', 'md1'],
   ['Uzbekistan', 'Colombia', '2026-06-17', '22:00', 'K', 'Estadio Azteca', 'md1'],
   ['England', 'Croatia', '2026-06-17', '16:00', 'L', 'AT&T Stadium', 'md1'],
@@ -39,12 +39,12 @@ const GROUP = [
   ['Mexico', 'South Korea', '2026-06-18', '21:00', 'A', 'Estadio Guadalajara', 'md2'],
   ['United States', 'Australia', '2026-06-19', '15:00', 'D', 'Lumen Field', 'md2'],
   ['Scotland', 'Morocco', '2026-06-19', '18:00', 'C', 'Gillette Stadium', 'md2'],
-  ['Brazil', 'Haiti', '2026-06-19', '20:30', 'C', 'Lincoln Financial Field', 'md2'],
-  ['Turkey', 'Paraguay', '2026-06-19', '23:00', 'D', "Levi's Stadium", 'md2'],
+  ['Brazil', 'Haiti', '2026-06-19', '21:00', 'C', 'Lincoln Financial Field', 'md2'],
+  ['Turkey', 'Paraguay', '2026-06-20', '00:00', 'D', "Levi's Stadium", 'md2'],
   ['Germany', 'Ivory Coast', '2026-06-20', '16:00', 'E', 'BMO Field', 'md2'],
   ['Ecuador', 'Curacao', '2026-06-20', '20:00', 'E', 'Arrowhead Stadium', 'md2'],
   ['Netherlands', 'Sweden', '2026-06-20', '13:00', 'F', 'NRG Stadium', 'md2'],
-  ['Tunisia', 'Japan', '2026-06-20', '00:00', 'F', 'Estadio BBVA', 'md2'],
+  ['Tunisia', 'Japan', '2026-06-21', '00:00', 'F', 'Estadio BBVA', 'md2'],
   ['Spain', 'Saudi Arabia', '2026-06-21', '12:00', 'H', 'Mercedes-Benz Stadium', 'md2'],
   ['Belgium', 'Iran', '2026-06-21', '15:00', 'G', 'SoFi Stadium', 'md2'],
   ['Uruguay', 'Cape Verde', '2026-06-21', '18:00', 'H', 'Hard Rock Stadium', 'md2'],
@@ -117,11 +117,11 @@ const KNOCKOUT = [
   ['Winner R16 M7', 'Winner R16 M8', '2026-07-11', '21:00', 'quarter_final', 'QF4', 'Arrowhead Stadium'],
   ['Winner QF1', 'Winner QF2', '2026-07-14', '15:00', 'semi_final', 'SF1', 'AT&T Stadium'],
   ['Winner QF3', 'Winner QF4', '2026-07-15', '15:00', 'semi_final', 'SF2', 'Mercedes-Benz Stadium'],
-  ['Loser SF1', 'Loser SF2', '2026-07-18', '17:00', 'third_place', '3rd place', 'Hard Rock Stadium'],
-  ['Winner SF1', 'Winner SF2', '2026-07-19', '15:00', 'final', 'Final', 'MetLife Stadium'],
+  ['Loser SF1', 'Loser SF2', '2026-07-18', '16:00', 'third_place', '3rd place', 'Hard Rock Stadium'],
+  ['Winner SF1', 'Winner SF2', '2026-07-19', '16:00', 'final', 'Final', 'MetLife Stadium'],
 ];
 
-const SCHEDULE_VERSION = 'fifa-wc2026-official-v3';
+const SCHEDULE_VERSION = 'fifa-wc2026-official-v7';
 
 const MATCHDAY_ORDER = [
   'md1',

@@ -92,23 +92,21 @@ export function isMatchLiveScoreBarVisible(match) {
 /** @deprecated use isMatchLiveScoreBarVisible */
 export const isMatchStarted = isMatchLiveScoreBarVisible;
 
-/** Match kickoff in US Eastern (host schedule), shown to the user. */
+/** Match kickoff in the user's local timezone. */
 export function formatMatchTime(iso) {
   if (!iso) return '';
   const d = new Date(iso);
   const datePart = d.toLocaleDateString('ru-RU', {
     day: 'numeric',
     month: 'long',
-    timeZone: 'America/New_York',
   });
   const timePart = d.toLocaleTimeString('ru-RU', {
     hour: '2-digit',
     minute: '2-digit',
-    timeZone: 'America/New_York',
   });
-  const nowEt = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
-  const matchEt = d.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
-  if (matchEt === nowEt) return `Сегодня, ${timePart}`;
+  const nowLocal = new Date().toLocaleDateString('en-CA');
+  const matchLocal = d.toLocaleDateString('en-CA');
+  if (matchLocal === nowLocal) return `Сегодня, ${timePart}`;
   return `${datePart}, ${timePart}`;
 }
 

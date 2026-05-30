@@ -1,6 +1,5 @@
-import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
+import ModalOverlay from './ModalOverlay';
 import { useLeagueOwner } from '../hooks/useLeagueOwner';
 
 export { useLeagueOwner } from '../hooks/useLeagueOwner';
@@ -30,12 +29,10 @@ export default function LeagueMoreMenu({ leagueId, open, onClose }) {
   const navigate = useNavigate();
   const isOwner = useLeagueOwner(leagueId);
 
-  useLockBodyScroll(open);
-
   if (!open) return null;
 
-  return createPortal(
-    <div className="modal-overlay modal-overlay--top-menu" onClick={onClose}>
+  return (
+    <ModalOverlay className="modal-overlay--top-menu" onClick={onClose} lockScroll>
       <div className="modal-sheet modal-sheet--top-menu" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header modal-header--menu">
           <h2>Меню</h2>
@@ -70,7 +67,6 @@ export default function LeagueMoreMenu({ leagueId, open, onClose }) {
           )}
         </div>
       </div>
-    </div>,
-    document.body
+    </ModalOverlay>
   );
 }

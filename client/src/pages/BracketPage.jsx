@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import AppHeader from '../components/AppHeader';
 import { useLeagueOwner } from '../hooks/useLeagueOwner';
+import ModalOverlay from '../components/ModalOverlay';
 import ScoringModal from '../components/ScoringModal';
 import { teamFlag } from '../utils';
 
@@ -242,7 +243,7 @@ export default function BracketPage() {
       </div>
 
       {menuOpen && (
-        <div className="modal-overlay" onClick={() => setMenuOpen(false)}>
+        <ModalOverlay onClick={() => setMenuOpen(false)}>
           <div className="modal-sheet" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>Меню</h2>
@@ -285,7 +286,7 @@ export default function BracketPage() {
               </button>
             )}
           </div>
-        </div>
+        </ModalOverlay>
       )}
 
       {showScoring && <ScoringModal onClose={() => setShowScoring(false)} />}

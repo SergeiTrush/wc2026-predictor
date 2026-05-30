@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { api } from '../api';
 import AuthExitButton from '../components/AuthExitButton';
+import ModalOverlay from '../components/ModalOverlay';
 
 export default function DashboardPage({ user, onLogout }) {
   const [leagues, setLeagues] = useState([]);
@@ -95,7 +96,7 @@ export default function DashboardPage({ user, onLogout }) {
         ))}
 
         {showCreate && (
-          <div className="modal-overlay" onClick={() => setShowCreate(false)}>
+          <ModalOverlay onClick={() => setShowCreate(false)}>
             <div className="modal-sheet" onClick={(e) => e.stopPropagation()}>
               <h3 style={{ marginBottom: '1rem' }}>Новая лига</h3>
               <form onSubmit={createLeague}>
@@ -108,11 +109,11 @@ export default function DashboardPage({ user, onLogout }) {
                 </button>
               </form>
             </div>
-          </div>
+          </ModalOverlay>
         )}
 
         {showJoin && (
-          <div className="modal-overlay" onClick={() => setShowJoin(false)}>
+          <ModalOverlay onClick={() => setShowJoin(false)}>
             <div className="modal-sheet" onClick={(e) => e.stopPropagation()}>
               <h3 style={{ marginBottom: '1rem' }}>Войти в лигу</h3>
               <form onSubmit={joinLeague}>
@@ -131,7 +132,7 @@ export default function DashboardPage({ user, onLogout }) {
                 </button>
               </form>
             </div>
-          </div>
+          </ModalOverlay>
         )}
       </div>
     </div>

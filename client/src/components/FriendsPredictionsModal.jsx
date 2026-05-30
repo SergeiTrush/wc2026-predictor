@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { teamFlag, boosterLabel } from '../utils';
+import ModalOverlay from './ModalOverlay';
 import PointsBreakdownPanel from './PointsBreakdownPanel';
 
 function formatFirstTeam(value, homeTeam, awayTeam) {
@@ -65,7 +66,7 @@ export default function FriendsPredictionsModal({ leagueId, match, onClose }) {
   const mult = boosterLabel(match.stage);
 
   return (
-    <div className="modal-overlay modal-overlay--center" onClick={onClose}>
+    <ModalOverlay className="modal-overlay--center" onClick={onClose}>
       <div className="modal-sheet friends-predictions-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>{title}</h2>
@@ -130,6 +131,6 @@ export default function FriendsPredictionsModal({ leagueId, match, onClose }) {
           </ul>
         </div>
       </div>
-    </div>
+    </ModalOverlay>
   );
 }

@@ -1022,6 +1022,11 @@ a {
   font-weight: 700;
 }
 
+#modal-root {
+  position: relative;
+  z-index: 200;
+}
+
 /* Modal */
 .modal-overlay {
   position: fixed;
@@ -1029,7 +1034,7 @@ a {
   background: rgba(0, 0, 0, 0.7);
   z-index: 200;
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: center;
 }
 
@@ -1063,8 +1068,9 @@ body.body-scroll-locked {
   max-width: 480px;
   max-height: 90vh;
   overflow-y: auto;
-  border-radius: 16px 16px 0 0;
+  border-radius: 0 0 16px 16px;
   padding: 1.25rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
 .modal-sheet--top-menu {

@@ -24,6 +24,7 @@ const path = require('path');
 
 const db = require('./db');
 const predictionsSchemaOk = require('./db').predictionsSchemaOk;
+const dbStartupInfo = require('./db').dbStartupInfo;
 const { prepare, transaction } = require('./sqlite-helpers');
 const { seedDatabase } = require('./seed');
 const {
@@ -74,6 +75,15 @@ if (seedResult.matchCount === 0) {
   console.warn('No matches in database — seed may have failed.');
 } else if (seedResult.updated) {
   console.log(`WC 2026 schedule synced: ${seedResult.rowsUpdated} matches updated`);
+}
+
+{
+  const info = dbStartupInfo();
+  console.log(
+    `SQLite database: ${info.dbPath}` +
+    (info.onRender ? ` (persistent disk: ${info.persistent ? 'yes' : 'NO'})` : '') +
+    `, users: ${info.userCount}`
+  );
 }
 
 const app = express();
@@ -1010,7 +1020,17 @@ app.get('/api/scoring/example', (_req, res) => {
   });
 });
 
-app.get('/health', (_req, res) => res.json({ ok: true }));
+app.get('/health', (_req, res) => {
+  const info = dbStartupInfo();
+  res.json({
+    ok: true,
+    db: {
+      path: info.dbPath,
+      persistent: info.persistent,
+      userCount: info.userCount,
+    },
+  });
+});
 
 app.get('/api/results/sync-status', (_req, res) => {
   res.json(getSyncStatus(db));

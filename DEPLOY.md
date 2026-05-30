@@ -9,9 +9,16 @@
 
 Your app will be at `https://wc2026-predictor.onrender.com` (name may vary).
 
-**Persistent data (Render):** `render.yaml` attaches a 1 GB disk at `/opt/render/project/src/data` (the app’s default `./data` folder). This requires the **Starter** plan (~$7/mo) — [free web services cannot use persistent disks](https://render.com/docs/free). Do **not** set `DATA_DIR=/data` on Node.js — that path is not the disk mount; logs should show `SQLite database: /opt/render/project/src/data/wc2026.db`.
+**Persistent data (Render):** `render.yaml` attaches a 1 GB disk at `/opt/render/project/src/data` (the app’s default `./data` folder). This requires the **Starter** plan (~$7/mo) — [free web services cannot use persistent disks](https://render.com/docs/free).
 
-After pushing this config, sync the blueprint in the Render Dashboard (or redeploy). Register your account again once — the disk starts empty. Existing env vars (including `JWT_SECRET`) are kept.
+**Render checklist:**
+1. **Disks** → mount path exactly: `/opt/render/project/src/data`
+2. **Environment** → delete `DATA_DIR` if it is set to `/data` (wrong path)
+3. Redeploy → logs must show `persistent disk: yes`
+4. Open `https://your-app.onrender.com/health` → `"persistent": true`, `"userCount"` increases after registration
+5. Register once after disk is configured; data survives later redeploys
+
+If the disk is missing, the app **fails to start** on Render (instead of silently losing data).
 
 **Render build failed (`client/package.json` not found)?** In the service **Settings → Build & Deploy**, set **Root Directory** to empty (repo root), not `client`. Build command: `npm install --include=dev && npm run build`. If Root Directory must stay `client`, the shim `client/package.json` delegates install/build to the parent folder.
 

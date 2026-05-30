@@ -1,7 +1,10 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
-const os = require('os');
+
+/** Render Node.js app root — persistent disk must mount here (see render.yaml). */
+const RENDER_DATA_DIR = '/opt/render/project/src/data';
+const DEFAULT_DATA_DIR = path.join(__dirname, '..', 'data');
 
 function isDirWritable(dir) {
   try {
@@ -15,33 +18,46 @@ function isDirWritable(dir) {
   }
 }
 
-function resolveDataDir() {
-  const candidates = [];
-  if (process.env.DATA_DIR) {
-    candidates.push(process.env.DATA_DIR);
+/** True when dir is a separate filesystem mount (e.g. Render persistent disk). */
+function isPersistentMount(dir) {
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    const dirStat = fs.statSync(dir);
+    const parentStat = fs.statSync(path.dirname(dir));
+    return dirStat.dev !== parentStat.dev;
+  } catch {
+    return false;
   }
-  candidates.push(path.join(__dirname, '..', 'data'));
-  if (process.env.NODE_ENV !== 'production') {
-    candidates.push(path.join(os.homedir(), '.wc2026-predictor'));
-  }
-
-  for (const dir of candidates) {
-    if (isDirWritable(dir)) {
-      if (process.env.DATA_DIR && dir !== process.env.DATA_DIR) {
-        console.warn(
-          `DATA_DIR "${process.env.DATA_DIR}" is not writable — using ${dir} instead`
-        );
-      }
-      return dir;
-    }
-  }
-
-  throw new Error(
-    'No writable directory for SQLite. Set DATA_DIR to a writable folder or fix permissions on ./data'
-  );
 }
 
-const dataDir = resolveDataDir();
+function resolveDataDir() {
+  const onRender = Boolean(process.env.RENDER_SERVICE_ID);
+  const isProd = process.env.NODE_ENV === 'production';
+
+  const dataDir = process.env.DATA_DIR
+    || (onRender ? RENDER_DATA_DIR : DEFAULT_DATA_DIR);
+
+  if (!isDirWritable(dataDir)) {
+    const hint = onRender
+      ? ` Mount a Render disk at ${RENDER_DATA_DIR} (Disks tab) and redeploy.`
+      : ' Set DATA_DIR to a writable folder or fix permissions on ./data';
+    throw new Error(`Database directory is not writable: ${dataDir}.${hint}`);
+  }
+
+  const persistent = isPersistentMount(dataDir);
+  if (onRender && isProd && !persistent) {
+    throw new Error(
+      `SQLite would use ephemeral storage (${dataDir}). ` +
+      `Attach a persistent disk mounted at ${RENDER_DATA_DIR} in the Render Dashboard, ` +
+      'remove DATA_DIR=/data if set, then redeploy. ' +
+      'See https://render.com/docs/disks'
+    );
+  }
+
+  return { dataDir, persistent, onRender };
+}
+
+const { dataDir, persistent, onRender } = resolveDataDir();
 const dbPath = path.join(dataDir, 'wc2026.db');
 
 if (fs.existsSync(dbPath)) {
@@ -58,7 +74,16 @@ if (fs.existsSync(dbPath)) {
 }
 
 const db = new Database(dbPath);
-console.log(`SQLite database: ${dbPath}`);
+
+function dbStartupInfo() {
+  let userCount = 0;
+  try {
+    userCount = db.prepare('SELECT COUNT(*) AS n FROM users').get().n;
+  } catch {
+    /* tables not ready yet */
+  }
+  return { dbPath, dataDir, persistent, onRender, userCount };
+}
 
 db.exec('PRAGMA foreign_keys = ON');
 
@@ -200,3 +225,4 @@ function predictionsSchemaOk() {
 
 module.exports = db;
 module.exports.predictionsSchemaOk = predictionsSchemaOk;
+module.exports.dbStartupInfo = dbStartupInfo;

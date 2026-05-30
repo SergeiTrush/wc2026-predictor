@@ -2,8 +2,8 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 
-/** Render Node.js app root — persistent disk must mount here (see render.yaml). */
-const RENDER_DATA_DIR = '/opt/render/project/src/data';
+/** Render persistent disk mount (see render.yaml and Disks tab). */
+const RENDER_DATA_DIR = '/var/data';
 const DEFAULT_DATA_DIR = path.join(__dirname, '..', 'data');
 
 function isDirWritable(dir) {
@@ -49,7 +49,7 @@ function resolveDataDir() {
     throw new Error(
       `SQLite would use ephemeral storage (${dataDir}). ` +
       `Attach a persistent disk mounted at ${RENDER_DATA_DIR} in the Render Dashboard, ` +
-      'remove DATA_DIR=/data if set, then redeploy. ' +
+      'set DATA_DIR=/var/data, then redeploy. ' +
       'See https://render.com/docs/disks'
     );
   }

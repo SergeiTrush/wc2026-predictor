@@ -9,13 +9,13 @@
 
 Your app will be at `https://wc2026-predictor.onrender.com` (name may vary).
 
-**Persistent data (Render):** `render.yaml` attaches a 1 GB disk at `/opt/render/project/src/data` (the app’s default `./data` folder). This requires the **Starter** plan (~$7/mo) — [free web services cannot use persistent disks](https://render.com/docs/free).
+**Persistent data (Render):** `render.yaml` attaches a 1 GB disk at `/var/data` and sets `DATA_DIR=/var/data`. This requires the **Starter** plan (~$7/mo) — [free web services cannot use persistent disks](https://render.com/docs/free).
 
 **Render checklist:**
-1. **Disks** → mount path exactly: `/opt/render/project/src/data`
-2. **Environment** → delete `DATA_DIR` if it is set to `/data` (wrong path)
-3. Redeploy → logs must show `persistent disk: yes`
-4. Open `https://your-app.onrender.com/health` → `"persistent": true`, `"userCount"` increases after registration
+1. **Disks** → mount path: `/var/data` (must match `DATA_DIR`)
+2. **Environment** → `DATA_DIR` = `/var/data`
+3. Redeploy → logs must show `SQLite database: /var/data/wc2026.db (persistent disk: yes)`
+4. Open `https://your-app.onrender.com/health` → `"persistent": true`; disk usage in Dashboard should rise above 0 GB after registration
 5. Register once after disk is configured; data survives later redeploys
 
 If the disk is missing, the app **fails to start** on Render (instead of silently losing data).

@@ -11,14 +11,16 @@ services:
     buildCommand: npm install --include=dev && npm run build
     startCommand: NODE_ENV=production npm start
     healthCheckPath: /health
-    # Node.js app root is /opt/render/project/src — mount disk on ./data
+    # Persistent disk — mount path must match DATA_DIR below
     disk:
       name: wc2026-data
-      mountPath: /opt/render/project/src/data
+      mountPath: /var/data
       sizeGB: 1
     envVars:
       - key: NODE_VERSION
         value: 22.11.0
+      - key: DATA_DIR
+        value: /var/data
       - key: JWT_SECRET
         generateValue: true
       - key: API_FOOTBALL_KEY

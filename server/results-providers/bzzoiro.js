@@ -7,17 +7,12 @@ const {
   datesAlign,
   findMatchForEvent,
 } = require('../match-lookup');
+const {
+  applyBzzoiroTeamPair,
+  resolveAndApplyKnockoutTeams,
+} = require('../resolve-knockout-teams');
 
 const FINISHED = new Set(['finished']);
-const NOT_STARTED = new Set([
-  'notstarted',
-  'scheduled',
-  'ns',
-  'postponed',
-  'cancelled',
-  'abandoned',
-  'tbd',
-]);
 const IN_PROGRESS = new Set([
   'inprogress',
   '1st_half',
@@ -65,22 +60,6 @@ function clearMatchResult(q, matchId) {
 function linkExternalFixture(q, matchId, externalId) {
   if (!externalId) return;
   q('UPDATE matches SET external_fixture_id = ? WHERE id = ?').run(externalId, matchId);
-}
-
-function clearFutureMatchResults(q) {
-  const result = q(
-    `UPDATE matches SET
-       home_score = NULL,
-       away_score = NULL,
-       first_scorer_team = NULL,
-       first_scorer_player = NULL,
-       final_home_score = NULL,
-       final_away_score = NULL,
-       is_finished = 0
-     WHERE home_score IS NOT NULL
-       AND datetime(kickoff) > datetime('now')`
-  ).run();
-  return result.changes || 0;
 }
 
 async function resolveLeagueId() {
@@ -166,6 +145,27 @@ async function fetchIncidents(eventId) {
   return data.incidents || [];
 }
 
+async function maybeFetchFirstScorer(cfg, eventFetches, match, fixture, errors) {
+  if (
+    eventFetches.value >= cfg.maxEventFetches ||
+    !fixture.externalId ||
+    (match.first_scorer_team != null && match.first_scorer_player != null)
+  ) {
+    return { firstTeam: null, firstPlayer: null, eventFetches: eventFetches.value };
+  }
+
+  try {
+    await sleep(120);
+    const incidents = await fetchIncidents(fixture.externalId);
+    eventFetches.value += 1;
+    const scorer = parseFirstScorer(incidents);
+    return { firstTeam: scorer.team, firstPlayer: scorer.player, eventFetches: eventFetches.value };
+  } catch (err) {
+    errors.push(`incidents ${fixture.externalId}: ${err.message}`);
+    return { firstTeam: null, firstPlayer: null, eventFetches: eventFetches.value };
+  }
+}
+
 async function syncResults(db) {
   const q = (sql) => prepare(db, sql);
   const cfg = getConfig();
@@ -174,27 +174,29 @@ async function syncResults(db) {
     return { ok: false, error: 'BZZOIRO_API_TOKEN not configured', updated: 0, cleared: 0 };
   }
 
-  let cleared = clearFutureMatchResults(q);
+  let cleared = 0;
   let updated = 0;
+  let liveUpdated = 0;
+  let teamsUpdated = 0;
   let skipped = 0;
   let eventFetches = 0;
+  const eventFetchesRef = { value: 0 };
   let fixturesSeen = 0;
   const errors = [];
 
-  const updateMatch = q(
+  const updateMatchScores = q(
     `UPDATE matches SET
        home_score = ?,
        away_score = ?,
        first_scorer_team = COALESCE(?, first_scorer_team),
        first_scorer_player = COALESCE(?, first_scorer_player),
        external_fixture_id = ?,
-       is_finished = 1
+       is_finished = ?
      WHERE id = ?`
   );
 
   const leagueId = await resolveLeagueId();
   if (!leagueId) {
-    cleared += clearFutureMatchResults(q);
     return {
       ok: false,
       error: 'World Cup 2026 league not found on Bzzoiro',
@@ -237,65 +239,70 @@ async function syncResults(db) {
 
     linkExternalFixture(q, match.id, fixture.externalId);
 
-    if (FINISHED.has(fixture.status)) {
-      if (matchKickoffInFuture(match)) {
-        if (hasStoredResult(match)) {
-          clearMatchResult(q, match.id);
-          cleared += 1;
-        }
-        continue;
-      }
+    if (applyBzzoiroTeamPair(db, match.id, fixture.home, fixture.away, fixture.externalId)) {
+      teamsUpdated += 1;
+    }
 
+    if (matchKickoffInFuture(match)) {
+      // Keep manual/test results before kickoff — never touch on sync.
+      continue;
+    }
+
+    if (IN_PROGRESS.has(fixture.status)) {
       if (fixture.homeGoals == null || fixture.awayGoals == null) {
         skipped += 1;
         continue;
       }
 
-      let firstTeam = null;
-      let firstPlayer = null;
+      const scorer = await maybeFetchFirstScorer(cfg, eventFetchesRef, match, fixture, errors);
+      eventFetches = eventFetchesRef.value;
 
-      if (
-        eventFetches < cfg.maxEventFetches &&
-        fixture.externalId &&
-        (match.first_scorer_team == null || match.first_scorer_player == null)
-      ) {
-        try {
-          await sleep(120);
-          const incidents = await fetchIncidents(fixture.externalId);
-          eventFetches += 1;
-          const scorer = parseFirstScorer(incidents);
-          firstTeam = scorer.team;
-          firstPlayer = scorer.player;
-        } catch (err) {
-          errors.push(`incidents ${fixture.externalId}: ${err.message}`);
-        }
-      }
-
-      updateMatch.run(
+      updateMatchScores.run(
         fixture.homeGoals,
         fixture.awayGoals,
-        firstTeam,
-        firstPlayer,
+        scorer.firstTeam,
+        scorer.firstPlayer,
         fixture.externalId,
+        0,
+        match.id
+      );
+      liveUpdated += 1;
+      continue;
+    }
+
+    if (FINISHED.has(fixture.status)) {
+      if (fixture.homeGoals == null || fixture.awayGoals == null) {
+        skipped += 1;
+        continue;
+      }
+
+      const scorer = await maybeFetchFirstScorer(cfg, eventFetchesRef, match, fixture, errors);
+      eventFetches = eventFetchesRef.value;
+
+      updateMatchScores.run(
+        fixture.homeGoals,
+        fixture.awayGoals,
+        scorer.firstTeam,
+        scorer.firstPlayer,
+        fixture.externalId,
+        1,
         match.id
       );
       updated += 1;
       continue;
     }
 
-    if (NOT_STARTED.has(fixture.status) || IN_PROGRESS.has(fixture.status)) {
-      if (hasStoredResult(match) && Number(match.is_finished) === 1) {
-        clearMatchResult(q, match.id);
-        cleared += 1;
-      }
-    }
+    // notstarted / scheduled — keep any manual results unchanged
   }
 
-  cleared += clearFutureMatchResults(q);
+  const internalTeams = resolveAndApplyKnockoutTeams(db);
+  teamsUpdated += internalTeams.teamsUpdated;
 
   const summary = {
     ok: true,
     updated,
+    liveUpdated,
+    teamsUpdated,
     cleared,
     skipped,
     eventFetches,
@@ -346,7 +353,7 @@ function startScheduler(db) {
     try {
       const result = await syncResults(db);
       console.log(
-        `Results sync: updated ${result.updated}, cleared ${result.cleared || 0}, skipped ${result.skipped}` +
+        `Results sync: updated ${result.updated}, live ${result.liveUpdated || 0}, teams ${result.teamsUpdated || 0}, cleared ${result.cleared || 0}, skipped ${result.skipped}` +
           (result.error ? ` — ${result.error}` : '')
       );
     } catch (err) {

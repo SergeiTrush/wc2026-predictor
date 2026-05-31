@@ -239,7 +239,7 @@ export default function LeagueTablePage() {
     try {
       const result = await api.syncResults();
       setSyncMsg(
-        `Обновлено: ${result.updated ?? 0}${result.cleared ? `, сброшено: ${result.cleared}` : ''}`
+        `Обновлено: ${result.updated ?? 0}${result.liveUpdated ? `, live: ${result.liveUpdated}` : ''}${result.teamsUpdated ? `, команды: ${result.teamsUpdated}` : ''}${result.cleared ? `, сброшено: ${result.cleared}` : ''}`
       );
       loadLeaderboard();
       setUserBreakdown({});

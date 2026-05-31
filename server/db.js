@@ -211,6 +211,24 @@ function ensureIsFinishedColumn() {
 
 ensureIsFinishedColumn();
 
+function ensureBracketSlotColumn() {
+  const cols = new Set(db.prepare('PRAGMA table_info(matches)').all().map((c) => c.name));
+  if (!cols.has('bracket_slot_id')) {
+    db.exec('ALTER TABLE matches ADD COLUMN bracket_slot_id TEXT');
+  }
+
+  const { matchLabelToBracketSlot } = require('./data/bracket-slots');
+  const rows = db.prepare('SELECT id, match_label, bracket_slot_id FROM matches').all();
+  const upd = db.prepare('UPDATE matches SET bracket_slot_id = ? WHERE id = ?');
+  for (const row of rows) {
+    if (row.bracket_slot_id) continue;
+    const slot = matchLabelToBracketSlot(row.match_label);
+    if (slot) upd.run(slot, row.id);
+  }
+}
+
+ensureBracketSlotColumn();
+
 function migratePredictionsPerLeague() {
   const cols = db.prepare('PRAGMA table_info(predictions)').all();
   if (cols.some((c) => c.name === 'league_id')) {

@@ -42,6 +42,7 @@ const {
 } = require('./sync-results');
 const { isSquadEnabled, getTeamSquad, getMatchSquads } = require('./squad-service');
 const { refreshIfStale, getLiveScoreForMatch, startLiveScoresScheduler } = require('./live-scores');
+const { resolveAndApplyKnockoutTeams } = require('./resolve-knockout-teams');
 const {
   GROUPS,
   GROUP_KEYS,
@@ -82,6 +83,11 @@ if (seedResult.matchCount === 0) {
   console.warn('No matches in database — seed may have failed.');
 } else if (seedResult.updated) {
   console.log(`WC 2026 schedule synced: ${seedResult.rowsUpdated} matches updated`);
+}
+
+const knockoutTeams = resolveAndApplyKnockoutTeams(db);
+if (knockoutTeams.teamsUpdated) {
+  console.log(`Knockout teams resolved: ${knockoutTeams.teamsUpdated} match(es)`);
 }
 
 {
@@ -1085,6 +1091,7 @@ app.put('/api/matches/:id/result', authMiddleware, (req, res) => {
     matchId
   );
 
+  resolveAndApplyKnockoutTeams(db);
   const saved = q('SELECT * FROM matches WHERE id = ?').get(matchId);
   res.json({ match: { ...saved, is_finished: finished, isFinished: finished === 1 } });
 });
@@ -1103,6 +1110,7 @@ app.delete('/api/matches/:id/result', authMiddleware, (req, res) => {
      final_home_score = NULL, final_away_score = NULL, is_finished = 0 WHERE id = ?`
   ).run(matchId);
 
+  resolveAndApplyKnockoutTeams(db);
   res.json({ ok: true });
 });
 

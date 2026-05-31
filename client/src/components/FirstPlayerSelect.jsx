@@ -101,10 +101,10 @@ export default function FirstPlayerSelect({
   );
 
   useEffect(() => {
-    if (!open || !useIconTrigger) return;
+    if (!open) return;
     const id = requestAnimationFrame(() => searchInputRef.current?.focus());
     return () => cancelAnimationFrame(id);
-  }, [open, useIconTrigger]);
+  }, [open]);
 
   const updateMenuPosition = useCallback(() => {
     const rect = triggerRef.current?.getBoundingClientRect();
@@ -243,16 +243,34 @@ export default function FirstPlayerSelect({
     open &&
     menuStyle &&
     createPortal(
-      <ul
+      <div
         ref={menuRef}
-        id={listId}
-        className="custom-select-menu custom-select-menu--players"
-        role="listbox"
+        className="custom-select-dropdown custom-select-dropdown--players"
         style={menuStyle}
-        aria-label="Игрок, открывший счёт"
       >
-        {menuBody}
-      </ul>,
+        <div className="custom-select-search">
+          <input
+            ref={searchInputRef}
+            type="search"
+            className="custom-select-search-input"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Поиск по имени"
+            aria-label="Поиск игрока по имени"
+            autoComplete="off"
+            spellCheck={false}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+        <ul
+          id={listId}
+          className="custom-select-menu custom-select-menu--players custom-select-menu--in-dropdown"
+          role="listbox"
+          aria-label="Игрок, открывший счёт"
+        >
+          {menuBody}
+        </ul>
+      </div>,
       document.body
     );
 

@@ -1,6 +1,7 @@
 const { prepare, transaction } = require('./sqlite-helpers');
 const { GROUP, KNOCKOUT, SCHEDULE_VERSION } = require('./data/wc2026-schedule');
 const { kickoffEt } = require('../shared/kickoff');
+const { matchLabelToBracketSlot } = require('./data/bracket-slots');
 
 function buildMatches() {
   const rows = [];
@@ -26,6 +27,7 @@ function buildMatches() {
       group_name: null,
       venue,
       match_label: label,
+      bracket_slot_id: matchLabelToBracketSlot(label),
     });
   }
   return rows;
@@ -150,8 +152,8 @@ function seedDatabase(db) {
 
   const insert = prepare(
     db,
-    `INSERT INTO matches (home_team, away_team, kickoff, matchday, stage, group_name, venue, match_label)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO matches (home_team, away_team, kickoff, matchday, stage, group_name, venue, match_label, bracket_slot_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
 
   const matches = buildMatches();
@@ -165,7 +167,8 @@ function seedDatabase(db) {
         m.stage,
         m.group_name,
         m.venue,
-        m.match_label
+        m.match_label,
+        m.bracket_slot_id ?? null
       );
     }
     setMeta(q, 'schedule_version', SCHEDULE_VERSION);

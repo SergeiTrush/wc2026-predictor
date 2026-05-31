@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 import CenteredSelectMenu from './CenteredSelectMenu';
 import PlusIconButton from './PlusIconButton';
 
+export const NO_FIRST_SCORER = 'none';
+
 function playerValue(player) {
   return (player.name || player.surname || '').trim();
 }
@@ -87,8 +89,10 @@ export default function FirstPlayerSelect({
   );
 
   const selected =
-    flatOptions.find((o) => o.value === value) ||
-    flatOptions.find((o) => o.legacySurname && o.legacySurname === value);
+    value === NO_FIRST_SCORER
+      ? { value: NO_FIRST_SCORER, label: 'Никто' }
+      : flatOptions.find((o) => o.value === value) ||
+        flatOptions.find((o) => o.legacySurname && o.legacySurname === value);
   const triggerLabel = selected?.label || value || placeholder;
 
   const close = useCallback(
@@ -206,6 +210,19 @@ export default function FirstPlayerSelect({
 
   const menuBody = (
     <>
+      {!searching && (
+        <li role="presentation">
+          <button
+            type="button"
+            role="option"
+            aria-selected={value === NO_FIRST_SCORER}
+            className={`custom-select-option ${value === NO_FIRST_SCORER ? 'custom-select-option--selected' : ''}`}
+            onClick={() => pick(NO_FIRST_SCORER)}
+          >
+            Никто
+          </button>
+        </li>
+      )}
       {!searching && (
         <li role="presentation">
           <button

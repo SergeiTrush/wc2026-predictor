@@ -7,8 +7,21 @@ import { breakdownMatchPoints, formatPointsBreakdown } from '../scoring';
 import PointsTooltip from './PointsTooltip';
 import FriendsPredictionsModal, { friendsLinkLabel } from './FriendsPredictionsModal';
 import FirstTeamSelect from './FirstTeamSelect';
-import FirstPlayerSelect from './FirstPlayerSelect';
+import FirstPlayerSelect, { NO_FIRST_SCORER } from './FirstPlayerSelect';
 import PlusIconButton from './PlusIconButton';
+
+function firstTeamSelection(value, homeTeam, awayTeam) {
+  if (value === 'home') return { label: homeTeam, flag: teamFlag(homeTeam) };
+  if (value === 'away') return { label: awayTeam, flag: teamFlag(awayTeam) };
+  if (value === 'none') return { label: 'Никто / 0:0', flag: null };
+  return null;
+}
+
+function firstPlayerSelection(value) {
+  if (value === NO_FIRST_SCORER) return 'Никто';
+  if (value) return value;
+  return null;
+}
 
 export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, boosterLocked }) {
   const pred = match.prediction;
@@ -182,6 +195,10 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
 
   const canSave = !inputsLocked && home !== '' && away !== '';
 
+  const scoreIsSet = hasLocalScore;
+  const missingFirstTeam = scoreIsSet && !firstTeam;
+  const missingFirstPlayer = scoreIsSet && !firstPlayer;
+
   const playerPlaceholder = squadLoading
     ? 'Загрузка…'
     : squadError
@@ -224,6 +241,9 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
   }, [match, pred, hasResult, liveScore]);
 
   const isProvisionalPoints = isLive && !!pointsDetail;
+
+  const selectedFirstTeam = firstTeamSelection(firstTeam, match.home_team, match.away_team);
+  const selectedFirstPlayer = firstPlayerSelection(firstPlayer);
 
   const lockBannerText = inputsLocked
     ? hasResult
@@ -324,37 +344,74 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
       )}
 
       <div className="extra-predictions">
-        <div className="extra-row">
-          <span>Какая команда откроет счёт</span>
-          <FirstTeamSelect
-            value={firstTeam}
-            onChange={(next) => {
-              setFirstTeam(next);
-              if (canSave) save({ firstTeam: next || null });
-            }}
-            homeTeam={match.home_team}
-            awayTeam={match.away_team}
-            disabled={inputsLocked}
-            triggerVariant="icon"
-          />
+        <div className={`extra-row ${missingFirstTeam ? 'extra-row--missing' : ''}`}>
+          <span className="extra-row-label">
+            Какая команда откроет счёт
+            {missingFirstTeam && (
+              <span className="extra-row-missing-hint">Не выбрано</span>
+            )}
+          </span>
+          <div className="extra-row-picker">
+            {selectedFirstTeam ? (
+              <span className="extra-row-selection" title={selectedFirstTeam.label}>
+                {selectedFirstTeam.flag ? (
+                  <span className="extra-row-selection-flag" aria-hidden="true">
+                    {selectedFirstTeam.flag}
+                  </span>
+                ) : null}
+                <span className="extra-row-selection-text">{selectedFirstTeam.label}</span>
+              </span>
+            ) : missingFirstTeam ? (
+              <span className="extra-row-missing" aria-hidden="true">
+                —
+              </span>
+            ) : null}
+            <FirstTeamSelect
+              value={firstTeam}
+              onChange={(next) => {
+                setFirstTeam(next);
+                if (canSave) save({ firstTeam: next || null });
+              }}
+              homeTeam={match.home_team}
+              awayTeam={match.away_team}
+              disabled={inputsLocked}
+              triggerVariant="icon"
+            />
+          </div>
         </div>
-        <div className="extra-row">
-          <span>Какой игрок откроет счёт</span>
-          <FirstPlayerSelect
-            value={firstPlayer}
-            onChange={(next) => {
-              setFirstPlayer(next);
-              if (canSave) save({ firstPlayer: next || null });
-            }}
-            teams={squadTeams}
-            players={playerOptions}
-            loading={squadLoading}
-            placeholder={playerPlaceholder}
-            disabled={inputsLocked}
-            triggerVariant="icon"
-            title={squadError || undefined}
-            onOpen={loadSquadPlayers}
-          />
+        <div className={`extra-row ${missingFirstPlayer ? 'extra-row--missing' : ''}`}>
+          <span className="extra-row-label">
+            Какой игрок откроет счёт
+            {missingFirstPlayer && (
+              <span className="extra-row-missing-hint">Не выбрано</span>
+            )}
+          </span>
+          <div className="extra-row-picker">
+            {selectedFirstPlayer ? (
+              <span className="extra-row-selection" title={selectedFirstPlayer}>
+                <span className="extra-row-selection-text">{selectedFirstPlayer}</span>
+              </span>
+            ) : missingFirstPlayer ? (
+              <span className="extra-row-missing" aria-hidden="true">
+                —
+              </span>
+            ) : null}
+            <FirstPlayerSelect
+              value={firstPlayer}
+              onChange={(next) => {
+                setFirstPlayer(next);
+                if (canSave) save({ firstPlayer: next || null });
+              }}
+              teams={squadTeams}
+              players={playerOptions}
+              loading={squadLoading}
+              placeholder={playerPlaceholder}
+              disabled={inputsLocked}
+              triggerVariant="icon"
+              title={squadError || undefined}
+              onOpen={loadSquadPlayers}
+            />
+          </div>
         </div>
         {squadError && !inputsLocked && (
           <p className="squad-hint squad-hint--error">{squadError}</p>

@@ -40,7 +40,18 @@ function playersMatch(pred, actual) {
 
 function firstTeamMatches(predTeam, actualTeam) {
   if (!predTeam || !actualTeam) return false;
+  if (predTeam === 'none') {
+    return actualTeam === 'none';
+  }
   return predTeam === actualTeam;
+}
+
+function isNoScorerPrediction(firstPlayer) {
+  return firstPlayer === 'none';
+}
+
+function isNoGoalMatch(homeScore, awayScore) {
+  return homeScore === 0 && awayScore === 0;
 }
 
 export function breakdownMatchPoints(pred, actual) {
@@ -77,12 +88,16 @@ export function breakdownMatchPoints(pred, actual) {
   if (home_pred - away_pred === home_score - away_score) goalDifference = 3;
 
   let firstTeam = 0;
-  if (firstTeamMatches(first_team, first_scorer_team)) {
+  if (first_team === 'none' && isNoGoalMatch(home_score, away_score)) {
+    firstTeam = 2;
+  } else if (firstTeamMatches(first_team, first_scorer_team)) {
     firstTeam = 2;
   }
 
   let firstPlayer = 0;
-  if (first_player && first_scorer_player && playersMatch(first_player, first_scorer_player)) {
+  if (isNoScorerPrediction(first_player) && isNoGoalMatch(home_score, away_score)) {
+    firstPlayer = 8;
+  } else if (first_player && first_scorer_player && playersMatch(first_player, first_scorer_player)) {
     firstPlayer = 8;
   }
 

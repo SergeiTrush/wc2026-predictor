@@ -74,6 +74,39 @@ test('first player matches by surname when API uses full name', () => {
   assert.equal(b.firstPlayer, 8);
 });
 
+test('first player "none" on 0-0 match = 8 points', () => {
+  const b = breakdownMatchPoints(
+    {
+      home_pred: 0,
+      away_pred: 0,
+      first_player: 'none',
+      booster: 0,
+    },
+    {
+      home_score: 0,
+      away_score: 0,
+      first_scorer_team: null,
+      first_scorer_player: null,
+      stage: 'group',
+    }
+  );
+  assert.equal(b.firstPlayer, 8);
+  assert.equal(b.total, 18);
+});
+
+test('first player "none" on non 0-0 match = 0 player points', () => {
+  const b = breakdownMatchPoints(
+    {
+      home_pred: 1,
+      away_pred: 0,
+      first_player: 'none',
+      booster: 0,
+    },
+    baseActual
+  );
+  assert.equal(b.firstPlayer, 0);
+});
+
 test('final with booster caps at 5x on match subtotal', () => {
   const b = breakdownMatchPoints(
     { home_pred: 2, away_pred: 1, booster: 1 },

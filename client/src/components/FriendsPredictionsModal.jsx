@@ -13,6 +13,11 @@ function formatFirstTeam(value, homeTeam, awayTeam) {
   return '—';
 }
 
+function formatFirstPlayer(value) {
+  if (value === 'none') return 'Никто';
+  return value || '';
+}
+
 function friendsLinkLabel(count) {
   if (count === 1) return 'Посмотреть прогноз твоего друга';
   const mod10 = count % 10;
@@ -173,7 +178,7 @@ export default function FriendsPredictionsModal({ leagueId, match, onClose }) {
                   </div>
                   <div className="friends-prediction-meta">
                     Первый гол: {formatFirstTeam(p.first_team, match.home_team, match.away_team)}
-                    {p.first_player ? ` · ${p.first_player}` : ''}
+                    {formatFirstPlayer(p.first_player) ? ` · ${formatFirstPlayer(p.first_player)}` : ''}
                   </div>
                 </li>
               );

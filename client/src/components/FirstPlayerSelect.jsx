@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import CenteredSelectMenu from './CenteredSelectMenu';
+import PlusIconButton from './PlusIconButton';
 
 function playerValue(player) {
   return (player.name || player.surname || '').trim();
@@ -21,15 +23,26 @@ function buildOptionsFromPlayers(players, { grouped = false } = {}) {
     const dedupeKey = p.id != null ? `${p.team}:${p.id}` : `${p.team}:${value.toLowerCase()}`;
     if (seen.has(dedupeKey)) return [];
     seen.add(dedupeKey);
+    const searchHaystack = [value, p.surname, p.name, p.team, p.number != null ? String(p.number) : '']
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
     return [
       {
         value,
         label: formatPlayerLabel(p, { grouped }),
         legacySurname: p.surname || '',
+        searchHaystack,
         key: `${dedupeKey}:${value}:${p.number ?? ''}`,
       },
     ];
   });
+}
+
+function filterOptionsByQuery(options, query) {
+  const q = query.trim().toLowerCase();
+  if (!q) return options;
+  return options.filter((opt) => opt.searchHaystack?.includes(q) || opt.label.toLowerCase().includes(q));
 }
 
 function buildGroupedSections(teams) {
@@ -55,13 +68,17 @@ export default function FirstPlayerSelect({
   onOpen,
   title,
   className = '',
+  triggerVariant = 'default',
 }) {
   const [open, setOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [menuStyle, setMenuStyle] = useState(null);
   const rootRef = useRef(null);
   const menuRef = useRef(null);
   const triggerRef = useRef(null);
+  const searchInputRef = useRef(null);
   const listId = useId();
+  const useIconTrigger = triggerVariant === 'icon';
 
   const groupedSections = useMemo(() => buildGroupedSections(teams), [teams]);
   const flatOptions = useMemo(
@@ -77,10 +94,17 @@ export default function FirstPlayerSelect({
   const close = useCallback(
     (fireBlur = true) => {
       setOpen(false);
+      setSearchQuery('');
       if (fireBlur) onBlur?.();
     },
     [onBlur]
   );
+
+  useEffect(() => {
+    if (!open || !useIconTrigger) return;
+    const id = requestAnimationFrame(() => searchInputRef.current?.focus());
+    return () => cancelAnimationFrame(id);
+  }, [open, useIconTrigger]);
 
   const updateMenuPosition = useCallback(() => {
     const rect = triggerRef.current?.getBoundingClientRect();
@@ -95,7 +119,7 @@ export default function FirstPlayerSelect({
   }, []);
 
   useLayoutEffect(() => {
-    if (!open) return;
+    if (!open || useIconTrigger) return;
     updateMenuPosition();
     window.addEventListener('resize', updateMenuPosition);
     window.addEventListener('scroll', updateMenuPosition, true);
@@ -103,10 +127,10 @@ export default function FirstPlayerSelect({
       window.removeEventListener('resize', updateMenuPosition);
       window.removeEventListener('scroll', updateMenuPosition, true);
     };
-  }, [open, updateMenuPosition]);
+  }, [open, updateMenuPosition, useIconTrigger]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || useIconTrigger) return;
     const onDocPointer = (e) => {
       if (rootRef.current?.contains(e.target) || menuRef.current?.contains(e.target)) return;
       close(true);
@@ -120,18 +144,18 @@ export default function FirstPlayerSelect({
       document.removeEventListener('mousedown', onDocPointer);
       document.removeEventListener('keydown', onKey);
     };
-  }, [open, close]);
+  }, [open, close, useIconTrigger]);
 
   const pick = (next) => {
     if (disabled) return;
     onChange(next);
-    close(true);
+    close(false);
   };
 
   const openMenu = () => {
     if (disabled) return;
     onOpen?.();
-    updateMenuPosition();
+    if (!useIconTrigger) updateMenuPosition();
     setOpen(true);
   };
 
@@ -144,57 +168,45 @@ export default function FirstPlayerSelect({
     openMenu();
   };
 
-  const renderOptions = () => {
-    if (groupedSections.length) {
-      return groupedSections.map((section) => (
+  const renderOptionButton = (opt) => (
+    <li key={opt.key} role="presentation">
+      <button
+        type="button"
+        role="option"
+        aria-selected={value === opt.value}
+        className={`custom-select-option ${value === opt.value ? 'custom-select-option--selected' : ''}`}
+        onClick={() => pick(opt.value)}
+      >
+        {opt.label}
+      </button>
+    </li>
+  );
+
+  const renderOptions = (sections = groupedSections, options = flatOptions) => {
+    if (sections.length && !searchQuery.trim()) {
+      return sections.map((section) => (
         <li key={section.team} className="custom-select-group" role="presentation">
           <div className="custom-select-group-label">{section.team}</div>
           <ul className="custom-select-group-list">
-            {section.options.map((opt) => (
-              <li key={opt.key} role="presentation">
-                <button
-                  type="button"
-                  role="option"
-                  aria-selected={value === opt.value}
-                  className={`custom-select-option ${value === opt.value ? 'custom-select-option--selected' : ''}`}
-                  onClick={() => pick(opt.value)}
-                >
-                  {opt.label}
-                </button>
-              </li>
-            ))}
+            {section.options.map((opt) => renderOptionButton(opt))}
           </ul>
         </li>
       ));
     }
 
-    return flatOptions.map((opt) => (
-      <li key={opt.key} role="presentation">
-        <button
-          type="button"
-          role="option"
-          aria-selected={value === opt.value}
-          className={`custom-select-option ${value === opt.value ? 'custom-select-option--selected' : ''}`}
-          onClick={() => pick(opt.value)}
-        >
-          {opt.label}
-        </button>
-      </li>
-    ));
+    return options.map((opt) => renderOptionButton(opt));
   };
 
-  const menu =
-    open &&
-    menuStyle &&
-    createPortal(
-      <ul
-        ref={menuRef}
-        id={listId}
-        className="custom-select-menu custom-select-menu--players"
-        role="listbox"
-        style={menuStyle}
-        aria-label="Игрок, открывший счёт"
-      >
+  const filteredOptions = useMemo(
+    () => filterOptionsByQuery(flatOptions, searchQuery),
+    [flatOptions, searchQuery]
+  );
+
+  const searching = searchQuery.trim().length > 0;
+
+  const menuBody = (
+    <>
+      {!searching && (
         <li role="presentation">
           <button
             type="button"
@@ -206,20 +218,89 @@ export default function FirstPlayerSelect({
             {emptyLabel}
           </button>
         </li>
-        {loading && (
-          <li className="custom-select-status" role="presentation">
-            Загрузка…
-          </li>
-        )}
-        {!loading && renderOptions()}
-        {!loading && flatOptions.length === 0 && (
-          <li className="custom-select-status custom-select-status--empty" role="presentation">
-            {placeholder}
-          </li>
-        )}
+      )}
+      {loading && (
+        <li className="custom-select-status" role="presentation">
+          Загрузка…
+        </li>
+      )}
+      {!loading && searching && filteredOptions.length === 0 && (
+        <li className="custom-select-status custom-select-status--empty" role="presentation">
+          Ничего не найдено
+        </li>
+      )}
+      {!loading && (searching ? renderOptions([], filteredOptions) : renderOptions())}
+      {!loading && !searching && flatOptions.length === 0 && (
+        <li className="custom-select-status custom-select-status--empty" role="presentation">
+          {placeholder}
+        </li>
+      )}
+    </>
+  );
+
+  const dropdownMenu =
+    !useIconTrigger &&
+    open &&
+    menuStyle &&
+    createPortal(
+      <ul
+        ref={menuRef}
+        id={listId}
+        className="custom-select-menu custom-select-menu--players"
+        role="listbox"
+        style={menuStyle}
+        aria-label="Игрок, открывший счёт"
+      >
+        {menuBody}
       </ul>,
       document.body
     );
+
+  const centeredMenu = useIconTrigger && (
+    <CenteredSelectMenu
+      open={open}
+      onClose={() => close(true)}
+      title="Какой игрок откроет счёт"
+      ariaLabel="Игрок, открывший счёт"
+      listId={listId}
+      className="centered-select-sheet--players"
+      toolbar={
+        <div className="centered-select-search">
+          <input
+            ref={searchInputRef}
+            type="search"
+            className="centered-select-search-input"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Поиск по имени"
+            aria-label="Поиск игрока по имени"
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </div>
+      }
+    >
+      {menuBody}
+    </CenteredSelectMenu>
+  );
+
+  if (useIconTrigger) {
+    return (
+      <>
+        <PlusIconButton
+          onClick={toggle}
+          disabled={disabled}
+          active={!!value}
+          ariaLabel={
+            value
+              ? `Игрок, открывший счёт: ${triggerLabel}. Изменить`
+              : 'Выбрать игрока, который откроет счёт'
+          }
+        />
+        {centeredMenu}
+      </>
+    );
+  }
 
   return (
     <>
@@ -244,7 +325,7 @@ export default function FirstPlayerSelect({
           </span>
         </button>
       </div>
-      {menu}
+      {dropdownMenu}
     </>
   );
 }

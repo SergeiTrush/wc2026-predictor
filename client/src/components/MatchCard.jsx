@@ -8,6 +8,7 @@ import PointsTooltip from './PointsTooltip';
 import FriendsPredictionsModal, { friendsLinkLabel } from './FriendsPredictionsModal';
 import FirstTeamSelect from './FirstTeamSelect';
 import FirstPlayerSelect from './FirstPlayerSelect';
+import PlusIconButton from './PlusIconButton';
 
 export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, boosterLocked }) {
   const pred = match.prediction;
@@ -327,26 +328,32 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
           <span>Какая команда откроет счёт</span>
           <FirstTeamSelect
             value={firstTeam}
-            onChange={setFirstTeam}
+            onChange={(next) => {
+              setFirstTeam(next);
+              if (canSave) save({ firstTeam: next || null });
+            }}
             homeTeam={match.home_team}
             awayTeam={match.away_team}
             disabled={inputsLocked}
-            onBlur={() => canSave && save()}
+            triggerVariant="icon"
           />
         </div>
         <div className="extra-row">
           <span>Какой игрок откроет счёт</span>
           <FirstPlayerSelect
             value={firstPlayer}
-            onChange={setFirstPlayer}
+            onChange={(next) => {
+              setFirstPlayer(next);
+              if (canSave) save({ firstPlayer: next || null });
+            }}
             teams={squadTeams}
             players={playerOptions}
             loading={squadLoading}
             placeholder={playerPlaceholder}
             disabled={inputsLocked}
+            triggerVariant="icon"
             title={squadError || undefined}
             onOpen={loadSquadPlayers}
-            onBlur={() => canSave && save()}
           />
         </div>
         {squadError && !inputsLocked && (
@@ -365,15 +372,11 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
               ? `Бустер на другом матче тура`
               : `Переставить бустер ${mult}`}
           </span>
-          <span>
-            {boosterSaving
-              ? '…'
-              : isBoosterHere
-                ? boosterLocked
-                  ? `🔒 ${mult}`
-                  : `✓ ${mult} активен`
-                : '+'}
-          </span>
+          {boosterSaving ? (
+            <span className="booster-row-status">…</span>
+          ) : (
+            <PlusIconButton interactive={false} active={isBoosterHere} />
+          )}
         </div>
       </div>
 

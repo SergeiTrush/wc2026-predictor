@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import CenteredSelectMenu from './CenteredSelectMenu';
+import PlusIconButton from './PlusIconButton';
 
 function buildOptions(homeTeam, awayTeam) {
   return [
@@ -18,6 +20,7 @@ export default function FirstTeamSelect({
   disabled = false,
   onBlur,
   className = '',
+  triggerVariant = 'default',
 }) {
   const [open, setOpen] = useState(false);
   const [menuStyle, setMenuStyle] = useState(null);
@@ -25,6 +28,7 @@ export default function FirstTeamSelect({
   const menuRef = useRef(null);
   const triggerRef = useRef(null);
   const listId = useId();
+  const useIconTrigger = triggerVariant === 'icon';
 
   const options = buildOptions(homeTeam, awayTeam);
   const selected = options.find((o) => o.value === value) ?? options[0];
@@ -50,7 +54,7 @@ export default function FirstTeamSelect({
   }, []);
 
   useLayoutEffect(() => {
-    if (!open) return;
+    if (!open || useIconTrigger) return;
     updateMenuPosition();
     window.addEventListener('resize', updateMenuPosition);
     window.addEventListener('scroll', updateMenuPosition, true);
@@ -58,10 +62,10 @@ export default function FirstTeamSelect({
       window.removeEventListener('resize', updateMenuPosition);
       window.removeEventListener('scroll', updateMenuPosition, true);
     };
-  }, [open, updateMenuPosition]);
+  }, [open, updateMenuPosition, useIconTrigger]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || useIconTrigger) return;
     const onDocPointer = (e) => {
       if (rootRef.current?.contains(e.target) || menuRef.current?.contains(e.target)) return;
       close(true);
@@ -75,12 +79,18 @@ export default function FirstTeamSelect({
       document.removeEventListener('mousedown', onDocPointer);
       document.removeEventListener('keydown', onKey);
     };
-  }, [open, close]);
+  }, [open, close, useIconTrigger]);
 
   const pick = (next) => {
     if (disabled) return;
     onChange(next);
-    close(true);
+    close(false);
+  };
+
+  const openMenu = () => {
+    if (disabled) return;
+    if (!useIconTrigger) updateMenuPosition();
+    setOpen(true);
   };
 
   const toggle = () => {
@@ -89,11 +99,25 @@ export default function FirstTeamSelect({
       close(true);
       return;
     }
-    updateMenuPosition();
-    setOpen(true);
+    openMenu();
   };
 
-  const menu =
+  const optionButtons = options.map((opt) => (
+    <li key={opt.value || '_empty'} role="presentation">
+      <button
+        type="button"
+        role="option"
+        aria-selected={value === opt.value}
+        className={`custom-select-option ${value === opt.value ? 'custom-select-option--selected' : ''}`}
+        onClick={() => pick(opt.value)}
+      >
+        {opt.label}
+      </button>
+    </li>
+  ));
+
+  const dropdownMenu =
+    !useIconTrigger &&
     open &&
     menuStyle &&
     createPortal(
@@ -105,22 +129,40 @@ export default function FirstTeamSelect({
         style={menuStyle}
         aria-label="Команда, открывшая счёт"
       >
-        {options.map((opt) => (
-          <li key={opt.value || '_empty'} role="presentation">
-            <button
-              type="button"
-              role="option"
-              aria-selected={value === opt.value}
-              className={`custom-select-option ${value === opt.value ? 'custom-select-option--selected' : ''}`}
-              onClick={() => pick(opt.value)}
-            >
-              {opt.label}
-            </button>
-          </li>
-        ))}
+        {optionButtons}
       </ul>,
       document.body
     );
+
+  const centeredMenu = useIconTrigger && (
+    <CenteredSelectMenu
+      open={open}
+      onClose={() => close(true)}
+      title="Какая команда откроет счёт"
+      ariaLabel="Команда, открывшая счёт"
+      listId={listId}
+    >
+      {optionButtons}
+    </CenteredSelectMenu>
+  );
+
+  if (useIconTrigger) {
+    return (
+      <>
+        <PlusIconButton
+          onClick={toggle}
+          disabled={disabled}
+          active={!!value}
+          ariaLabel={
+            value
+              ? `Команда, открывшая счёт: ${selected.label}. Изменить`
+              : 'Выбрать команду, которая откроет счёт'
+          }
+        />
+        {centeredMenu}
+      </>
+    );
+  }
 
   return (
     <>
@@ -144,7 +186,7 @@ export default function FirstTeamSelect({
           </span>
         </button>
       </div>
-      {menu}
+      {dropdownMenu}
     </>
   );
 }

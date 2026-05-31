@@ -986,27 +986,18 @@ a {
   line-height: 1.2;
 }
 
-.booster-row > span:last-child {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
+.booster-row-picker {
   flex-shrink: 0;
 }
 
-.booster-row:not(.booster-active) > span:last-child {
-  padding: 5px 0;
-  font-size: 22px;
-  font-weight: 400;
+.extra-row-selection--booster {
+  color: var(--yellow);
+  font-weight: 600;
 }
 
 .booster-active {
   color: var(--yellow);
   font-weight: 700;
-}
-
-.booster-row.booster-active > span:last-child {
-  padding: 10px 0;
 }
 
 .match-card-footer {

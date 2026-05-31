@@ -429,11 +429,16 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
               ? `Бустер на другом матче тура`
               : `Переставить бустер ${mult}`}
           </span>
-          {boosterSaving ? (
-            <span className="booster-row-status">…</span>
-          ) : (
-            <PlusIconButton interactive={false} active={isBoosterHere} />
-          )}
+          <div className="extra-row-picker booster-row-picker">
+            {isBoosterHere && !boosterSaving && (
+              <span className="extra-row-selection extra-row-selection--booster">Активирован</span>
+            )}
+            {boosterSaving ? (
+              <span className="booster-row-status">…</span>
+            ) : (
+              <PlusIconButton interactive={false} active={isBoosterHere} />
+            )}
+          </div>
         </div>
       </div>
 

@@ -120,12 +120,11 @@ export default function LeaguePage() {
 
   const activeMd = selected || matchdays[0];
   const progress = useMemo(() => {
-    if (activeMd?.count) {
-      return { done: activeMd.predicted ?? 0, total: activeMd.count };
-    }
-    const done = matches.filter((m) => m.prediction?.home_pred != null).length;
+    const done = matches.filter(
+      (m) => m.prediction?.home_pred != null && m.prediction?.away_pred != null
+    ).length;
     return { done, total: matches.length };
-  }, [activeMd, matches]);
+  }, [matches]);
 
   const friendsActive = matches.reduce((n, m) => n + (m.friendsPredicted > 0 ? 1 : 0), 0);
   const boosterMatch = useMemo(() => {
@@ -236,7 +235,7 @@ export default function LeaguePage() {
                     style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }}
                   />
                 </div>
-                {!boosterUsed && progress.done > 0 && (
+                {!boosterUsed && !boosterLocked && (
                   <p className="matchday-hint">
                     Один бустер на тур — нажми «Переставить бустер» на выбранном матче
                   </p>

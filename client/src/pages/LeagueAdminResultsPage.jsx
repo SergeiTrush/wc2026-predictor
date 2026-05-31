@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { api } from '../api';
-import { teamFlag, formatMatchTime } from '../utils';
+import { teamFlag, formatMatchTime, matchHasStoredScore, matchIsFinished, adminMatchScores, matchHasAdminResult, isMatchInPlayWindow, matchIsLive } from '../utils';
 import { redirectIfLeagueForbidden } from '../leagueAccess';
 import { loadMatchSquads } from '../teamSquads';
 import {
@@ -15,14 +15,25 @@ import FirstTeamSelect from '../components/FirstTeamSelect';
 import FirstPlayerSelect from '../components/FirstPlayerSelect';
 
 function AdminMatchRow({ match, leagueId, onSaved }) {
-  const finished = match.home_score != null && match.away_score != null;
-  const [home, setHome] = useState(finished ? String(match.home_score) : '');
-  const [away, setAway] = useState(finished ? String(match.away_score) : '');
+  const scores = adminMatchScores(match);
+  const hasStoredScore = matchHasStoredScore(match);
+  const hasScore = matchHasAdminResult(match);
+  const [home, setHome] = useState(scores ? String(scores.home) : '');
+  const [away, setAway] = useState(scores ? String(scores.away) : '');
+  const [matchFinished, setMatchFinished] = useState(matchIsFinished(match));
   const [finalHome, setFinalHome] = useState(
-    match.final_home_score != null ? String(match.final_home_score) : ''
+    scores?.finalHome != null
+      ? String(scores.finalHome)
+      : match.final_home_score != null
+        ? String(match.final_home_score)
+        : ''
   );
   const [finalAway, setFinalAway] = useState(
-    match.final_away_score != null ? String(match.final_away_score) : ''
+    scores?.finalAway != null
+      ? String(scores.finalAway)
+      : match.final_away_score != null
+        ? String(match.final_away_score)
+        : ''
   );
   const [firstTeam, setFirstTeam] = useState(match.first_scorer_team || '');
   const [firstPlayer, setFirstPlayer] = useState(match.first_scorer_player || '');
@@ -50,23 +61,40 @@ function AdminMatchRow({ match, leagueId, onSaved }) {
     }
     setFirstTeam(saved.first_scorer_team || '');
     setFirstPlayer(saved.first_scorer_player || '');
+    setMatchFinished(matchIsFinished(saved));
   };
 
   useEffect(() => {
-    setHome(match.home_score != null ? String(match.home_score) : '');
-    setAway(match.away_score != null ? String(match.away_score) : '');
-    setFinalHome(match.final_home_score != null ? String(match.final_home_score) : '');
-    setFinalAway(match.final_away_score != null ? String(match.final_away_score) : '');
+    const nextScores = adminMatchScores(match);
+    setHome(nextScores ? String(nextScores.home) : '');
+    setAway(nextScores ? String(nextScores.away) : '');
+    if (nextScores?.finalHome != null) {
+      setFinalHome(String(nextScores.finalHome));
+    } else {
+      setFinalHome(match.final_home_score != null ? String(match.final_home_score) : '');
+    }
+    if (nextScores?.finalAway != null) {
+      setFinalAway(String(nextScores.finalAway));
+    } else {
+      setFinalAway(match.final_away_score != null ? String(match.final_away_score) : '');
+    }
     setFirstTeam(match.first_scorer_team || '');
     setFirstPlayer(match.first_scorer_player || '');
+    setMatchFinished(matchIsFinished(match));
   }, [
     match.id,
     match.home_score,
     match.away_score,
+    match.is_finished,
     match.final_home_score,
     match.final_away_score,
     match.first_scorer_team,
     match.first_scorer_player,
+    match.liveScore?.homeScore,
+    match.liveScore?.awayScore,
+    match.liveScore?.regulationHomeScore,
+    match.liveScore?.regulationAwayScore,
+    match.liveScore?.status,
   ]);
 
   useEffect(() => {
@@ -134,6 +162,7 @@ function AdminMatchRow({ match, leagueId, onSaved }) {
     }
     setSaving(true);
     setMsg('');
+    const finishedChecked = matchFinished;
     try {
       const payload = {
         leagueId: Number(leagueId),
@@ -141,6 +170,7 @@ function AdminMatchRow({ match, leagueId, onSaved }) {
         awayScore: a,
         firstScorerTeam: firstTeam || null,
         firstScorerPlayer: firstPlayer || null,
+        isFinished: finishedChecked,
       };
       if (knockout) {
         payload.finalHomeScore = fh;
@@ -150,6 +180,8 @@ function AdminMatchRow({ match, leagueId, onSaved }) {
       const merged = saved
         ? {
             ...saved,
+            is_finished: finishedChecked ? 1 : 0,
+            isFinished: finishedChecked,
             final_home_score: saved.final_home_score ?? fh,
             final_away_score: saved.final_away_score ?? fa,
           }
@@ -181,6 +213,7 @@ function AdminMatchRow({ match, leagueId, onSaved }) {
       setFinalAway('');
       setFirstTeam('');
       setFirstPlayer('');
+      setMatchFinished(false);
       setMsg('Результат удалён');
       onSaved();
     } catch (e) {
@@ -193,7 +226,7 @@ function AdminMatchRow({ match, leagueId, onSaved }) {
   const label = match.group_name ? `Группа ${match.group_name}` : match.match_label;
 
   return (
-    <div className={`admin-match-row ${finished ? 'admin-match-done' : ''}`}>
+    <div className={`admin-match-row ${matchFinished ? 'admin-match-done' : hasScore ? 'admin-match-live' : ''}`}>
       <div className="admin-match-meta">
         <span>{formatMatchTime(match.kickoff)}</span>
         <span>{label}</span>
@@ -280,11 +313,21 @@ function AdminMatchRow({ match, leagueId, onSaved }) {
         </label>
         {squadError && <p className="squad-hint squad-hint--error admin-squad-hint">{squadError}</p>}
       </div>
+      <label className="admin-match-finished">
+        <input
+          type="checkbox"
+          className="admin-match-finished-input"
+          checked={matchFinished}
+          onChange={(e) => setMatchFinished(e.target.checked)}
+        />
+        <span className="admin-match-finished-label">Матч завершён</span>
+        {hasScore && !matchFinished && <span className="admin-match-live-tag">LIVE</span>}
+      </label>
       <div className="admin-match-actions">
         <button type="button" className="btn-primary btn-admin-save" disabled={saving} onClick={save}>
           {saving ? '…' : 'Сохранить результат'}
         </button>
-        {finished && (
+        {hasStoredScore && (
           <button type="button" className="btn-admin-clear" disabled={saving} onClick={clear}>
             Сбросить
           </button>
@@ -305,6 +348,7 @@ export default function LeagueAdminResultsPage() {
   const [filter, setFilter] = useState('pending');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const listRef = useRef(null);
   const matchdays = useMemo(() => matchdaysFromMatches(matches), [matches]);
 
   const refreshMatches = (savedMatch) => {
@@ -315,6 +359,11 @@ export default function LeagueAdminResultsPage() {
           return {
             ...m,
             ...savedMatch,
+            is_finished: savedMatch.is_finished ?? m.is_finished,
+            isFinished:
+              savedMatch.isFinished != null
+                ? savedMatch.isFinished
+                : Number(savedMatch.is_finished ?? m.is_finished) === 1,
             final_home_score: savedMatch.final_home_score ?? m.final_home_score,
             final_away_score: savedMatch.final_away_score ?? m.final_away_score,
           };
@@ -369,15 +418,35 @@ export default function LeagueAdminResultsPage() {
   const filtered = useMemo(() => {
     let list = [...dayMatches];
     if (filter === 'pending') {
-      list = list.filter((m) => m.home_score == null || m.away_score == null);
+      list = list.filter((m) => !matchHasAdminResult(m));
     } else if (filter === 'done') {
-      list = list.filter((m) => m.home_score != null && m.away_score != null);
+      list = list.filter((m) => matchHasAdminResult(m));
     }
     return list.sort((a, b) => a.kickoff.localeCompare(b.kickoff));
   }, [dayMatches, filter]);
 
-  const doneCount = dayMatches.filter((m) => m.home_score != null && m.away_score != null).length;
+  const doneCount = dayMatches.filter((m) => matchHasAdminResult(m)).length;
   const activeMd = selectedDay || matchdays[0];
+
+  useEffect(() => {
+    listRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [filter, selectedDay?.day]);
+
+  useEffect(() => {
+    const needsLivePoll = matches.some((m) => isMatchInPlayWindow(m) || matchIsLive(m));
+    if (!needsLivePoll) return;
+
+    const poll = () => {
+      if (document.visibilityState === 'hidden') return;
+      api
+        .allMatches(id)
+        .then((d) => setMatches(d.matches || []))
+        .catch(() => {});
+    };
+
+    const timer = setInterval(poll, 60000);
+    return () => clearInterval(timer);
+  }, [matches, id]);
 
   if (loading) {
     return (
@@ -394,7 +463,7 @@ export default function LeagueAdminResultsPage() {
   }
 
   return (
-    <>
+    <div className="admin-results-page-inner">
       <div className="admin-top-fixed">
         {matchdays.length > 0 && (
           <>
@@ -460,11 +529,15 @@ export default function LeagueAdminResultsPage() {
         </div>
       </div>
 
-      <div className="admin-results-body">
+      <div className="admin-results-body" ref={listRef}>
         <div className="page-content admin-results-list">
         {filtered.length === 0 && (
           <p className="empty-hint">
-            {filter === 'pending' ? 'Все матчи с результатами — отлично!' : 'Нет матчей в этой категории'}
+            {filter === 'pending'
+              ? 'Все матчи с результатами — отлично!'
+              : filter === 'done'
+                ? 'Пока нет матчей с результатом в этом туре'
+                : 'Нет матчей в этой категории'}
           </p>
         )}
         {filtered.map((m) => (
@@ -472,6 +545,6 @@ export default function LeagueAdminResultsPage() {
         ))}
         </div>
       </div>
-    </>
+    </div>
   );
 }

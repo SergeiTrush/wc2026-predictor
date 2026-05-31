@@ -1,13 +1,6 @@
 const { prepare, transaction } = require('./sqlite-helpers');
 const { GROUP, KNOCKOUT, SCHEDULE_VERSION } = require('./data/wc2026-schedule');
-
-/** Kickoff in US Eastern (EDT, UTC−4) for June–July 2026. */
-function kickoffEt(date, timeEt) {
-  const [h, m] = timeEt.split(':').map(Number);
-  const hh = String(h).padStart(2, '0');
-  const mm = String(m).padStart(2, '0');
-  return new Date(`${date}T${hh}:${mm}:00-04:00`).toISOString();
-}
+const { kickoffEt } = require('../shared/kickoff');
 
 function buildMatches() {
   const rows = [];
@@ -60,12 +53,45 @@ function hasLegacyCalendarMatchdays(db) {
   return q(`SELECT COUNT(*) AS n FROM matches WHERE matchday GLOB '2026-??-??'`).get().n > 0;
 }
 
+function kickoffMs(iso) {
+  const t = new Date(iso).getTime();
+  return Number.isNaN(t) ? null : t;
+}
+
+function rowMatchesSchedule(row, scheduleRow) {
+  if (kickoffMs(row.kickoff) !== kickoffMs(scheduleRow.kickoff)) return false;
+  if (row.matchday !== scheduleRow.matchday) return false;
+  if (row.stage !== scheduleRow.stage) return false;
+  if ((row.group_name ?? null) !== (scheduleRow.group_name ?? null)) return false;
+  if (row.venue !== scheduleRow.venue) return false;
+  if (row.match_label !== scheduleRow.match_label) return false;
+  if (row.home_team !== scheduleRow.home_team || row.away_team !== scheduleRow.away_team) return false;
+  return true;
+}
+
 function scheduleNeedsRepair(db) {
   const q = (sql) => prepare(db, sql);
   if (hasLegacyCalendarMatchdays(db)) return true;
-  const md2 = q(`SELECT COUNT(*) AS n FROM matches WHERE matchday = 'md2'`).get().n;
-  const expectedMd2 = buildMatches().filter((m) => m.matchday === 'md2').length;
-  return md2 !== expectedMd2;
+
+  const scheduleRows = buildMatches();
+  const byFixture = new Map();
+  for (const m of scheduleRows) {
+    byFixture.set(fixtureKey(m.stage, m.group_name, m.home_team, m.away_team), m);
+  }
+
+  const dbRows = q('SELECT * FROM matches').all();
+  if (dbRows.length !== scheduleRows.length) return true;
+
+  const md2 = dbRows.filter((r) => r.matchday === 'md2').length;
+  const expectedMd2 = scheduleRows.filter((m) => m.matchday === 'md2').length;
+  if (md2 !== expectedMd2) return true;
+
+  for (const row of dbRows) {
+    const expected = byFixture.get(fixtureKey(row.stage, row.group_name, row.home_team, row.away_team));
+    if (!expected || !rowMatchesSchedule(row, expected)) return true;
+  }
+
+  return false;
 }
 
 function applySchedule(db) {
@@ -79,7 +105,8 @@ function applySchedule(db) {
   const update = prepare(
     db,
     `UPDATE matches
-     SET home_team = ?, away_team = ?, kickoff = ?, matchday = ?, venue = ?, match_label = ?
+     SET home_team = ?, away_team = ?, kickoff = ?, matchday = ?, stage = ?, group_name = ?,
+         venue = ?, match_label = ?
      WHERE id = ?`
   );
 
@@ -89,11 +116,14 @@ function applySchedule(db) {
     for (const row of rows) {
       const m = byFixture.get(fixtureKey(row.stage, row.group_name, row.home_team, row.away_team));
       if (!m) continue;
+      if (rowMatchesSchedule(row, m)) continue;
       update.run(
         m.home_team,
         m.away_team,
         m.kickoff,
         m.matchday,
+        m.stage,
+        m.group_name,
         m.venue,
         m.match_label,
         row.id
@@ -143,4 +173,4 @@ function seedDatabase(db) {
   return { seeded: true, matchCount: matches.length };
 }
 
-module.exports = { seedDatabase, buildMatches, kickoffEt, SCHEDULE_VERSION };
+module.exports = { seedDatabase, buildMatches, kickoffEt, SCHEDULE_VERSION, applySchedule, scheduleNeedsRepair };

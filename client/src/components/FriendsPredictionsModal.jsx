@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
-import { teamFlag, boosterLabel } from '../utils';
+import { teamFlag, boosterLabel, matchHasResult, matchHasLiveScore, matchHasLiveManualScore, matchIsLive, liveBarDisplayScore, scoringActualFromLive, isLiveExtraTime } from '../utils';
+import { isKnockoutMatch } from '../matchdays';
+import { breakdownMatchPoints, formatPointsBreakdown } from '../scoring';
 import ModalOverlay from './ModalOverlay';
-import PointsBreakdownPanel from './PointsBreakdownPanel';
+import PointsTooltip from './PointsTooltip';
 
 function formatFirstTeam(value, homeTeam, awayTeam) {
   if (value === 'home') return homeTeam;
@@ -20,6 +22,47 @@ function friendsLinkLabel(count) {
   return `Посмотреть прогнозы твоих ${count} ${word}`;
 }
 
+function resolvePredictionPoints(prediction, displayMatch) {
+  if (prediction.pointsDetail) {
+    return {
+      pointsDetail: prediction.pointsDetail,
+      provisional: !!prediction.provisional,
+    };
+  }
+
+  const hasResult = matchHasResult(displayMatch);
+  const liveScore = displayMatch.liveScore;
+  if (!hasResult && !matchHasLiveScore(displayMatch)) return null;
+
+  const actual = hasResult
+    ? displayMatch
+    : matchHasLiveManualScore(displayMatch)
+      ? {
+          home_score: displayMatch.home_score,
+          away_score: displayMatch.away_score,
+          first_scorer_team: displayMatch.first_scorer_team ?? null,
+          first_scorer_player: displayMatch.first_scorer_player ?? null,
+          stage: displayMatch.stage,
+        }
+      : scoringActualFromLive(displayMatch, liveScore);
+
+  const raw = breakdownMatchPoints(
+    {
+      home_pred: prediction.home_pred,
+      away_pred: prediction.away_pred,
+      first_team: prediction.first_team,
+      first_player: prediction.first_player,
+      booster: prediction.booster ? 1 : 0,
+    },
+    actual
+  );
+
+  return {
+    pointsDetail: formatPointsBreakdown(raw),
+    provisional: !hasResult,
+  };
+}
+
 export { friendsLinkLabel };
 
 export default function FriendsPredictionsModal({ leagueId, match, onClose }) {
@@ -27,7 +70,6 @@ export default function FriendsPredictionsModal({ leagueId, match, onClose }) {
   const [error, setError] = useState('');
   const [predictions, setPredictions] = useState([]);
   const [matchInfo, setMatchInfo] = useState(null);
-  const [expandedPointsId, setExpandedPointsId] = useState(null);
 
   useEffect(() => {
     if (match.friendPredictions != null) {
@@ -59,8 +101,22 @@ export default function FriendsPredictionsModal({ leagueId, match, onClose }) {
     };
   }, [leagueId, match, match.id, match.friendPredictions]);
 
-  const title = matchInfo
-    ? `${matchInfo.home_team} ${teamFlag(matchInfo.home_team)} — ${teamFlag(matchInfo.away_team)} ${matchInfo.away_team}`
+  const displayMatch = matchInfo || match;
+  const hasResult = matchHasResult(displayMatch);
+  const isLive = matchIsLive(displayMatch);
+  const liveScore = displayMatch.liveScore;
+  const displayScore = liveScore ? liveBarDisplayScore(displayMatch, liveScore) : null;
+  const showLiveScore = hasResult || matchHasLiveScore(displayMatch);
+  const liveScoreText = hasResult
+    ? `${displayMatch.home_score}:${displayMatch.away_score}`
+    : matchHasLiveManualScore(displayMatch)
+      ? `${displayMatch.home_score}:${displayMatch.away_score}`
+      : displayScore
+        ? `${displayScore.home}:${displayScore.away}`
+        : `${liveScore?.homeScore}:${liveScore?.awayScore}`;
+
+  const title = displayMatch
+    ? `${displayMatch.home_team} ${teamFlag(displayMatch.home_team)} — ${teamFlag(displayMatch.away_team)} ${displayMatch.away_team}`
     : 'Прогнозы друзей';
 
   const mult = boosterLabel(match.stage);
@@ -69,7 +125,19 @@ export default function FriendsPredictionsModal({ leagueId, match, onClose }) {
     <ModalOverlay className="modal-overlay--center" onClick={onClose}>
       <div className="modal-sheet friends-predictions-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>{title}</h2>
+          <div>
+            <h2>{title}</h2>
+            {showLiveScore && (
+              <p className={`friends-predictions-live-score${isLive ? ' friends-predictions-live-score--live' : ''}`}>
+                {hasResult ? 'Счёт матча' : isLive ? 'LIVE' : 'Текущий счёт'}
+                {': '}
+                {liveScoreText}
+                {isLive && liveScore?.minute != null ? ` (${liveScore.minute}'` : ''}
+                {isLive && isKnockoutMatch(displayMatch) && isLiveExtraTime(liveScore) ? ', доп. время' : ''}
+                {isLive && liveScore?.minute != null ? ')' : ''}
+              </p>
+            )}
+          </div>
           <button type="button" className="modal-close" onClick={onClose}>
             ×
           </button>
@@ -85,8 +153,7 @@ export default function FriendsPredictionsModal({ leagueId, match, onClose }) {
 
           <ul className="friends-predictions-list">
             {predictions.map((p) => {
-              const hasBreakdown = p.pointsDetail?.lines?.length > 0;
-              const pointsOpen = expandedPointsId === p.userId;
+              const points = resolvePredictionPoints(p, displayMatch);
 
               return (
                 <li key={p.userId} className="friends-prediction-row">
@@ -96,35 +163,18 @@ export default function FriendsPredictionsModal({ leagueId, match, onClose }) {
                       {p.home_pred}:{p.away_pred}
                       {p.booster ? <span className="friends-booster-tag">бустер {mult}</span> : null}
                     </span>
-                    {p.points != null && (
-                      <span className="points-tooltip-wrap">
-                        <span className="points-badge">+{p.points} оч.</span>
-                        {hasBreakdown && (
-                          <button
-                            type="button"
-                            className="points-info-btn"
-                            aria-label="Как начислены очки"
-                            aria-expanded={pointsOpen}
-                            onClick={() =>
-                              setExpandedPointsId(pointsOpen ? null : p.userId)
-                            }
-                          >
-                            i
-                          </button>
-                        )}
-                      </span>
+                    {points?.pointsDetail && (
+                      <PointsTooltip
+                        pointsDetail={points.pointsDetail}
+                        provisional={points.provisional}
+                        variant="inline"
+                      />
                     )}
                   </div>
                   <div className="friends-prediction-meta">
                     Первый гол: {formatFirstTeam(p.first_team, match.home_team, match.away_team)}
                     {p.first_player ? ` · ${p.first_player}` : ''}
                   </div>
-                  {pointsOpen && hasBreakdown && (
-                    <PointsBreakdownPanel
-                      pointsDetail={p.pointsDetail}
-                      className="friends-points-breakdown"
-                    />
-                  )}
                 </li>
               );
             })}

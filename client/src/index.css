@@ -143,14 +143,41 @@ a {
 }
 
 .league-table-page.app-root {
+  height: 100dvh;
+  max-height: 100dvh;
   min-height: 100dvh;
-  overflow-x: hidden;
+  overflow: hidden;
 }
 
 .league-table-page .league-shell-body {
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+}
+
+.admin-results-page.app-root {
+  height: 100dvh;
+  max-height: 100dvh;
+  min-height: 100dvh;
+  overflow: hidden;
+}
+
+.admin-results-page .league-shell-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.admin-results-page-inner {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 /* Header */
@@ -312,9 +339,18 @@ a {
   box-sizing: border-box;
   margin-bottom: 0;
   flex: 1;
-  min-height: calc(100dvh - var(--shell-header-height, 96px));
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   padding: 0.75rem;
   padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+}
+
+.page-content--table > .sync-status-card,
+.page-content--table > .table-toolbar,
+.page-content--table > div:not(.leaderboard-table-scroll) {
+  flex-shrink: 0;
 }
 
 /* Match card */
@@ -732,14 +768,38 @@ a {
 }
 
 .friends-predictions-body {
-  overflow-y: auto;
-  max-height: min(55vh, 420px);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.friends-predictions-sheet {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: auto;
+  max-height: min(92dvh, 720px) !important;
+  min-height: 0;
+  overflow: hidden;
+  padding: 1rem 1.15rem 1.15rem;
+}
+
+.friends-predictions-sheet .modal-header {
+  flex-shrink: 0;
+  margin-bottom: 0.75rem;
 }
 
 .friends-predictions-list {
   list-style: none;
   margin: 0;
   padding: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .friends-predictions-sheet .friends-prediction-row {
@@ -747,6 +807,11 @@ a {
   border-radius: 10px;
   padding: 0.75rem;
   margin-bottom: 0.5rem;
+  overflow: visible;
+}
+
+.friends-predictions-sheet .friends-prediction-row:last-child {
+  margin-bottom: 0;
 }
 
 .friends-predictions-sheet .friends-prediction-name {
@@ -760,9 +825,24 @@ a {
 .friends-predictions-sheet .friends-prediction-head {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.5rem;
   margin-bottom: 0.35rem;
+}
+
+.friends-predictions-sheet .points-tooltip-wrap--inline {
+  flex: 1;
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-content: flex-start;
+}
+
+.friends-predictions-sheet .points-breakdown-inline {
+  flex-basis: 100%;
+  width: 100%;
+  margin-top: 0.55rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
 }
 
 .friends-predictions-sheet .friends-prediction-score {
@@ -788,6 +868,22 @@ a {
   font-size: 0.75rem;
   color: var(--text-muted);
   line-height: 1.35;
+}
+
+.friends-predictions-live-score {
+  margin: 0.35rem 0 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.friends-predictions-live-score--live {
+  color: var(--yellow);
+  font-weight: 700;
+}
+
+.friends-predictions-sheet .points-tooltip-wrap {
+  flex-shrink: 0;
 }
 
 .friends-points-breakdown {
@@ -881,6 +977,10 @@ a {
   font-weight: 800;
   color: #fff;
   line-height: 1;
+}
+
+.live-score--provisional {
+  color: var(--yellow);
 }
 
 .live-score-muted {
@@ -1043,9 +1143,7 @@ a {
 
 /* Admin results */
 .admin-top-fixed {
-  position: sticky;
-  top: var(--shell-header-height, 96px);
-  z-index: 150;
+  flex-shrink: 0;
   width: 100%;
   max-width: 480px;
   margin-left: auto;
@@ -1104,14 +1202,14 @@ a {
   font-weight: 700;
 }
 
-.admin-results-page.app-root {
-  min-height: 100vh;
-}
-
 .admin-results-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   box-sizing: border-box;
-  min-height: 100vh;
-  padding-bottom: 1.25rem;
+  padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
   background: var(--card-blue-light);
 }
 
@@ -1139,6 +1237,87 @@ a {
 .admin-match-done {
   opacity: 0.92;
   border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.admin-match-live {
+  border: 1px solid rgba(250, 204, 21, 0.35);
+}
+
+.admin-match-finished {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0.7rem 0 0.9rem;
+  min-height: 1.35rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.admin-match-finished-label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  min-height: 1.05rem;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #f1f5f9;
+  line-height: 1.05rem;
+  letter-spacing: 0.01em;
+}
+
+.admin-match-finished:has(input:checked) .admin-match-finished-label {
+  color: var(--yellow);
+}
+
+.admin-match-finished-input {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 1.05rem;
+  height: 1.05rem;
+  flex: 0 0 1.05rem;
+  align-self: center;
+  margin: 0;
+  border: 2px solid rgba(250, 204, 21, 0.7);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+}
+
+.admin-match-finished-input:checked {
+  background: rgba(250, 204, 21, 0.15);
+  border-color: var(--yellow);
+}
+
+.admin-match-finished-input:checked::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  width: 0.28rem;
+  height: 0.55rem;
+  border: solid var(--yellow);
+  border-width: 0 2px 2px 0;
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.admin-match-finished-input:focus-visible {
+  outline: 2px solid rgba(250, 204, 21, 0.45);
+  outline-offset: 2px;
+}
+
+.admin-match-live-tag {
+  align-self: center;
+  flex-shrink: 0;
+  margin-left: auto;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(250, 204, 21, 0.18);
+  color: var(--yellow);
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.06em;
 }
 
 .admin-match-meta {
@@ -1240,7 +1419,7 @@ a {
 .admin-match-extra {
   display: grid;
   gap: 0.5rem;
-  margin-bottom: 0.65rem;
+  margin-bottom: 0.35rem;
 }
 
 .admin-match-extra label {
@@ -1269,6 +1448,7 @@ a {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
+  margin-top: 0.15rem;
 }
 
 .btn-admin-save {
@@ -1340,6 +1520,14 @@ body.body-scroll-locked {
   overscroll-behavior: none;
 }
 
+body.body-scroll-locked .league-shell,
+body.body-scroll-locked .league-shell-body,
+body.body-scroll-locked .leaderboard-table-scroll {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
 .modal-overlay--top-menu {
   display: block;
   background: rgba(0, 0, 0, 0.55);
@@ -1351,6 +1539,7 @@ body.body-scroll-locked {
 .modal-overlay--center {
   align-items: center;
   padding: 1rem;
+  overflow: hidden;
 }
 
 .modal-overlay--center .modal-sheet {
@@ -1358,6 +1547,12 @@ body.body-scroll-locked {
   width: 100%;
   max-width: 420px;
   max-height: min(85vh, 560px);
+}
+
+.modal-overlay--center .friends-predictions-sheet {
+  max-height: min(92dvh, 720px);
+  height: auto;
+  overflow: hidden;
 }
 
 .modal-sheet {
@@ -1490,6 +1685,14 @@ body.body-scroll-locked {
   font-size: 0.8rem;
   color: var(--text-dim);
   margin-bottom: 0.5rem;
+}
+
+.scoring-note--highlight {
+  padding: 0.5rem 0.65rem;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 8px;
+  line-height: 1.4;
 }
 
 .scoring-example {
@@ -1641,6 +1844,42 @@ body.body-scroll-locked {
 .settings-name {
   font-size: 1.35rem;
   font-weight: 700;
+}
+
+.settings-name-input {
+  font-size: 1.25rem;
+  background: transparent;
+  border: none;
+  color: #fff;
+  width: 100%;
+}
+
+.settings-name-input:focus {
+  outline: none;
+}
+
+.settings-edit-btn {
+  background: none;
+  border: none;
+  color: var(--yellow);
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 0.25rem;
+}
+
+.settings-field-error {
+  margin: 0.35rem 0 0.85rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid rgba(248, 113, 113, 0.45);
+  background: rgba(127, 29, 29, 0.35);
+  color: #fecaca;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.confirm-sheet-error {
+  margin: 0 0 0.75rem;
 }
 
 .btn-invite {
@@ -1858,6 +2097,53 @@ body.body-scroll-locked {
   color: #fff;
 }
 
+.password-field {
+  position: relative;
+}
+
+.password-field-input {
+  width: 100%;
+  padding: 0.75rem 2.75rem 0.75rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: var(--navy-deep);
+  color: #fff;
+  box-sizing: border-box;
+}
+
+.password-field-input:focus {
+  outline: none;
+  border-color: rgba(250, 204, 21, 0.55);
+  box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.15);
+}
+
+.password-field-toggle {
+  position: absolute;
+  top: 50%;
+  right: 0.35rem;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.password-field-toggle:hover {
+  color: var(--yellow);
+}
+
+.password-field-toggle:focus-visible {
+  outline: 2px solid rgba(250, 204, 21, 0.55);
+  outline-offset: 1px;
+}
+
 .btn-primary {
   width: 100%;
   background: var(--yellow);
@@ -1934,9 +2220,23 @@ body.body-scroll-locked {
   letter-spacing: 0.15em;
 }
 
+.leaderboard-table-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
 .leaderboard-table {
   width: 100%;
   border-collapse: collapse;
+}
+
+.leaderboard-points--live {
+  color: var(--yellow);
+  font-weight: 700;
 }
 
 .leaderboard-table th,
@@ -1947,6 +2247,11 @@ body.body-scroll-locked {
 }
 
 .leaderboard-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--card-blue-light);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08);
   font-size: 0.7rem;
   color: var(--text-dim);
   text-transform: uppercase;

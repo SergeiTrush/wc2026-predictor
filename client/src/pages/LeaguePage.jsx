@@ -196,7 +196,7 @@ export default function LeaguePage() {
           <p>
             {allMatches.length > 0
               ? `${allMatches.length} матчей · счёт, первый гол, бустер на тур`
-              : 'Счёт, первый гол, один бустер на тур — как в Euro Predictor'}
+              : 'Счёт, первый гол, один бустер на тур'}
           </p>
         </div>
 

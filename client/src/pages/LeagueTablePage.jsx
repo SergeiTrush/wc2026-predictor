@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState, useCallback, useMemo } from 'react';
+import { Fragment, useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import ScoringModal from '../components/ScoringModal';
@@ -31,6 +31,23 @@ const SYNC_DISABLED_MSG = (
 function formatSyncTime(iso) {
   if (!iso) return 'ещё не было';
   return formatDateTime(iso);
+}
+
+function formatLeaderboardPoints(row) {
+  if (row.hasProvisional) {
+    return (
+      <span className="leaderboard-points leaderboard-points--live" title="Предварительно по текущему счёту">
+        ~{row.points}
+      </span>
+    );
+  }
+  return row.points;
+}
+
+function formatDayPoints(dayStats) {
+  const pts = dayStats?.points ?? 0;
+  if (dayStats?.hasProvisional) return `~${pts}`;
+  return String(pts);
 }
 
 export default function LeagueTablePage() {
@@ -100,6 +117,54 @@ export default function LeagueTablePage() {
     if (!pageReady) return;
     loadLeaderboard();
   }, [pageReady, loadLeaderboard]);
+
+  const lastSyncRef = useRef(null);
+
+  useEffect(() => {
+    if (syncStatus?.lastSync) {
+      lastSyncRef.current = syncStatus.lastSync;
+    }
+  }, [syncStatus?.lastSync]);
+
+  useEffect(() => {
+    if (!pageReady || !syncStatus?.enabled) return;
+
+    const pollIntervalMs = Math.min(60000, Math.max(30000, (syncStatus.intervalMs || 600000) / 10));
+
+    const pollSync = async () => {
+      if (document.visibilityState === 'hidden' || syncing) return;
+      try {
+        const status = await api.resultsSyncStatus();
+        const prev = lastSyncRef.current;
+        if (status.lastSync && status.lastSync !== prev) {
+          lastSyncRef.current = status.lastSync;
+          setSyncStatus(status);
+          loadLeaderboard();
+          setUserBreakdown({});
+          setExpandedUserId(null);
+        } else {
+          setSyncStatus(status);
+        }
+      } catch {
+        /* ignore background poll errors */
+      }
+    };
+
+    const timer = setInterval(pollSync, pollIntervalMs);
+    return () => clearInterval(timer);
+  }, [pageReady, syncStatus?.enabled, syncStatus?.intervalMs, syncing, loadLeaderboard]);
+
+  useEffect(() => {
+    if (!pageReady) return;
+
+    const pollLeaderboard = () => {
+      if (document.visibilityState === 'hidden' || syncing) return;
+      loadLeaderboard();
+    };
+
+    const timer = setInterval(pollLeaderboard, 60000);
+    return () => clearInterval(timer);
+  }, [pageReady, syncing, loadLeaderboard]);
 
   const tableTitle = useMemo(() => {
     if (!selectedDayKey) return 'Таблица лиги';
@@ -173,7 +238,9 @@ export default function LeagueTablePage() {
     setSyncMsg('');
     try {
       const result = await api.syncResults();
-      setSyncMsg(`Обновлено матчей: ${result.updated ?? 0}`);
+      setSyncMsg(
+        `Обновлено: ${result.updated ?? 0}${result.cleared ? `, сброшено: ${result.cleared}` : ''}`
+      );
       loadLeaderboard();
       setUserBreakdown({});
       const status = await api.resultsSyncStatus();
@@ -198,34 +265,22 @@ export default function LeagueTablePage() {
       <div className="page-content page-content--table">
         {syncStatus && syncStatus.enabled && (
           <div className="sync-status-card">
-            <div className="sync-status-title">Результаты матчей</div>
-            <>
-              <p className="sync-status-text">
-                Источник: {syncStatus.provider}
-                <br />
-                Последняя синхронизация: {formatSyncTime(syncStatus.lastSync)}
-                {syncStatus.lastSummary?.updated != null && (
-                  <>
-                    <br />
-                    Обновлено: {syncStatus.lastSummary.updated} матчей
-                  </>
-                )}
-              </p>
-              <button
-                type="button"
-                className="btn-primary btn-sync"
-                disabled={syncing}
-                onClick={runSync}
-              >
-                {syncing ? 'Загрузка…' : 'Обновить результаты'}
-              </button>
-            </>
+            <p className="sync-status-text">
+              Последняя синхронизация: {formatSyncTime(syncStatus.lastSync)}
+            </p>
+            <button
+              type="button"
+              className="btn-primary btn-sync"
+              disabled={syncing}
+              onClick={runSync}
+            >
+              {syncing ? 'Загрузка…' : 'Обновить результаты'}
+            </button>
             {syncMsg && <p className="sync-status-msg">{syncMsg}</p>}
           </div>
         )}
         {syncStatus && !syncStatus.enabled && (
           <div className="sync-status-card">
-            <div className="sync-status-title">Результаты матчей</div>
             <p className="sync-status-text">{SYNC_DISABLED_MSG}</p>
           </div>
         )}
@@ -321,6 +376,7 @@ export default function LeagueTablePage() {
           </button>
         </div>
 
+        <div className="leaderboard-table-scroll">
         <table className="leaderboard-table">
           <thead>
             <tr>
@@ -343,7 +399,7 @@ export default function LeagueTablePage() {
                     <td>{i + 1}</td>
                     <td>
                       {row.name}
-                      {row.isOwner && <span className="owner-badge">Владелец</span>}
+                      {row.isOwner ? <span className="owner-badge">Владелец</span> : null}
                       <span
                         aria-hidden="true"
                         style={{
@@ -359,7 +415,7 @@ export default function LeagueTablePage() {
                         {open ? '▾' : '▸'}
                       </span>
                     </td>
-                    <td>{row.points}</td>
+                    <td>{formatLeaderboardPoints(row)}</td>
                   </tr>
                   {open && (
                     <tr>
@@ -420,7 +476,7 @@ export default function LeagueTablePage() {
                                         fontWeight: 600,
                                       }}
                                     >
-                                      {breakdown?.statsByDay?.[md.day]?.points ?? 0} оч.
+                                      {formatDayPoints(breakdown?.statsByDay?.[md.day])} оч.
                                     </td>
                                   </tr>
                                 ))}
@@ -438,9 +494,10 @@ export default function LeagueTablePage() {
         </table>
         {leaderboard.length === 0 && (
           <p className="empty-hint">
-            Очки появятся после завершения матчей и синхронизации результатов
+            Очки появятся после начала матчей (предварительно — по текущему счёту) или после финального свистка
           </p>
         )}
+        </div>
       </div>
 
       {showScoring && <ScoringModal onClose={() => setShowScoring(false)} />}

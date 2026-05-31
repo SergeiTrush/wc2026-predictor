@@ -78,13 +78,129 @@ export function formatDateTime(iso) {
   });
 }
 
-export function matchHasResult(match) {
+export function matchIsFinished(match) {
+  if (match?.is_finished != null) {
+    return Number(match.is_finished) === 1;
+  }
+  if (match?.isFinished != null) {
+    return match.isFinished === true || match.isFinished === 1 || match.isFinished === '1';
+  }
+  return false;
+}
+
+export function matchHasStoredScore(match) {
   return match?.home_score != null && match?.away_score != null;
+}
+
+export function matchHasResult(match) {
+  if (match?.is_finished != null || match?.isFinished != null) {
+    return matchIsFinished(match) && matchHasStoredScore(match);
+  }
+  if (match?.hasResult != null) return !!match.hasResult;
+  return matchIsFinished(match) && matchHasStoredScore(match);
+}
+
+export function matchIsLive(match) {
+  if (match?.isLive != null) return !!match.isLive;
+  if (matchHasResult(match)) return false;
+  if (matchHasLiveManualScore(match)) return true;
+  const ls = match?.liveScore;
+  return !!(ls?.isLive && ls?.homeScore != null && ls?.awayScore != null);
+}
+
+export function matchHasLiveManualScore(match) {
+  return matchHasStoredScore(match) && !matchIsFinished(match);
 }
 
 export function matchHasLiveScore(match) {
   const ls = match?.liveScore;
-  return ls?.homeScore != null && ls?.awayScore != null;
+  if (ls?.homeScore != null && ls?.awayScore != null) return true;
+  return matchHasLiveManualScore(match);
+}
+
+/** Knockout live score helpers — regulation time (90 min) vs current aggregate. */
+
+export function isLiveExtraTime(liveScore) {
+  if (!liveScore) return false;
+  const status = liveScore.status;
+  if (status === 'extra_time' || status === 'extratime' || status === 'penalties') return true;
+  return liveScore.minute != null && liveScore.minute > 90;
+}
+
+export function regulationScoresFromLive(liveScore) {
+  if (!liveScore) return null;
+  if (liveScore.regulationHomeScore != null && liveScore.regulationAwayScore != null) {
+    return { home: liveScore.regulationHomeScore, away: liveScore.regulationAwayScore };
+  }
+  return null;
+}
+
+/** Current aggregate on the live bar (includes extra-time goals). */
+export function liveBarDisplayScore(match, liveScore) {
+  if (!liveScore || liveScore.homeScore == null || liveScore.awayScore == null) return null;
+  return { home: liveScore.homeScore, away: liveScore.awayScore };
+}
+
+/** 90-minute score for fantasy points during knockout extra time. */
+export function regulationScoreForPoints(match, liveScore) {
+  if (!liveScore) return null;
+  if (isKnockoutMatch(match) && isLiveExtraTime(liveScore)) {
+    const reg = regulationScoresFromLive(liveScore);
+    if (reg) return reg;
+  }
+  return liveBarDisplayScore(match, liveScore);
+}
+
+export function scoringActualFromLive(match, liveScore) {
+  const display = regulationScoreForPoints(match, liveScore);
+  if (!display) return null;
+  return {
+    home_score: display.home,
+    away_score: display.away,
+    first_scorer_team: match.first_scorer_team ?? null,
+    first_scorer_player: match.first_scorer_player ?? null,
+    stage: match.stage,
+  };
+}
+
+function isKnockoutMatch(match) {
+  if (!match) return false;
+  if (match.stage && match.stage !== 'group') return true;
+  const day = match.matchday || '';
+  return ['round_of_32', 'round_of_16', 'quarter_final', 'semi_final', 'third_place', 'final'].includes(day);
+}
+
+/** Admin Results page: stored score or live feed score. */
+export function adminMatchScores(match) {
+  if (matchHasStoredScore(match)) {
+    return {
+      home: match.home_score,
+      away: match.away_score,
+      finalHome: match.final_home_score,
+      finalAway: match.final_away_score,
+      stored: true,
+    };
+  }
+  const ls = match?.liveScore;
+  if (ls?.homeScore != null && ls?.awayScore != null) {
+    const reg = regulationScoreForPoints(match, ls);
+    const current = liveBarDisplayScore(match, ls);
+    if (reg && current && isKnockoutMatch(match) && isLiveExtraTime(ls)) {
+      return {
+        home: reg.home,
+        away: reg.away,
+        finalHome: current.home,
+        finalAway: current.away,
+        stored: false,
+      };
+    }
+    if (reg) return { home: reg.home, away: reg.away, stored: false };
+  }
+  return null;
+}
+
+export function matchHasAdminResult(match) {
+  return adminMatchScores(match) != null;
 }
 
 /** Match kicked off but final result not in DB yet — may have live score feed. */

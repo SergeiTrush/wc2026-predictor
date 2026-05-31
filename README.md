@@ -1,6 +1,6 @@
 # World Cup 2026 Match Predictor
 
-Private league app in the style of the [Euro 2024 Match Predictor](https://www.youtube.com/watch?v=pXh2ki_iZu8) (FPL Kevlo), with the full **FIFA World Cup 2026** schedule (48 teams, 104 matches).
+Private league app for the **FIFA World Cup 2026** — full schedule (48 teams, 104 matches).
 
 ## How it works
 
@@ -12,7 +12,7 @@ Private league app in the style of the [Euro 2024 Match Predictor](https://www.y
    - **One booster per matchday** (2× group/R16, up to 5× in the final)
 4. Compete on the **Таблица** leaderboard.
 
-## Scoring (Euro-style)
+## Scoring
 
 | Rule | Points |
 |------|--------|
@@ -21,7 +21,6 @@ Private league app in the style of the [Euro 2024 Match Predictor](https://www.y
 | Goal difference | 3 |
 | First team to score | 2 |
 | First player to score | 8 |
-| Underdog bonus (&lt;10% in league) | 5 |
 | Booster | ×2–×5 by stage |
 
 ## Quick start

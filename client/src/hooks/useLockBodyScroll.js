@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 
 /**
  * Prevents background scroll while a modal/menu is open.
- * Uses overflow lock only (not body position:fixed) so viewport-fixed menus stay correct.
+ * Locks document scroll and in-app scroll containers (e.g. league table).
  */
 export function useLockBodyScroll(locked) {
   useEffect(() => {
@@ -18,16 +18,23 @@ export function useLockBodyScroll(locked) {
     body.classList.add('body-scroll-locked');
 
     const blockTouchMove = (e) => {
-      if (e.target.closest('.modal-sheet--top-menu')) return;
+      if (e.target.closest('.modal-overlay')) return;
       e.preventDefault();
     };
     document.addEventListener('touchmove', blockTouchMove, { passive: false });
+
+    const blockWheel = (e) => {
+      if (e.target.closest('.modal-overlay')) return;
+      e.preventDefault();
+    };
+    document.addEventListener('wheel', blockWheel, { passive: false });
 
     return () => {
       html.style.overflow = prevHtmlOverflow;
       body.style.overflow = prevBodyOverflow;
       body.classList.remove('body-scroll-locked');
       document.removeEventListener('touchmove', blockTouchMove);
+      document.removeEventListener('wheel', blockWheel);
       window.scrollTo(0, scrollY);
     };
   }, [locked]);

@@ -1,6 +1,6 @@
 /**
- * Euro Match Predictor scoring (WC 2026 app rules).
- * Points are additive per category; booster multiplies match subtotal (not underdog).
+ * World Cup 2026 match scoring rules.
+ * Points are additive per category; booster multiplies match subtotal.
  */
 
 function boosterMultiplier(stage) {
@@ -53,7 +53,7 @@ function firstTeamMatches(predTeam, actualTeam) {
 /**
  * @returns {object} Line-by-line breakdown for one prediction vs actual result.
  */
-function breakdownMatchPoints(pred, actual, leaguePredictions = []) {
+function breakdownMatchPoints(pred, actual) {
   const empty = {
     outcome: 0,
     homeGoals: 0,
@@ -61,12 +61,11 @@ function breakdownMatchPoints(pred, actual, leaguePredictions = []) {
     goalDifference: 0,
     firstTeam: 0,
     firstPlayer: 0,
-    underdog: 0,
     scoreSubtotal: 0,
     boosterMultiplier: 1,
     afterBooster: 0,
     total: 0,
-    maxPossible: 28,
+    maxPossible: 20,
   };
 
   if (actual.home_score == null || actual.away_score == null) {
@@ -102,17 +101,7 @@ function breakdownMatchPoints(pred, actual, leaguePredictions = []) {
 
   const mult = booster ? boosterMultiplier(stage) : 1;
   const afterBooster = scoreSubtotal * mult;
-
-  let underdog = 0;
-  if (leaguePredictions.length >= 3) {
-    const same = leaguePredictions.filter(
-      (p) => p.home_pred === home_pred && p.away_pred === away_pred
-    ).length;
-    const share = same / leaguePredictions.length;
-    if (share < 0.1) underdog = 5;
-  }
-
-  const total = afterBooster + underdog;
+  const total = afterBooster;
 
   return {
     outcome,
@@ -121,12 +110,11 @@ function breakdownMatchPoints(pred, actual, leaguePredictions = []) {
     goalDifference,
     firstTeam,
     firstPlayer,
-    underdog,
     scoreSubtotal,
     boosterMultiplier: mult,
     afterBooster,
     total,
-    maxPossible: 10 * mult + 5,
+    maxPossible: 10 * mult,
   };
 }
 
@@ -134,16 +122,8 @@ function scorelinePoints(pred, actual) {
   return breakdownMatchPoints(pred, actual).afterBooster;
 }
 
-function underdogBonus(predHome, predAway, leaguePredictions) {
-  return breakdownMatchPoints(
-    { home_pred: predHome, away_pred: predAway },
-    { home_score: 0, away_score: 0 },
-    leaguePredictions
-  ).underdog;
-}
-
-function totalMatchPoints(pred, actual, leaguePredictions) {
-  return breakdownMatchPoints(pred, actual, leaguePredictions).total;
+function totalMatchPoints(pred, actual) {
+  return breakdownMatchPoints(pred, actual).total;
 }
 
 /** Human-readable lines for UI tooltip. */
@@ -163,7 +143,6 @@ function formatPointsBreakdown(b) {
       note: `${b.scoreSubtotal} × ${b.boosterMultiplier}`,
     });
   }
-  if (b.underdog) lines.push({ label: 'Андердог', points: b.underdog });
   return { lines, total: b.total };
 }
 
@@ -176,7 +155,6 @@ module.exports = {
   breakdownMatchPoints,
   formatPointsBreakdown,
   scorelinePoints,
-  underdogBonus,
   totalMatchPoints,
   matchPoints: scorelinePoints,
 };

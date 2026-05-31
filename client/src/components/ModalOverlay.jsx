@@ -8,7 +8,7 @@ function getModalRoot() {
 /**
  * Full-screen overlay rendered at the top of the document (via #modal-root portal).
  */
-export default function ModalOverlay({ className = '', onClick, lockScroll = false, children }) {
+export default function ModalOverlay({ className = '', onClick, lockScroll = true, children }) {
   useLockBodyScroll(lockScroll);
 
   const classes = className ? `modal-overlay ${className}` : 'modal-overlay';

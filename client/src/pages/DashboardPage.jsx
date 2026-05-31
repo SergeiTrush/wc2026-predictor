@@ -84,7 +84,7 @@ export default function DashboardPage({ user, onLogout }) {
             <div>
               <strong>
                 {l.name}
-                {l.is_owner && <span className="owner-badge">Владелец</span>}
+                {l.is_owner ? <span className="owner-badge">Владелец</span> : null}
               </strong>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginTop: '0.25rem' }}>
                 {l.member_count} участников

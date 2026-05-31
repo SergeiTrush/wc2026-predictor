@@ -5,7 +5,7 @@ function navClass({ isActive }) {
   return `nav-link${isActive ? ' active' : ''}`;
 }
 
-export default function AppHeader({ active, leagueId, isOwner = false, fixed = false }) {
+export default function AppHeader({ active, leagueId, fixed = false }) {
   const navigate = useNavigate();
   const base = leagueId ? `/league/${leagueId}` : null;
 
@@ -48,17 +48,15 @@ export default function AppHeader({ active, leagueId, isOwner = false, fixed = f
             className={navClass}
             aria-current={active === 'results' ? 'page' : undefined}
           >
-            Ввод Результатов
+            Результаты
           </NavLink>
-          {isOwner && (
-            <NavLink
-              to={`${base}/settings`}
-              className={navClass}
-              aria-current={active === 'settings' ? 'page' : undefined}
-            >
-              Настройки лиги
-            </NavLink>
-          )}
+          <NavLink
+            to={`${base}/settings`}
+            className={navClass}
+            aria-current={active === 'settings' ? 'page' : undefined}
+          >
+            Настройки
+          </NavLink>
         </nav>
       )}
     </header>

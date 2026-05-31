@@ -43,7 +43,7 @@ function firstTeamMatches(predTeam, actualTeam) {
   return predTeam === actualTeam;
 }
 
-export function breakdownMatchPoints(pred, actual, leaguePredictions = []) {
+export function breakdownMatchPoints(pred, actual) {
   const empty = {
     outcome: 0,
     homeGoals: 0,
@@ -51,7 +51,6 @@ export function breakdownMatchPoints(pred, actual, leaguePredictions = []) {
     goalDifference: 0,
     firstTeam: 0,
     firstPlayer: 0,
-    underdog: 0,
     scoreSubtotal: 0,
     boosterMultiplier: 1,
     afterBooster: 0,
@@ -91,14 +90,6 @@ export function breakdownMatchPoints(pred, actual, leaguePredictions = []) {
   const mult = booster ? boosterMultiplier(stage) : 1;
   const afterBooster = scoreSubtotal * mult;
 
-  let underdog = 0;
-  if (leaguePredictions.length >= 3) {
-    const same = leaguePredictions.filter(
-      (p) => p.home_pred === home_pred && p.away_pred === away_pred
-    ).length;
-    if (same / leaguePredictions.length < 0.1) underdog = 5;
-  }
-
   return {
     outcome,
     homeGoals,
@@ -106,11 +97,10 @@ export function breakdownMatchPoints(pred, actual, leaguePredictions = []) {
     goalDifference,
     firstTeam,
     firstPlayer,
-    underdog,
     scoreSubtotal,
     boosterMultiplier: mult,
     afterBooster,
-    total: afterBooster + underdog,
+    total: afterBooster,
   };
 }
 
@@ -129,6 +119,5 @@ export function formatPointsBreakdown(b) {
       points: b.afterBooster - b.scoreSubtotal,
     });
   }
-  if (b.underdog) lines.push({ label: 'Андердог', points: b.underdog });
   return { lines, total: b.total };
 }

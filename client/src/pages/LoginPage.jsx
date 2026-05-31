@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api } from '../api';
+import PasswordInput from '../components/PasswordInput';
 
 export default function LoginPage({ onAuth }) {
   const [isRegister, setIsRegister] = useState(false);
@@ -50,8 +51,7 @@ export default function LoginPage({ onAuth }) {
           </div>
           <div className="form-group">
             <label>Пароль</label>
-            <input
-              type="password"
+            <PasswordInput
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -61,8 +61,7 @@ export default function LoginPage({ onAuth }) {
           {isRegister && (
             <div className="form-group">
               <label>Подтверждение пароля</label>
-              <input
-                type="password"
+              <PasswordInput
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
                 required

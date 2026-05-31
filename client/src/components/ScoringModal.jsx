@@ -1,3 +1,4 @@
+import { KNOCKOUT_SCORE_HINT } from '../matchdays';
 import { breakdownMatchPoints } from '../scoring.js';
 import ModalOverlay from './ModalOverlay';
 
@@ -40,12 +41,12 @@ export default function ScoringModal({ onClose }) {
         </div>
 
         <p className="scoring-intro">
-          Как в Euro Match Predictor: очки за категории складываются. Бустер умножает сумму за матч
-          (без андердога).
+          Очки за категории складываются. Бустер умножает сумму за матч.
         </p>
 
         <div className="scoring-section">
           <h3>Счёт матча</h3>
+          <p className="scoring-note scoring-note--highlight">{KNOCKOUT_SCORE_HINT}</p>
           <div className="scoring-row">
             <span>Исход (победа / ничья)</span>
             <span>3 оч.</span>
@@ -73,10 +74,6 @@ export default function ScoringModal({ onClose }) {
           <div className="scoring-row">
             <span>Игрок, открывший счёт</span>
             <span>8 оч.</span>
-          </div>
-          <div className="scoring-row">
-            <span>Андердог (редкий прогноз в лиге)</span>
-            <span>5 оч.</span>
           </div>
         </div>
 

@@ -6,7 +6,7 @@
  */
 
 const GROUP = [
-  // Matchday 1 — June 11–17
+  // Matchday 1 — June 11–18 (UTC; late ET games e.g. Uzbekistan–Colombia spill to 18th)
   ['Mexico', 'South Africa', '2026-06-11', '15:00', 'A', 'Mexico City Stadium', 'md1'],
   ['South Korea', 'Czechia', '2026-06-11', '22:00', 'A', 'Estadio Guadalajara', 'md1'],
   ['Canada', 'Bosnia and Herzegovina', '2026-06-12', '15:00', 'B', 'BMO Field', 'md1'],
@@ -121,31 +121,12 @@ const KNOCKOUT = [
   ['Winner SF1', 'Winner SF2', '2026-07-19', '16:00', 'final', 'Final', 'MetLife Stadium'],
 ];
 
-const SCHEDULE_VERSION = 'fifa-wc2026-official-v7';
+const SCHEDULE_VERSION = 'fifa-wc2026-official-v10';
 
-const MATCHDAY_ORDER = [
-  'md1',
-  'md2',
-  'md3',
-  'round_of_32',
-  'round_of_16',
-  'quarter_final',
-  'semi_final',
-  'third_place',
-  'final',
-];
+const { buildScheduleKickoffs } = require('../../shared/schedule-kickoffs');
+const { computeMatchdayMeta, MATCHDAY_ORDER } = require('../../shared/matchday-meta');
 
-const MATCHDAY_META = {
-  md1: { label: 'MD1', start: '2026-06-11', end: '2026-06-17' },
-  md2: { label: 'MD2', start: '2026-06-18', end: '2026-06-23' },
-  md3: { label: 'MD3', start: '2026-06-24', end: '2026-06-27' },
-  round_of_32: { label: '1/16', start: '2026-06-28', end: '2026-07-03' },
-  round_of_16: { label: '1/8', start: '2026-07-04', end: '2026-07-07' },
-  quarter_final: { label: '1/4', start: '2026-07-09', end: '2026-07-11' },
-  semi_final: { label: '1/2', start: '2026-07-14', end: '2026-07-15' },
-  third_place: { label: '3-е', start: '2026-07-18', end: '2026-07-18' },
-  final: { label: 'Финал', start: '2026-07-19', end: '2026-07-19' },
-};
+const MATCHDAY_META = computeMatchdayMeta(buildScheduleKickoffs(GROUP, KNOCKOUT));
 
 module.exports = {
   GROUP,

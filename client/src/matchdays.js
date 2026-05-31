@@ -1,28 +1,5 @@
 import { formatDayMonth } from './utils';
-
-const MATCHDAY_ORDER = [
-  'md1',
-  'md2',
-  'md3',
-  'round_of_32',
-  'round_of_16',
-  'quarter_final',
-  'semi_final',
-  'third_place',
-  'final',
-];
-
-const MATCHDAY_META = {
-  md1: { label: 'MD1', start: '2026-06-11', end: '2026-06-17' },
-  md2: { label: 'MD2', start: '2026-06-18', end: '2026-06-23' },
-  md3: { label: 'MD3', start: '2026-06-24', end: '2026-06-27' },
-  round_of_32: { label: '1/16', start: '2026-06-28', end: '2026-07-03' },
-  round_of_16: { label: '1/8', start: '2026-07-04', end: '2026-07-07' },
-  quarter_final: { label: '1/4', start: '2026-07-09', end: '2026-07-11' },
-  semi_final: { label: '1/2', start: '2026-07-14', end: '2026-07-15' },
-  third_place: { label: '3-е', start: '2026-07-18', end: '2026-07-18' },
-  final: { label: 'Финал', start: '2026-07-19', end: '2026-07-19' },
-};
+import { MATCHDAY_ORDER, MATCHDAY_META } from './generated-matchday-meta.js';
 
 export function matchdayKey(match) {
   return match.matchday || match.kickoff?.slice(0, 10) || '';
@@ -101,5 +78,16 @@ export function isKnockoutMatchday(day) {
 
 export function isKnockoutMatch(match) {
   const day = match.matchday || match.stage || '';
-  return isKnockoutMatchday(day);
+  if (isKnockoutMatchday(day)) return true;
+  if (match.stage && match.stage !== 'group') return true;
+  const kick = match.kickoff?.slice(0, 10);
+  if (!kick) return false;
+  return KNOCKOUT_MATCHDAYS.some((d) => {
+    const meta = MATCHDAY_META[d];
+    return meta && kick >= meta.start && kick <= meta.end;
+  });
 }
+
+/** Regulation-time scoring rule (shown in «Как начисляются очки»). */
+export const KNOCKOUT_SCORE_HINT =
+  'Счёт после 90 минут (доп. время и пенальти не учитываются)';

@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { api } from '../api';
 import { loadMatchSquads } from '../teamSquads';
-import { teamFlag, formatMatchTime, boosterLabel, isMatchLiveScoreBarVisible, matchHasResult, matchHasLiveScore } from '../utils';
+import { teamFlag, formatMatchTime, boosterLabel, isMatchLiveScoreBarVisible, matchHasResult, matchHasLiveScore, matchHasLiveManualScore, matchIsLive, liveBarDisplayScore, scoringActualFromLive, isLiveExtraTime } from '../utils';
+import { isKnockoutMatch } from '../matchdays';
 import { breakdownMatchPoints, formatPointsBreakdown } from '../scoring';
 import PointsTooltip from './PointsTooltip';
 import FriendsPredictionsModal, { friendsLinkLabel } from './FriendsPredictionsModal';
@@ -24,8 +25,10 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
   const [squadLoading, setSquadLoading] = useState(false);
   const [squadError, setSquadError] = useState('');
 
-  const hasResult = match.hasResult ?? matchHasResult(match);
+  const hasResult = matchHasResult(match);
+  const isLive = matchIsLive(match);
   const liveScore = match.liveScore;
+  const displayScore = liveScore ? liveBarDisplayScore(match, liveScore) : null;
   const showLiveScore = hasResult || matchHasLiveScore(match);
   const locked = !!match.locked;
   const liveBarVisible = isMatchLiveScoreBarVisible(match);
@@ -194,13 +197,15 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
     if (hasResult) {
       actual = match;
     } else if (matchHasLiveScore(match)) {
-      actual = {
-        home_score: liveScore.homeScore,
-        away_score: liveScore.awayScore,
-        first_scorer_team: match.first_scorer_team ?? null,
-        first_scorer_player: match.first_scorer_player ?? null,
-        stage: match.stage,
-      };
+      actual = matchHasLiveManualScore(match)
+        ? {
+            home_score: match.home_score,
+            away_score: match.away_score,
+            first_scorer_team: match.first_scorer_team ?? null,
+            first_scorer_player: match.first_scorer_player ?? null,
+            stage: match.stage,
+          }
+        : scoringActualFromLive(match, liveScore);
     }
     if (!actual) return null;
 
@@ -212,13 +217,12 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
         first_player: pred.first_player,
         booster: pred.booster ? 1 : 0,
       },
-      actual,
-      []
+      actual
     );
     return formatPointsBreakdown(raw);
   }, [match, pred, hasResult, liveScore]);
 
-  const isProvisionalPoints = !hasResult && matchHasLiveScore(match) && !!pointsDetail;
+  const isProvisionalPoints = isLive && !!pointsDetail;
 
   const lockBannerText = inputsLocked
     ? hasResult
@@ -237,15 +241,21 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
       </div>
 
       {showLiveScore && liveBarVisible && (
-        <div className={`live-score-bar ${!hasResult && liveScore?.isLive ? 'live-score-bar--inplay' : ''}`}>
+        <div className={`live-score-bar ${isLive ? 'live-score-bar--inplay' : ''}`}>
           <div className="live-score-label">
-            <span className={`live-tag ${!hasResult && liveScore?.isLive ? 'live-tag--pulse' : ''}`}>
-              {hasResult ? 'Счёт матча' : liveScore?.isLive ? 'LIVE' : 'Счёт'}
-              {!hasResult && liveScore?.minute != null ? ` ${liveScore.minute}'` : ''}
+            <span className={`live-tag ${isLive ? 'live-tag--pulse' : ''}`}>
+              {hasResult ? 'Счёт матча' : isLive ? 'LIVE' : 'Счёт'}
+              {isLive && liveScore?.minute != null ? ` ${liveScore.minute}'` : ''}
+              {isLive && isKnockoutMatch(match) && isLiveExtraTime(liveScore) ? ' · доп. время' : ''}
             </span>
-            <span className="live-score">
-              {hasResult ? match.home_score : liveScore.homeScore} :{' '}
-              {hasResult ? match.away_score : liveScore.awayScore}
+            <span className={`live-score${isLive ? ' live-score--provisional' : ''}`}>
+              {hasResult
+                ? `${match.home_score} : ${match.away_score}`
+                : matchHasLiveManualScore(match)
+                  ? `${match.home_score} : ${match.away_score}`
+                  : displayScore
+                    ? `${displayScore.home} : ${displayScore.away}`
+                    : `${liveScore.homeScore} : ${liveScore.awayScore}`}
             </span>
           </div>
           {pointsDetail ? (

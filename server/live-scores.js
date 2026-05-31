@@ -1,33 +1,22 @@
 const { prepare } = require('./sqlite-helpers');
 const { mapApiTeamName } = require('./team-map');
 const { isEnabled, apiFetch } = require('./bzzoiro-client');
+const { findMatchForEvent } = require('./match-lookup');
 
-const LIVE_STATUSES = new Set(['inprogress', '1st_half', 'halftime', '2nd_half', 'penalties']);
+const LIVE_STATUSES = new Set([
+  'inprogress',
+  '1st_half',
+  'halftime',
+  '2nd_half',
+  'extra_time',
+  'extratime',
+  'penalties',
+]);
 
 let cache = {
   byMatchId: new Map(),
   at: 0,
 };
-
-function findMatch(q, { fixtureId, home, away, date }) {
-  if (fixtureId) {
-    const byId = q('SELECT * FROM matches WHERE external_fixture_id = ?').get(fixtureId);
-    if (byId) return byId;
-  }
-  if (!home || !away) return null;
-
-  const rows = q(
-    `SELECT * FROM matches
-     WHERE home_team = ? AND away_team = ?
-       AND substr(kickoff, 1, 10) = ?`
-  ).all(home, away, date);
-
-  if (rows.length === 1) return rows[0];
-
-  const fuzzy = q(`SELECT * FROM matches WHERE home_team = ? AND away_team = ?`).all(home, away);
-  if (fuzzy.length === 1) return fuzzy[0];
-  return null;
-}
 
 function normalizeLiveEvent(event) {
   const home = mapApiTeamName(event.home_team);
@@ -50,29 +39,31 @@ function normalizeLiveEvent(event) {
 }
 
 async function refreshLiveScores(db) {
+  const q = (sql) => prepare(db, sql);
+  const byMatchId = new Map();
+
   if (!isEnabled()) {
-    cache = { byMatchId: new Map(), at: Date.now() };
+    cache = { byMatchId, at: Date.now() };
     return cache;
   }
 
-  const q = (sql) => prepare(db, sql);
   const data = await apiFetch('/events/live/');
   const list = data.events || data.results || [];
-  const byMatchId = new Map();
 
   for (const event of list) {
     const live = normalizeLiveEvent(event);
     if (!live) continue;
 
-    const match = findMatch(q, {
+    const match = findMatchForEvent(q, {
       fixtureId: live.externalId,
       home: live.home,
       away: live.away,
-      date: live.kickoffDate,
+      eventDate: live.kickoffDate,
     });
     if (!match) continue;
 
     const hasFinal =
+      Number(match.is_finished) === 1 &&
       match.home_score != null &&
       match.away_score != null &&
       !LIVE_STATUSES.has(live.status);
@@ -93,12 +84,17 @@ async function refreshLiveScores(db) {
 
 async function refreshIfStale(db, maxAgeMs = 30000) {
   if (!isEnabled()) return cache;
-  if (Date.now() - cache.at < maxAgeMs) return cache;
-  try {
-    await refreshLiveScores(db);
-  } catch (err) {
-    console.warn('Live scores refresh:', err.message);
+
+  const stale = Date.now() - cache.at >= maxAgeMs;
+  if (stale) {
+    try {
+      await refreshLiveScores(db);
+    } catch (err) {
+      console.warn('Live scores refresh:', err.message);
+      cache = { byMatchId: new Map(), at: Date.now() };
+    }
   }
+
   return cache;
 }
 

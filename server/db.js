@@ -127,7 +127,8 @@ db.exec(`
     final_away_score INTEGER,
     first_scorer_team TEXT,
     first_scorer_player TEXT,
-    external_fixture_id INTEGER
+    external_fixture_id INTEGER,
+    is_finished INTEGER NOT NULL DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS app_meta (
@@ -171,6 +172,7 @@ function migrate() {
     'ALTER TABLE matches ADD COLUMN external_fixture_id INTEGER',
     'ALTER TABLE matches ADD COLUMN final_home_score INTEGER',
     'ALTER TABLE matches ADD COLUMN final_away_score INTEGER',
+    'ALTER TABLE matches ADD COLUMN is_finished INTEGER NOT NULL DEFAULT 0',
   ];
   for (const sql of alters) {
     try {
@@ -194,6 +196,20 @@ function ensureFinalScoreColumns() {
 }
 
 ensureFinalScoreColumns();
+
+function ensureIsFinishedColumn() {
+  const cols = new Set(db.prepare('PRAGMA table_info(matches)').all().map((c) => c.name));
+  if (!cols.has('is_finished')) {
+    db.exec('ALTER TABLE matches ADD COLUMN is_finished INTEGER NOT NULL DEFAULT 0');
+    // One-time: existing scores were final before live/finished split existed
+    db.exec(`
+      UPDATE matches SET is_finished = 1
+      WHERE home_score IS NOT NULL AND away_score IS NOT NULL
+    `);
+  }
+}
+
+ensureIsFinishedColumn();
 
 function migratePredictionsPerLeague() {
   const cols = db.prepare('PRAGMA table_info(predictions)').all();
@@ -220,19 +236,6 @@ function migratePredictionsPerLeague() {
 }
 
 migratePredictionsPerLeague();
-
-// Clear results entered before kickoff (e.g. test data) so predictions stay open
-try {
-  db.exec(`
-    UPDATE matches
-    SET home_score = NULL, away_score = NULL,
-        first_scorer_team = NULL, first_scorer_player = NULL
-    WHERE home_score IS NOT NULL
-      AND datetime(kickoff) > datetime('now')
-  `);
-} catch {
-  /* ignore */
-}
 
 function predictionsSchemaOk() {
   const cols = db.prepare('PRAGMA table_info(predictions)').all();

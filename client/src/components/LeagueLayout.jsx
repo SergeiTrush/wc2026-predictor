@@ -80,7 +80,7 @@ export default function LeagueLayout() {
 
   const shellHeader = (
     <div className="league-shell-header" ref={headerRef}>
-      <AppHeader active={active} leagueId={id} isOwner={!!league?.is_owner} />
+      <AppHeader active={active} leagueId={id} />
     </div>
   );
 

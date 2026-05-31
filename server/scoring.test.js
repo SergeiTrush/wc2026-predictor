@@ -60,29 +60,6 @@ test('correct outcome only (pred 1-0, actual 3-2) = 6 points (outcome + diff)', 
   assert.equal(b.total, 6);
 });
 
-test('underdog bonus when fewer than 10% picked same score', () => {
-  const leaguePreds = [
-    { home_pred: 2, away_pred: 1 },
-    { home_pred: 1, away_pred: 0 },
-    { home_pred: 0, away_pred: 0 },
-    { home_pred: 3, away_pred: 2 },
-    { home_pred: 1, away_pred: 1 },
-    { home_pred: 2, away_pred: 0 },
-    { home_pred: 0, away_pred: 1 },
-    { home_pred: 3, away_pred: 0 },
-    { home_pred: 2, away_pred: 2 },
-    { home_pred: 4, away_pred: 1 },
-    { home_pred: 3, away_pred: 1 },
-  ];
-  const b = breakdownMatchPoints(
-    { home_pred: 2, away_pred: 1, booster: 0 },
-    baseActual,
-    leaguePreds
-  );
-  assert.equal(b.underdog, 5);
-  assert.equal(b.total, 15);
-});
-
 test('first player matches by surname when API uses full name', () => {
   const b = breakdownMatchPoints(
     {

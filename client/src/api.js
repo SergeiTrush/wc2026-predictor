@@ -87,6 +87,8 @@ export const api = {
   login: (name, password) =>
     request('/auth/login', { method: 'POST', body: JSON.stringify({ name, password }) }),
   me: () => request('/auth/me'),
+  updateProfile: (name) =>
+    request('/auth/me', { method: 'PATCH', body: JSON.stringify({ name }) }),
   tournament: () => request('/tournament'),
   leagues: () => request('/leagues'),
   league: (id) => request(`/leagues/${id}`),

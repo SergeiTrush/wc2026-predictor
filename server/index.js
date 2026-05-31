@@ -33,6 +33,7 @@ const {
   breakdownMatchPoints,
   formatPointsBreakdown,
 } = require('../shared/scoring');
+const { scoringActualFromLive } = require('../shared/live-score');
 const {
   syncResultsFromApi,
   getSyncStatus,
@@ -207,14 +208,104 @@ function matchLockState(match) {
   return { locked: false, lockReason: null };
 }
 
-function matchHasResult(match) {
+function matchIsFinished(match) {
+  return Number(match?.is_finished) === 1;
+}
+
+function parseIsFinishedFlag(body) {
+  if (!body || !('isFinished' in body)) return 0;
+  const v = body.isFinished;
+  if (v === true || v === 1 || v === '1') return 1;
+  return 0;
+}
+
+function matchHasStoredScore(match) {
   return match.home_score != null && match.away_score != null;
+}
+
+function matchHasResult(match) {
+  return matchIsFinished(match) && matchHasStoredScore(match);
+}
+
+function matchHasLiveManualScore(match) {
+  return matchHasStoredScore(match) && !matchIsFinished(match);
+}
+
+function manualLiveScoreFromMatch(match) {
+  if (!matchHasLiveManualScore(match)) return null;
+  return {
+    homeScore: match.home_score,
+    awayScore: match.away_score,
+    minute: null,
+    status: 'inprogress',
+    isLive: true,
+  };
+}
+
+function resolveLiveScoreForMatch(match) {
+  if (matchHasResult(match)) return null;
+  const feed = getLiveScoreForMatch(match.id);
+  if (feed) return feed;
+  return manualLiveScoreFromMatch(match);
+}
+
+function matchKickoffPassed(match) {
+  const kickoff = new Date(match.kickoff).getTime();
+  return !Number.isNaN(kickoff) && kickoff <= Date.now();
+}
+
+function liveScoreAsResult(match, liveScore) {
+  return scoringActualFromLive(match, liveScore);
+}
+
+/** Final DB result, or provisional score from live feed when kickoff has passed. */
+function matchPointsForLeaderboard(pred, match, liveScore) {
+  if (matchHasResult(match)) {
+    return { points: totalMatchPoints(pred, match), provisional: false };
+  }
+  if (matchHasLiveManualScore(match)) {
+    return {
+      points: totalMatchPoints(pred, {
+        home_score: match.home_score,
+        away_score: match.away_score,
+        first_scorer_team: match.first_scorer_team ?? null,
+        first_scorer_player: match.first_scorer_player ?? null,
+        stage: match.stage,
+      }),
+      provisional: true,
+    };
+  }
+  if (!matchKickoffPassed(match)) {
+    return { points: 0, provisional: false };
+  }
+  const actual = liveScoreAsResult(match, liveScore);
+  if (!actual) {
+    return { points: 0, provisional: false };
+  }
+  return { points: totalMatchPoints(pred, actual), provisional: true };
+}
+
+function matchesForLeaderboardScope(selectedMatchday) {
+  if (selectedMatchday) {
+    return q(
+      `SELECT * FROM matches
+       WHERE COALESCE(matchday, substr(kickoff, 1, 10)) = ?`
+    ).all(selectedMatchday);
+  }
+  return q('SELECT * FROM matches').all();
+}
+
+function isLeaderboardScorableMatch(match, liveScore) {
+  if (matchHasResult(match)) return true;
+  if (matchHasLiveManualScore(match)) return true;
+  if (!matchKickoffPassed(match)) return false;
+  return liveScoreAsResult(match, liveScore) != null;
 }
 
 /** Matches UI: `.live-score-bar` (result) or `.live-score-pending` (kickoff passed, no result yet). */
 function isMatchLiveScoreBarVisible(match) {
   const hasResult = matchHasResult(match);
-  return hasResult || matchLockState(match).locked;
+  return hasResult || matchHasLiveManualScore(match) || matchLockState(match).locked;
 }
 
 function matchdayKey(match) {
@@ -274,7 +365,7 @@ function leaguePredictionsForMatch(leagueId, matchId) {
   ).all(leagueId, matchId, ...ids);
 }
 
-function friendPredictionsForMatch(leagueId, matchId, userId, match) {
+function friendPredictionsForMatch(leagueId, matchId, userId, match, liveScore = null) {
   if (!isMatchLiveScoreBarVisible(match)) return null;
 
   const rows = q(
@@ -288,7 +379,17 @@ function friendPredictionsForMatch(leagueId, matchId, userId, match) {
   ).all(leagueId, matchId, userId);
 
   const hasResult = matchHasResult(match);
-  const allPreds = hasResult ? leaguePredictionsForMatch(leagueId, matchId) : [];
+  const scoreSource = hasResult
+    ? match
+    : matchHasLiveManualScore(match)
+      ? {
+          home_score: match.home_score,
+          away_score: match.away_score,
+          first_scorer_team: match.first_scorer_team ?? null,
+          first_scorer_player: match.first_scorer_player ?? null,
+          stage: match.stage,
+        }
+      : scoringActualFromLive(match, liveScore);
 
   return rows.map((row) => {
     const pred = {
@@ -300,10 +401,12 @@ function friendPredictionsForMatch(leagueId, matchId, userId, match) {
     };
     let points = null;
     let pointsDetail = null;
-    if (hasResult) {
-      const raw = breakdownMatchPoints(pred, match, allPreds);
+    let provisional = false;
+    if (scoreSource) {
+      const raw = breakdownMatchPoints(pred, scoreSource);
       points = raw.total;
       pointsDetail = formatPointsBreakdown(raw);
+      provisional = !hasResult;
     }
     return {
       userId: row.user_id,
@@ -315,6 +418,7 @@ function friendPredictionsForMatch(leagueId, matchId, userId, match) {
       booster: !!row.booster,
       points,
       pointsDetail,
+      provisional,
     };
   });
 }
@@ -351,6 +455,25 @@ app.get('/api/auth/me', authMiddleware, (req, res) => {
   res.json({ user });
 });
 
+app.patch('/api/auth/me', authMiddleware, (req, res) => {
+  const { name } = req.body;
+  if (!name?.trim()) {
+    return res.status(400).json({ error: 'Имя обязательно' });
+  }
+  const trimmed = name.trim();
+  const taken = q('SELECT id FROM users WHERE name = ? COLLATE NOCASE AND id != ?').get(
+    trimmed,
+    req.user.id
+  );
+  if (taken) {
+    return res.status(409).json({ error: 'Имя уже занято' });
+  }
+  q('UPDATE users SET name = ? WHERE id = ?').run(trimmed, req.user.id);
+  const user = { id: req.user.id, name: trimmed };
+  const token = jwt.sign({ id: user.id, name: trimmed }, JWT_SECRET, { expiresIn: '30d' });
+  res.json({ user, token });
+});
+
 // ——— Leagues ———
 app.get('/api/leagues', authMiddleware, (req, res) => {
   const leagues = q(
@@ -362,7 +485,12 @@ app.get('/api/leagues', authMiddleware, (req, res) => {
      INNER JOIN users u ON u.id = l.owner_id
      ORDER BY l.created_at DESC`
   ).all(req.user.id, req.user.id);
-  res.json({ leagues });
+  res.json({
+    leagues: leagues.map((l) => ({
+      ...l,
+      is_owner: !!l.is_owner,
+    })),
+  });
 });
 
 app.get('/api/leagues/:id', authMiddleware, (req, res) => {
@@ -545,10 +673,12 @@ app.put('/api/leagues/:id/bracket', authMiddleware, (req, res) => {
   res.json({ picks, resolved: Object.values(buildResolvedBracket(picks)) });
 });
 
-app.get('/api/leagues/:id/leaderboard', authMiddleware, (req, res) => {
+app.get('/api/leagues/:id/leaderboard', authMiddleware, async (req, res) => {
   const leagueId = Number(req.params.id);
   if (!requireActiveLeagueMember(leagueId, req.user.id, res)) return;
   const selectedMatchday = req.query.matchday ? String(req.query.matchday) : null;
+
+  await refreshIfStale(db);
 
   const members = q(
     `SELECT u.id, u.name, (l.owner_id = u.id) AS is_owner
@@ -559,13 +689,10 @@ app.get('/api/leagues/:id/leaderboard', authMiddleware, (req, res) => {
      ORDER BY u.name`
   ).all(leagueId);
 
-  const finishedMatches = selectedMatchday
-    ? q(
-        `SELECT * FROM matches
-         WHERE home_score IS NOT NULL AND away_score IS NOT NULL
-           AND COALESCE(matchday, substr(kickoff, 1, 10)) = ?`
-      ).all(selectedMatchday)
-    : q('SELECT * FROM matches WHERE home_score IS NOT NULL AND away_score IS NOT NULL').all();
+  const scopeMatches = matchesForLeaderboardScope(selectedMatchday);
+  const scorableMatches = scopeMatches.filter((match) =>
+    isLeaderboardScorableMatch(match, getLiveScoreForMatch(match.id))
+  );
 
   const getPred = q(
     'SELECT * FROM predictions WHERE league_id = ? AND user_id = ? AND match_id = ?'
@@ -573,12 +700,15 @@ app.get('/api/leagues/:id/leaderboard', authMiddleware, (req, res) => {
 
   const leaderboard = members.map((member) => {
     let total = 0;
+    let provisionalPoints = 0;
     let scoredMatches = 0;
-    for (const match of finishedMatches) {
+    for (const match of scorableMatches) {
       const pred = getPred.get(leagueId, member.id, match.id);
       if (!pred) continue;
-      const leaguePreds = leaguePredictionsForMatch(leagueId, match.id);
-      total += totalMatchPoints(pred, match, leaguePreds);
+      const liveScore = getLiveScoreForMatch(match.id);
+      const { points, provisional } = matchPointsForLeaderboard(pred, match, liveScore);
+      total += points;
+      if (provisional) provisionalPoints += points;
       scoredMatches += 1;
     }
     const brRow = q('SELECT picks FROM bracket_picks WHERE league_id = ? AND user_id = ?').get(
@@ -600,8 +730,10 @@ app.get('/api/leagues/:id/leaderboard', authMiddleware, (req, res) => {
       isOwner: !!member.is_owner,
       points: total,
       matchPoints: total,
+      provisionalPoints,
+      hasProvisional: provisionalPoints > 0,
       scoredMatches,
-      totalMatches: finishedMatches.length,
+      totalMatches: scorableMatches.length,
       bracketComplete,
     };
   });
@@ -610,7 +742,7 @@ app.get('/api/leagues/:id/leaderboard', authMiddleware, (req, res) => {
   res.json({ leaderboard });
 });
 
-app.get('/api/leagues/:id/users/:userId/matchday-points', authMiddleware, (req, res) => {
+app.get('/api/leagues/:id/users/:userId/matchday-points', authMiddleware, async (req, res) => {
   const leagueId = Number(req.params.id);
   const userId = Number(req.params.userId);
   if (!requireActiveLeagueMember(leagueId, req.user.id, res)) return;
@@ -622,18 +754,13 @@ app.get('/api/leagues/:id/users/:userId/matchday-points', authMiddleware, (req, 
     return res.status(404).json({ error: 'Участник не найден в этой лиге' });
   }
 
+  await refreshIfStale(db);
+
   const days = q(
     `SELECT DISTINCT COALESCE(matchday, substr(kickoff, 1, 10)) AS day
      FROM matches
      ORDER BY day`
   ).all();
-
-  const finishedByDay = q(
-    `SELECT *
-     FROM matches
-     WHERE home_score IS NOT NULL AND away_score IS NOT NULL
-       AND COALESCE(matchday, substr(kickoff, 1, 10)) = ?`
-  );
 
   const getPred = q(
     'SELECT * FROM predictions WHERE league_id = ? AND user_id = ? AND match_id = ?'
@@ -642,22 +769,30 @@ app.get('/api/leagues/:id/users/:userId/matchday-points', authMiddleware, (req, 
   const pointsByDay = {};
   for (const row of days) {
     const day = row.day;
-    const finishedMatches = finishedByDay.all(day);
+    const dayMatches = matchesForLeaderboardScope(day);
+    const scorableMatches = dayMatches.filter((match) =>
+      isLeaderboardScorableMatch(match, getLiveScoreForMatch(match.id))
+    );
     let points = 0;
+    let provisionalPoints = 0;
     let scoredMatches = 0;
 
-    for (const match of finishedMatches) {
+    for (const match of scorableMatches) {
       const pred = getPred.get(leagueId, userId, match.id);
       if (!pred) continue;
-      const leaguePreds = leaguePredictionsForMatch(leagueId, match.id);
-      points += totalMatchPoints(pred, match, leaguePreds);
+      const liveScore = getLiveScoreForMatch(match.id);
+      const result = matchPointsForLeaderboard(pred, match, liveScore);
+      points += result.points;
+      if (result.provisional) provisionalPoints += result.points;
       scoredMatches += 1;
     }
 
     pointsByDay[day] = {
       points,
+      provisionalPoints,
+      hasProvisional: provisionalPoints > 0,
       scoredMatches,
-      totalMatches: finishedMatches.length,
+      totalMatches: scorableMatches.length,
     };
   }
 
@@ -705,24 +840,37 @@ app.get('/api/matches', authMiddleware, async (req, res) => {
         : null;
     let friendsPredicted = 0;
     let pointsDetail = null;
-    const hasResult = m.home_score != null && m.away_score != null;
+    const hasResult = matchHasResult(m);
+    const liveScore = resolveLiveScoreForMatch(m);
     if (lid && isActiveLeagueMember(lid, req.user.id)) {
       const leaguePreds = leaguePredictionsForMatch(lid, m.id);
       friendsPredicted = leaguePreds.filter(
         (p) => Number(p.user_id) !== Number(req.user.id)
       ).length;
-      if (prediction && hasResult) {
-        const raw = breakdownMatchPoints(prediction, m, leaguePreds);
-        pointsDetail = formatPointsBreakdown(raw);
+      if (prediction && (hasResult || matchHasLiveManualScore(m) || liveScore)) {
+        const actual = hasResult
+          ? m
+          : matchHasLiveManualScore(m)
+            ? {
+                home_score: m.home_score,
+                away_score: m.away_score,
+                first_scorer_team: m.first_scorer_team ?? null,
+                first_scorer_player: m.first_scorer_player ?? null,
+                stage: m.stage,
+              }
+            : scoringActualFromLive(m, liveScore);
+        if (actual) {
+          const raw = breakdownMatchPoints(prediction, actual);
+          pointsDetail = formatPointsBreakdown(raw);
+        }
       }
     }
-    const liveScore = !hasResult ? getLiveScoreForMatch(m.id) : null;
     const baseLock = matchLockState(m);
     const locked = baseLock.locked || !!liveScore;
     const lockReason = locked ? baseLock.lockReason || (liveScore ? 'started' : null) : null;
     const friendPredictions =
       lid && isActiveLeagueMember(lid, req.user.id)
-        ? friendPredictionsForMatch(lid, m.id, req.user.id, m)
+        ? friendPredictionsForMatch(lid, m.id, req.user.id, m, liveScore)
         : null;
     return {
       ...m,
@@ -733,6 +881,10 @@ app.get('/api/matches', authMiddleware, async (req, res) => {
       friendsPredicted,
       friendPredictions,
       hasResult,
+      isFinished: matchIsFinished(m),
+      isLive: matchHasLiveManualScore(m) || (!matchHasResult(m) && !!liveScore?.isLive),
+      hasLiveScore: !!liveScore,
+      hasLiveManualScore: matchHasLiveManualScore(m),
       pointsDetail,
       liveScore,
     };
@@ -741,7 +893,7 @@ app.get('/api/matches', authMiddleware, async (req, res) => {
   res.json({ matches: enriched });
 });
 
-function sendFriendPredictions(req, res, leagueId, matchId) {
+async function sendFriendPredictions(req, res, leagueId, matchId) {
   const lid = Number(leagueId);
   const mid = Number(matchId);
   if (!requireActiveLeagueMember(lid, req.user.id, res)) return;
@@ -755,21 +907,41 @@ function sendFriendPredictions(req, res, leagueId, matchId) {
     });
   }
 
-  const predictions = friendPredictionsForMatch(lid, mid, req.user.id, match);
+  await refreshIfStale(db);
+  const hasResult = matchHasResult(match);
+  const liveScore = resolveLiveScoreForMatch(match);
+  const predictions = friendPredictionsForMatch(lid, mid, req.user.id, match, liveScore);
   res.json({
     predictions,
-    match: { id: match.id, home_team: match.home_team, away_team: match.away_team },
+    match: {
+      id: match.id,
+      home_team: match.home_team,
+      away_team: match.away_team,
+      home_score: match.home_score,
+      away_score: match.away_score,
+      hasResult,
+      liveScore,
+      stage: match.stage,
+      first_scorer_team: match.first_scorer_team,
+      first_scorer_player: match.first_scorer_player,
+    },
   });
 }
 
 app.get('/api/matches/:matchId/friend-predictions', authMiddleware, (req, res) => {
   const lid = requireLeagueIdQuery(req.query.leagueId, req.user.id, res);
   if (lid === false) return;
-  sendFriendPredictions(req, res, lid, req.params.matchId);
+  sendFriendPredictions(req, res, lid, req.params.matchId).catch((err) => {
+    console.error('friend-predictions:', err);
+    if (!res.headersSent) res.status(500).json({ error: 'Не удалось загрузить прогнозы друзей' });
+  });
 });
 
 app.get('/api/leagues/:leagueId/matches/:matchId/predictions', authMiddleware, (req, res) => {
-  sendFriendPredictions(req, res, req.params.leagueId, req.params.matchId);
+  sendFriendPredictions(req, res, req.params.leagueId, req.params.matchId).catch((err) => {
+    console.error('friend-predictions:', err);
+    if (!res.headersSent) res.status(500).json({ error: 'Не удалось загрузить прогнозы друзей' });
+  });
 });
 
 app.get('/api/matches/:matchId/players', authMiddleware, async (req, res) => {
@@ -896,10 +1068,12 @@ app.put('/api/matches/:id/result', authMiddleware, (req, res) => {
     }
   }
 
+  const finished = parseIsFinishedFlag(req.body);
+
   q(
     `UPDATE matches SET home_score = ?, away_score = ?,
      first_scorer_team = ?, first_scorer_player = ?,
-     final_home_score = ?, final_away_score = ? WHERE id = ?`
+     final_home_score = ?, final_away_score = ?, is_finished = ? WHERE id = ?`
   ).run(
     homeScore,
     awayScore,
@@ -907,10 +1081,12 @@ app.put('/api/matches/:id/result', authMiddleware, (req, res) => {
     firstScorerPlayer || null,
     finalHome,
     finalAway,
+    finished,
     matchId
   );
 
-  res.json({ match: q('SELECT * FROM matches WHERE id = ?').get(matchId) });
+  const saved = q('SELECT * FROM matches WHERE id = ?').get(matchId);
+  res.json({ match: { ...saved, is_finished: finished, isFinished: finished === 1 } });
 });
 
 app.delete('/api/matches/:id/result', authMiddleware, (req, res) => {
@@ -924,7 +1100,7 @@ app.delete('/api/matches/:id/result', authMiddleware, (req, res) => {
   q(
     `UPDATE matches SET home_score = NULL, away_score = NULL,
      first_scorer_team = NULL, first_scorer_player = NULL,
-     final_home_score = NULL, final_away_score = NULL WHERE id = ?`
+     final_home_score = NULL, final_away_score = NULL, is_finished = 0 WHERE id = ?`
   ).run(matchId);
 
   res.json({ ok: true });

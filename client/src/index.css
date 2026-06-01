@@ -1073,24 +1073,24 @@ a {
     padding: max(1rem, env(safe-area-inset-top, 0px)) 1rem max(1rem, env(safe-area-inset-bottom, 0px));
   }
 
-  /* Player picker: bottom sheet with visible bottom edge and gap below */
+  /* Player picker: tall sheet, anchored toward top on phones */
   .modal-overlay.modal-overlay--center.centered-select-overlay.centered-select-overlay--players {
-    align-items: flex-end;
+    align-items: flex-start;
     justify-content: center;
-    padding: max(0.5rem, env(safe-area-inset-top, 0px)) 0.75rem max(1.25rem, env(safe-area-inset-bottom, 0px));
+    padding: max(0.5rem, env(safe-area-inset-top, 0px)) 0.75rem max(0.75rem, env(safe-area-inset-bottom, 0px));
   }
 
   .centered-select-overlay--players .centered-select-sheet--players {
     width: 100%;
     max-width: 100%;
     height: min(
-      85svh,
-      calc(100svh - max(0.5rem, env(safe-area-inset-top, 0px)) - max(2.5rem, env(safe-area-inset-bottom, 0px)) - 1.25rem)
+      92svh,
+      calc(100svh - max(0.5rem, env(safe-area-inset-top, 0px)) - max(0.75rem, env(safe-area-inset-bottom, 0px)))
     );
     min-height: 0;
     max-height: min(
-      85svh,
-      calc(100svh - max(0.5rem, env(safe-area-inset-top, 0px)) - max(2.5rem, env(safe-area-inset-bottom, 0px)) - 1.25rem)
+      92svh,
+      calc(100svh - max(0.5rem, env(safe-area-inset-top, 0px)) - max(0.75rem, env(safe-area-inset-bottom, 0px)))
     );
     border-radius: 16px;
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);

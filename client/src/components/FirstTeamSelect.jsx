@@ -187,6 +187,7 @@ export default function FirstTeamSelect({
       title={pickerTitle}
       ariaLabel="Команда, открывшая счёт"
       listId={listId}
+      showCloseButton
     >
       {optionButtons}
     </CenteredSelectMenu>

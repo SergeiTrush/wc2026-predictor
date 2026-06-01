@@ -15,6 +15,7 @@ export default function CenteredSelectMenu({
   children,
   className = '',
   overlayClassName = '',
+  showCloseButton = false,
   toolbar = null,
 }) {
   const sheetRef = useRef(null);
@@ -44,7 +45,21 @@ export default function CenteredSelectMenu({
         aria-label={title || ariaLabel}
         onClick={(e) => e.stopPropagation()}
       >
-        {title ? <div className="centered-select-title">{title}</div> : null}
+        {title ? (
+          <div className="centered-select-header">
+            <div className="centered-select-title">{title}</div>
+            {showCloseButton ? (
+              <button
+                type="button"
+                className="modal-close centered-select-close"
+                onClick={onClose}
+                aria-label="Закрыть"
+              >
+                ×
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         {toolbar}
         <ul id={listId} className="custom-select-menu centered-select-menu" role="listbox" aria-label={ariaLabel}>
           {children}

@@ -956,10 +956,34 @@ a {
 
 .centered-select-sheet--players {
   width: min(92vw, 26rem);
-  /* Laptops/desktops: taller list; mobile overrides below */
-  height: min(36rem, 75vh);
-  min-height: min(32rem, 70vh);
-  max-height: min(36rem, calc(100svh - 3rem));
+  /* Laptops/desktops: tall list; mobile overrides below */
+  height: min(32rem, 70vh);
+  min-height: min(28rem, 65vh);
+  max-height: min(32rem, calc(100svh - 3rem));
+}
+
+.centered-select-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  flex-shrink: 0;
+}
+
+.centered-select-header .centered-select-title {
+  flex: 1;
+  min-width: 0;
+  padding: 0 2.5rem 0 0;
+  border-bottom: none;
+}
+
+.centered-select-header .centered-select-close {
+  position: absolute;
+  right: 0.35rem;
+  top: 50%;
+  transform: translateY(-50%);
+  margin: 0;
 }
 
 .centered-select-title {
@@ -970,6 +994,10 @@ a {
   color: #fff;
   border-bottom: 1px solid rgba(255, 255, 255, 0.12);
   flex-shrink: 0;
+}
+
+.centered-select-sheet--players .centered-select-header + .centered-select-search {
+  border-top: none;
 }
 
 .centered-select-search {
@@ -1045,30 +1073,31 @@ a {
     padding: max(1rem, env(safe-area-inset-top, 0px)) 1rem max(1rem, env(safe-area-inset-bottom, 0px));
   }
 
-  /* Player picker: bottom sheet, nearly full viewport (svh — stable on iOS) */
+  /* Player picker: bottom sheet with visible bottom edge and gap below */
   .modal-overlay.modal-overlay--center.centered-select-overlay.centered-select-overlay--players {
     align-items: flex-end;
     justify-content: center;
-    padding: 0;
-    padding-top: max(0.5rem, env(safe-area-inset-top, 0px));
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding: max(0.5rem, env(safe-area-inset-top, 0px)) 0.75rem max(1.25rem, env(safe-area-inset-bottom, 0px));
   }
 
   .centered-select-overlay--players .centered-select-sheet--players {
     width: 100%;
     max-width: 100%;
-    height: calc(
-      100svh - max(0.5rem, env(safe-area-inset-top, 0px)) - env(safe-area-inset-bottom, 0px)
+    height: min(
+      85svh,
+      calc(100svh - max(0.5rem, env(safe-area-inset-top, 0px)) - max(2.5rem, env(safe-area-inset-bottom, 0px)) - 1.25rem)
     );
     min-height: 0;
-    max-height: calc(
-      100svh - max(0.5rem, env(safe-area-inset-top, 0px)) - env(safe-area-inset-bottom, 0px)
+    max-height: min(
+      85svh,
+      calc(100svh - max(0.5rem, env(safe-area-inset-top, 0px)) - max(2.5rem, env(safe-area-inset-bottom, 0px)) - 1.25rem)
     );
-    border-radius: 16px 16px 0 0;
-    border-left: none;
-    border-right: none;
-    border-bottom: none;
-    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.45);
+    border-radius: 16px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  }
+
+  .centered-select-sheet--players .centered-select-menu {
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
   }
 
   .centered-select-sheet:not(.centered-select-sheet--players) {
@@ -1199,29 +1228,36 @@ a {
   padding: 0.85rem 1.15rem 1.15rem;
 }
 
-.friends-predictions-sheet .modal-header {
+.friends-predictions-sheet .modal-header.friends-predictions-header {
   flex-shrink: 0;
-  align-items: flex-start;
+  flex-direction: column;
+  align-items: stretch;
   align-self: stretch;
+  gap: 0.35rem;
   margin: 0 0 0.75rem;
   padding-top: 0;
 }
 
-.friends-predictions-sheet .modal-header > div {
-  min-width: 0;
-  flex: 1 1 auto;
-  padding-right: 0.5rem;
+.friends-predictions-header .modal-header-title-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding-right: 2.25rem;
 }
 
-.friends-predictions-sheet .modal-header h2 {
+.friends-predictions-header .modal-header-title-row h2 {
+  flex: 1;
+  min-width: 0;
   margin: 0;
   line-height: 1.25;
 }
 
-.friends-predictions-sheet .modal-header .modal-close {
-  flex-shrink: 0;
-  align-self: flex-start;
-  margin-top: 0;
+.friends-predictions-header .modal-header-title-row .modal-close {
+  position: absolute;
+  right: -0.8rem;
+  top: 50%;
+  transform: translateY(-50%);
+  margin: 0;
 }
 
 /* Scrollbar in sheet side padding; cards same width as header (symmetric margins) */
@@ -1397,7 +1433,7 @@ a {
 }
 
 .friends-predictions-live-score {
-  margin: 0.35rem 0 0;
+  margin: 0;
   font-size: 0.82rem;
   font-weight: 600;
   color: var(--text-muted);
@@ -2157,6 +2193,7 @@ body.body-scroll-locked .leaderboard-table-scroll {
   right: 0.75rem;
   top: 50%;
   transform: translateY(-50%);
+  margin: 0;
 }
 
 .modal-menu-actions {
@@ -2221,12 +2258,21 @@ body.body-scroll-locked .leaderboard-table-scroll {
 }
 
 .modal-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+  margin: 0;
+  padding: 0;
   background: none;
   border: none;
   color: var(--text-muted);
-  font-size: 1.5rem;
-  cursor: pointer;
+  font-size: 1.8rem;
   line-height: 1;
+  text-align: center;
+  cursor: pointer;
 }
 
 .scoring-intro {

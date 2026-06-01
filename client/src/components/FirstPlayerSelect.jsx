@@ -388,6 +388,7 @@ export default function FirstPlayerSelect({
       listId={listId}
       className="centered-select-sheet--players"
       overlayClassName="centered-select-overlay--players"
+      showCloseButton
       toolbar={
         <div className="centered-select-search">
           <input

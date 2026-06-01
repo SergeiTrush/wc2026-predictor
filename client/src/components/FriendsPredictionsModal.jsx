@@ -134,23 +134,23 @@ export default function FriendsPredictionsModal({ leagueId, match, onClose }) {
   return (
     <ModalOverlay className="modal-overlay--center" onClick={onClose}>
       <div className="modal-sheet friends-predictions-sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <div>
+        <div className="modal-header friends-predictions-header">
+          <div className="modal-header-title-row">
             <h2>{title}</h2>
-            {showLiveScore && (
-              <p className={`friends-predictions-live-score${isLive ? ' friends-predictions-live-score--live' : ''}`}>
-                {hasResult ? 'Счёт матча' : isLive ? 'LIVE' : 'Текущий счёт'}
-                {': '}
-                {liveScoreText}
-                {isLive && liveScore?.minute != null ? ` (${liveScore.minute}'` : ''}
-                {isLive && isKnockoutMatch(displayMatch) && isLiveExtraTime(liveScore) ? ', доп. время' : ''}
-                {isLive && liveScore?.minute != null ? ')' : ''}
-              </p>
-            )}
+            <button type="button" className="modal-close" onClick={onClose} aria-label="Закрыть">
+              ×
+            </button>
           </div>
-          <button type="button" className="modal-close" onClick={onClose}>
-            ×
-          </button>
+          {showLiveScore && (
+            <p className={`friends-predictions-live-score${isLive ? ' friends-predictions-live-score--live' : ''}`}>
+              {hasResult ? 'Счёт матча' : isLive ? 'LIVE' : 'Текущий счёт'}
+              {': '}
+              {liveScoreText}
+              {isLive && liveScore?.minute != null ? ` (${liveScore.minute}'` : ''}
+              {isLive && isKnockoutMatch(displayMatch) && isLiveExtraTime(liveScore) ? ', доп. время' : ''}
+              {isLive && liveScore?.minute != null ? ')' : ''}
+            </p>
+          )}
         </div>
 
         {loading && <p className="empty-hint">Загрузка…</p>}

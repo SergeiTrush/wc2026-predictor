@@ -80,6 +80,7 @@ export default function FirstPlayerSelect({
   triggerVariant = 'default',
   /** Team name for flag when squad list is not loaded yet (e.g. saved admin result). */
   teamHint = null,
+  pickerTitle = 'Какой игрок откроет счёт',
 }) {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -90,6 +91,8 @@ export default function FirstPlayerSelect({
   const searchInputRef = useRef(null);
   const listId = useId();
   const useIconTrigger = triggerVariant === 'icon';
+  const useModalTrigger = triggerVariant === 'modal';
+  const useCenteredMenu = useIconTrigger || useModalTrigger;
 
   const groupedSections = useMemo(() => buildGroupedSections(teams), [teams]);
   const flatOptions = useMemo(
@@ -133,6 +136,7 @@ export default function FirstPlayerSelect({
   }, [open]);
 
   const updateMenuPosition = useCallback(() => {
+    if (useCenteredMenu) return;
     const rect = triggerRef.current?.getBoundingClientRect();
     if (!rect) return;
     const placement = computeFixedDropdownStyle(rect, {
@@ -153,10 +157,10 @@ export default function FirstPlayerSelect({
       flipUp: placement.openUp,
       ...placement.style,
     });
-  }, []);
+  }, [useCenteredMenu]);
 
   useLayoutEffect(() => {
-    if (!open || useIconTrigger) return;
+    if (!open || useCenteredMenu) return;
     updateMenuPosition();
     const id = requestAnimationFrame(updateMenuPosition);
     window.addEventListener('resize', updateMenuPosition);
@@ -166,10 +170,10 @@ export default function FirstPlayerSelect({
       window.removeEventListener('resize', updateMenuPosition);
       window.removeEventListener('scroll', updateMenuPosition, true);
     };
-  }, [open, updateMenuPosition, useIconTrigger, loading, flatOptions.length, searchQuery]);
+  }, [open, updateMenuPosition, useCenteredMenu, loading, flatOptions.length, searchQuery]);
 
   useEffect(() => {
-    if (!open || useIconTrigger) return;
+    if (!open || useCenteredMenu) return;
     const onDocPointer = (e) => {
       if (rootRef.current?.contains(e.target) || menuRef.current?.contains(e.target)) return;
       close(true);
@@ -183,7 +187,7 @@ export default function FirstPlayerSelect({
       document.removeEventListener('mousedown', onDocPointer);
       document.removeEventListener('keydown', onKey);
     };
-  }, [open, close, useIconTrigger]);
+  }, [open, close, useCenteredMenu]);
 
   const pick = (next) => {
     if (disabled) return;
@@ -194,7 +198,7 @@ export default function FirstPlayerSelect({
   const openMenu = () => {
     if (disabled) return;
     onOpen?.();
-    if (!useIconTrigger) updateMenuPosition();
+    if (!useCenteredMenu) updateMenuPosition();
     setOpen(true);
   };
 
@@ -302,8 +306,34 @@ export default function FirstPlayerSelect({
     </>
   );
 
+  const triggerButton = (
+    <button
+      ref={triggerRef}
+      type="button"
+      className="custom-select-trigger"
+      disabled={disabled}
+      title={title}
+      aria-haspopup="listbox"
+      aria-expanded={open}
+      aria-controls={open ? listId : undefined}
+      onClick={toggle}
+    >
+      <span className="custom-select-value">
+        {selected?.flag ? (
+          <span className="custom-select-option-flag" aria-hidden="true">
+            {selected.flag}
+          </span>
+        ) : null}
+        <span className="custom-select-option-label">{triggerLabel}</span>
+      </span>
+      <span className="custom-select-chevron" aria-hidden="true">
+        ▾
+      </span>
+    </button>
+  );
+
   const dropdownMenu =
-    !useIconTrigger &&
+    !useCenteredMenu &&
     open &&
     menuStyle &&
     createPortal(
@@ -349,11 +379,11 @@ export default function FirstPlayerSelect({
       document.body
     );
 
-  const centeredMenu = useIconTrigger && (
+  const centeredMenu = useCenteredMenu && (
     <CenteredSelectMenu
       open={open}
       onClose={() => close(true)}
-      title="Какой игрок откроет счёт"
+      title={pickerTitle}
       ariaLabel="Игрок, открывший счёт"
       listId={listId}
       className="centered-select-sheet--players"
@@ -376,6 +406,20 @@ export default function FirstPlayerSelect({
       {menuBody}
     </CenteredSelectMenu>
   );
+
+  if (useModalTrigger) {
+    return (
+      <>
+        <div
+          ref={rootRef}
+          className={`custom-select ${open ? 'custom-select--open' : ''} ${disabled ? 'custom-select--disabled' : ''} ${!value ? 'custom-select--placeholder' : ''} ${className}`.trim()}
+        >
+          {triggerButton}
+        </div>
+        {centeredMenu}
+      </>
+    );
+  }
 
   if (useIconTrigger) {
     return (
@@ -401,29 +445,7 @@ export default function FirstPlayerSelect({
         ref={rootRef}
         className={`custom-select ${open ? 'custom-select--open' : ''} ${disabled ? 'custom-select--disabled' : ''} ${!value ? 'custom-select--placeholder' : ''} ${className}`.trim()}
       >
-        <button
-          ref={triggerRef}
-          type="button"
-          className="custom-select-trigger"
-          disabled={disabled}
-          title={title}
-          aria-haspopup="listbox"
-          aria-expanded={open}
-          aria-controls={open ? listId : undefined}
-          onClick={toggle}
-        >
-          <span className="custom-select-value">
-            {selected?.flag ? (
-              <span className="custom-select-option-flag" aria-hidden="true">
-                {selected.flag}
-              </span>
-            ) : null}
-            <span className="custom-select-option-label">{triggerLabel}</span>
-          </span>
-          <span className="custom-select-chevron" aria-hidden="true">
-            ▾
-          </span>
-        </button>
+        {triggerButton}
       </div>
       {dropdownMenu}
     </>

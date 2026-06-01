@@ -23,6 +23,7 @@ export default function FirstTeamSelect({
   onBlur,
   className = '',
   triggerVariant = 'default',
+  pickerTitle = 'Какая команда откроет счёт',
 }) {
   const [open, setOpen] = useState(false);
   const [menuStyle, setMenuStyle] = useState(null);
@@ -31,6 +32,8 @@ export default function FirstTeamSelect({
   const triggerRef = useRef(null);
   const listId = useId();
   const useIconTrigger = triggerVariant === 'icon';
+  const useModalTrigger = triggerVariant === 'modal';
+  const useCenteredMenu = useIconTrigger || useModalTrigger;
 
   const options = buildOptions(homeTeam, awayTeam);
   const selected = options.find((o) => o.value === value) ?? options[0];
@@ -65,7 +68,7 @@ export default function FirstTeamSelect({
   }, []);
 
   useLayoutEffect(() => {
-    if (!open || useIconTrigger) return;
+    if (!open || useCenteredMenu) return;
     updateMenuPosition();
     const id = requestAnimationFrame(updateMenuPosition);
     window.addEventListener('resize', updateMenuPosition);
@@ -75,10 +78,10 @@ export default function FirstTeamSelect({
       window.removeEventListener('resize', updateMenuPosition);
       window.removeEventListener('scroll', updateMenuPosition, true);
     };
-  }, [open, updateMenuPosition, useIconTrigger]);
+  }, [open, updateMenuPosition, useCenteredMenu]);
 
   useEffect(() => {
-    if (!open || useIconTrigger) return;
+    if (!open || useCenteredMenu) return;
     const onDocPointer = (e) => {
       if (rootRef.current?.contains(e.target) || menuRef.current?.contains(e.target)) return;
       close(true);
@@ -92,7 +95,7 @@ export default function FirstTeamSelect({
       document.removeEventListener('mousedown', onDocPointer);
       document.removeEventListener('keydown', onKey);
     };
-  }, [open, close, useIconTrigger]);
+  }, [open, close, useCenteredMenu]);
 
   const pick = (next) => {
     if (disabled) return;
@@ -102,7 +105,7 @@ export default function FirstTeamSelect({
 
   const openMenu = () => {
     if (disabled) return;
-    if (!useIconTrigger) updateMenuPosition();
+    if (!useCenteredMenu) updateMenuPosition();
     setOpen(true);
   };
 
@@ -134,8 +137,33 @@ export default function FirstTeamSelect({
     </li>
   ));
 
+  const triggerButton = (
+    <button
+      ref={triggerRef}
+      type="button"
+      className="custom-select-trigger"
+      disabled={disabled}
+      aria-haspopup="listbox"
+      aria-expanded={open}
+      aria-controls={open ? listId : undefined}
+      onClick={toggle}
+    >
+      <span className="custom-select-value">
+        {selected.flag ? (
+          <span className="custom-select-option-flag" aria-hidden="true">
+            {selected.flag}
+          </span>
+        ) : null}
+        <span className="custom-select-option-label">{selected.label}</span>
+      </span>
+      <span className="custom-select-chevron" aria-hidden="true">
+        ▾
+      </span>
+    </button>
+  );
+
   const dropdownMenu =
-    !useIconTrigger &&
+    !useCenteredMenu &&
     open &&
     menuStyle &&
     createPortal(
@@ -152,17 +180,31 @@ export default function FirstTeamSelect({
       document.body
     );
 
-  const centeredMenu = useIconTrigger && (
+  const centeredMenu = useCenteredMenu && (
     <CenteredSelectMenu
       open={open}
       onClose={() => close(true)}
-      title="Какая команда откроет счёт"
+      title={pickerTitle}
       ariaLabel="Команда, открывшая счёт"
       listId={listId}
     >
       {optionButtons}
     </CenteredSelectMenu>
   );
+
+  if (useModalTrigger) {
+    return (
+      <>
+        <div
+          ref={rootRef}
+          className={`custom-select ${open ? 'custom-select--open' : ''} ${disabled ? 'custom-select--disabled' : ''} ${!value ? 'custom-select--placeholder' : ''} ${className}`.trim()}
+        >
+          {triggerButton}
+        </div>
+        {centeredMenu}
+      </>
+    );
+  }
 
   if (useIconTrigger) {
     return (
@@ -188,28 +230,7 @@ export default function FirstTeamSelect({
         ref={rootRef}
         className={`custom-select ${open ? 'custom-select--open' : ''} ${disabled ? 'custom-select--disabled' : ''} ${className}`.trim()}
       >
-        <button
-          ref={triggerRef}
-          type="button"
-          className="custom-select-trigger"
-          disabled={disabled}
-          aria-haspopup="listbox"
-          aria-expanded={open}
-          aria-controls={open ? listId : undefined}
-          onClick={toggle}
-        >
-          <span className="custom-select-value">
-            {selected.flag ? (
-              <span className="custom-select-option-flag" aria-hidden="true">
-                {selected.flag}
-              </span>
-            ) : null}
-            <span className="custom-select-option-label">{selected.label}</span>
-          </span>
-          <span className="custom-select-chevron" aria-hidden="true">
-            ▾
-          </span>
-        </button>
+        {triggerButton}
       </div>
       {dropdownMenu}
     </>

@@ -337,6 +337,8 @@ function AdminMatchRow({ match, leagueId, onSaved }) {
           Первая команда
           <FirstTeamSelect
             className="custom-select--full"
+            triggerVariant="modal"
+            pickerTitle="Первая команда"
             value={firstTeam}
             onChange={onFirstTeamChange}
             homeTeam={match.home_team}
@@ -347,6 +349,8 @@ function AdminMatchRow({ match, leagueId, onSaved }) {
           Первый гол (игрок)
           <FirstPlayerSelect
             className="custom-select--full"
+            triggerVariant="modal"
+            pickerTitle="Первый гол (игрок)"
             value={firstPlayer}
             onChange={setFirstPlayer}
             teams={filteredSquadTeams}

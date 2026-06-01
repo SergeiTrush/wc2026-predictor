@@ -956,7 +956,10 @@ a {
 
 .centered-select-sheet--players {
   width: min(92vw, 24rem);
-  max-height: min(78vh, 28rem);
+  /* rem + svh cap — not vh (iOS jumps when the keyboard opens) */
+  height: 24rem;
+  min-height: 24rem;
+  max-height: min(24rem, calc(100svh - 1.5rem));
 }
 
 .centered-select-title {
@@ -983,7 +986,8 @@ a {
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.25);
   color: #fff;
-  font-size: 0.85rem;
+  /* ≥16px stops iOS from zooming the page when the field is focused */
+  font-size: 16px;
 }
 
 .centered-select-search-input::placeholder {
@@ -1014,6 +1018,11 @@ a {
   box-sizing: border-box;
 }
 
+.centered-select-sheet .centered-select-menu {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .centered-select-menu .custom-select-status {
   display: flex;
   align-items: center;
@@ -1023,7 +1032,20 @@ a {
 }
 
 .centered-select-sheet--players .centered-select-menu {
-  max-height: min(68vh, 24rem);
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+}
+
+@media (max-width: 520px) {
+  .centered-select-overlay.modal-overlay--center {
+    align-items: flex-start;
+    padding-top: max(0.5rem, env(safe-area-inset-top, 0px));
+  }
+
+  .centered-select-sheet--players {
+    max-height: min(24rem, calc(100svh - 1rem));
+  }
 }
 
 .admin-match-extra .custom-select-trigger {

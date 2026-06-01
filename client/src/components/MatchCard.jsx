@@ -47,7 +47,9 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
   /** One booster per matchday; frozen once the boosted match has started. */
   const canChangeBooster = !inputsLocked && !boosterSaving && !boosterLocked;
   const boosterRowDisabled = !canChangeBooster && !liveBarVisible;
+  const boosterOnOtherMatch = boosterLocked && !isBoosterHere;
   const showBoosterStatusLabel = !boosterSaving && (isBoosterHere || liveBarVisible);
+  const showBoosterElsewhereLabel = !boosterSaving && boosterOnOtherMatch;
 
   useEffect(() => {
     if (pred) {
@@ -432,12 +434,14 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
           className={`extra-row booster-row ${isBoosterHere ? 'booster-active' : ''} ${boosterRowDisabled ? 'booster-row-disabled' : ''}`}
         >
           <span>
-            {boosterLocked && !isBoosterHere
-              ? `Бустер на другом матче тура`
-              : `Переставить бустер ${mult}`}
+            {boosterOnOtherMatch ? `Бустер на другом матче тура` : `Переставить бустер ${mult}`}
           </span>
           <div className="extra-row-picker booster-row-picker">
-            {showBoosterStatusLabel && (
+            {showBoosterElsewhereLabel ? (
+              <span className="extra-row-selection extra-row-selection--booster-inactive" title="Уже активировано">
+                <span className="extra-row-selection-text">Уже активировано</span>
+              </span>
+            ) : showBoosterStatusLabel ? (
               <span
                 className={`extra-row-selection${isBoosterHere ? ' extra-row-selection--booster' : ' extra-row-selection--booster-inactive'}`}
                 title={isBoosterHere ? 'Активирован' : 'Не активирован'}
@@ -446,7 +450,7 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
                   {isBoosterHere ? 'Активирован' : 'Не активирован'}
                 </span>
               </span>
-            )}
+            ) : null}
             {boosterSaving ? (
               <span className="booster-row-status">…</span>
             ) : (

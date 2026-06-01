@@ -14,6 +14,7 @@ export default function CenteredSelectMenu({
   listId,
   children,
   className = '',
+  overlayClassName = '',
   toolbar = null,
 }) {
   const sheetRef = useRef(null);
@@ -31,7 +32,7 @@ export default function CenteredSelectMenu({
 
   return createPortal(
     <ModalOverlay
-      className="modal-overlay--center centered-select-overlay"
+      className={`modal-overlay--center centered-select-overlay ${overlayClassName}`.trim()}
       onClick={onClose}
       lockScroll
     >

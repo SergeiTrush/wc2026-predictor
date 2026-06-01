@@ -387,6 +387,7 @@ export default function FirstPlayerSelect({
       ariaLabel="Игрок, открывший счёт"
       listId={listId}
       className="centered-select-sheet--players"
+      overlayClassName="centered-select-overlay--players"
       toolbar={
         <div className="centered-select-search">
           <input

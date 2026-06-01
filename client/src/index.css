@@ -955,11 +955,11 @@ a {
 }
 
 .centered-select-sheet--players {
-  width: min(92vw, 24rem);
-  /* rem + svh cap — not vh (iOS jumps when the keyboard opens) */
-  height: 24rem;
-  min-height: 24rem;
-  max-height: min(24rem, calc(100svh - 1.5rem));
+  width: min(92vw, 26rem);
+  /* Laptops/desktops: taller list; mobile overrides below */
+  height: min(36rem, 75vh);
+  min-height: min(32rem, 70vh);
+  max-height: min(36rem, calc(100svh - 3rem));
 }
 
 .centered-select-title {
@@ -1038,13 +1038,41 @@ a {
 }
 
 @media (max-width: 520px) {
-  .centered-select-overlay.modal-overlay--center {
-    align-items: flex-start;
-    padding-top: max(0.5rem, env(safe-area-inset-top, 0px));
+  .modal-overlay.modal-overlay--center.centered-select-overlay {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: max(1rem, env(safe-area-inset-top, 0px)) 1rem max(1rem, env(safe-area-inset-bottom, 0px));
   }
 
-  .centered-select-sheet--players {
-    max-height: min(24rem, calc(100svh - 1rem));
+  /* Player picker: bottom sheet, nearly full viewport (svh — stable on iOS) */
+  .modal-overlay.modal-overlay--center.centered-select-overlay.centered-select-overlay--players {
+    align-items: flex-end;
+    justify-content: center;
+    padding: 0;
+    padding-top: max(0.5rem, env(safe-area-inset-top, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .centered-select-overlay--players .centered-select-sheet--players {
+    width: 100%;
+    max-width: 100%;
+    height: calc(
+      100svh - max(0.5rem, env(safe-area-inset-top, 0px)) - env(safe-area-inset-bottom, 0px)
+    );
+    min-height: 0;
+    max-height: calc(
+      100svh - max(0.5rem, env(safe-area-inset-top, 0px)) - env(safe-area-inset-bottom, 0px)
+    );
+    border-radius: 16px 16px 0 0;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.45);
+  }
+
+  .centered-select-sheet:not(.centered-select-sheet--players) {
+    max-height: min(18rem, calc(100svh - 2rem));
   }
 }
 

@@ -127,6 +127,14 @@ function AdminMatchRow({ match, leagueId, onSaved }) {
       .finally(() => setSquadLoading(false));
   }, [squadLoading, squadTeams, squadError, match.home_team, match.away_team]);
 
+  useEffect(() => {
+    const needsSquad =
+      (match.first_scorer_player && match.first_scorer_player !== 'none') ||
+      (match.first_scorer_team && match.first_scorer_team !== 'none');
+    if (!needsSquad) return;
+    loadSquadPlayers();
+  }, [match.id, match.first_scorer_player, match.first_scorer_team, loadSquadPlayers]);
+
   const selectedTeamName = useMemo(
     () => resolveFirstTeamName(firstTeam, match.home_team, match.away_team),
     [firstTeam, match.home_team, match.away_team]
@@ -347,6 +355,7 @@ function AdminMatchRow({ match, leagueId, onSaved }) {
             disabled={!selectedTeamName && firstTeam !== 'none'}
             placeholder={playerPlaceholder}
             title={squadError || undefined}
+            teamHint={selectedTeamName}
             onOpen={loadSquadPlayers}
           />
         </label>

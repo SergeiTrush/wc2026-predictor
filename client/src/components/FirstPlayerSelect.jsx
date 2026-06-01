@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { teamFlag } from '../utils';
+import { computeFixedDropdownStyle } from '../dropdownPosition';
 import CenteredSelectMenu from './CenteredSelectMenu';
 import PlusIconButton from './PlusIconButton';
 
@@ -77,6 +78,8 @@ export default function FirstPlayerSelect({
   title,
   className = '',
   triggerVariant = 'default',
+  /** Team name for flag when squad list is not loaded yet (e.g. saved admin result). */
+  teamHint = null,
 }) {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -94,11 +97,24 @@ export default function FirstPlayerSelect({
     [groupedSections, players]
   );
 
-  const selected =
-    value === NO_FIRST_SCORER
-      ? { value: NO_FIRST_SCORER, label: 'Никто', displayName: 'Никто', flag: null }
-      : flatOptions.find((o) => o.value === value) ||
-        flatOptions.find((o) => o.legacySurname && o.legacySurname === value);
+  const selected = useMemo(() => {
+    if (value === NO_FIRST_SCORER) {
+      return { value: NO_FIRST_SCORER, label: 'Никто', displayName: 'Никто', flag: null };
+    }
+    const found =
+      flatOptions.find((o) => o.value === value) ||
+      flatOptions.find((o) => o.legacySurname && o.legacySurname === value);
+    if (found) return found;
+    if (!value) return null;
+    const hintFlag = teamHint ? teamFlag(teamHint) : null;
+    return {
+      value,
+      label: value,
+      displayName: value,
+      flag: hintFlag,
+      team: teamHint,
+    };
+  }, [value, flatOptions, teamHint]);
   const triggerLabel = selected?.displayName || selected?.label || value || placeholder;
 
   const close = useCallback(
@@ -119,25 +135,38 @@ export default function FirstPlayerSelect({
   const updateMenuPosition = useCallback(() => {
     const rect = triggerRef.current?.getBoundingClientRect();
     if (!rect) return;
+    const placement = computeFixedDropdownStyle(rect, {
+      searchHeight: 48,
+      minMenuHeight: 112,
+      preferredMenuHeight: 300,
+      preferredMenuHeightAbove: 400,
+      minWidth: 220,
+    });
     setMenuStyle({
-      position: 'fixed',
-      top: rect.bottom + 4,
-      left: rect.left,
-      width: Math.max(rect.width, 220),
-      zIndex: 1200,
+      position: placement.position,
+      top: placement.top,
+      bottom: placement.bottom,
+      left: placement.left,
+      width: placement.width,
+      zIndex: placement.zIndex,
+      maxHeight: placement.maxHeight,
+      flipUp: placement.openUp,
+      ...placement.style,
     });
   }, []);
 
   useLayoutEffect(() => {
     if (!open || useIconTrigger) return;
     updateMenuPosition();
+    const id = requestAnimationFrame(updateMenuPosition);
     window.addEventListener('resize', updateMenuPosition);
     window.addEventListener('scroll', updateMenuPosition, true);
     return () => {
+      cancelAnimationFrame(id);
       window.removeEventListener('resize', updateMenuPosition);
       window.removeEventListener('scroll', updateMenuPosition, true);
     };
-  }, [open, updateMenuPosition, useIconTrigger]);
+  }, [open, updateMenuPosition, useIconTrigger, loading, flatOptions.length, searchQuery]);
 
   useEffect(() => {
     if (!open || useIconTrigger) return;
@@ -280,8 +309,19 @@ export default function FirstPlayerSelect({
     createPortal(
       <div
         ref={menuRef}
-        className="custom-select-dropdown custom-select-dropdown--players"
-        style={menuStyle}
+        className={`custom-select-dropdown custom-select-dropdown--players${
+          menuStyle.flipUp ? ' custom-select-dropdown--above' : ''
+        }`}
+        style={{
+          position: menuStyle.position,
+          top: menuStyle.top,
+          bottom: menuStyle.bottom,
+          left: menuStyle.left,
+          width: menuStyle.width,
+          zIndex: menuStyle.zIndex,
+          maxHeight: menuStyle.maxHeight,
+          '--dropdown-menu-max': menuStyle['--dropdown-menu-max'],
+        }}
       >
         <div className="custom-select-search">
           <input

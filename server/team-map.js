@@ -56,4 +56,37 @@ function mapApiTeamName(apiName) {
   return null;
 }
 
-module.exports = { mapApiTeamName, normalizeKey };
+/** Extra Bzzoiro search terms when the canonical DB name does not match the API index. */
+const API_SEARCH_NAMES = {
+  'United States': ['USA'],
+  'Ivory Coast': ["Côte d'Ivoire", 'Cote d Ivoire'],
+  Turkey: ['Türkiye', 'Turkiye'],
+  'Bosnia and Herzegovina': ['Bosnia-Herzegovina', 'Bosnia & Herzegovina'],
+  'Cape Verde': ['Cabo Verde'],
+  'South Korea': ['Korea Republic', 'Republic of Korea'],
+  Curacao: ['Curaçao'],
+  'DR Congo': ['Congo DR', 'Democratic Republic of the Congo'],
+  Czechia: ['Czech Republic'],
+};
+
+function apiSearchNames(teamName) {
+  const trimmed = (teamName || '').trim();
+  if (!trimmed) return [];
+
+  const names = new Set([trimmed]);
+  const extras = API_SEARCH_NAMES[trimmed];
+  if (extras) extras.forEach((n) => names.add(n));
+
+  const key = normalizeKey(trimmed);
+  for (const [alias, canonical] of Object.entries(ALIASES)) {
+    if (normalizeKey(canonical) !== key) continue;
+    if (alias.length > 2 && alias !== key) {
+      const label = alias.replace(/\b\w/g, (c) => c.toUpperCase());
+      names.add(label);
+    }
+  }
+
+  return [...names];
+}
+
+module.exports = { mapApiTeamName, normalizeKey, apiSearchNames };

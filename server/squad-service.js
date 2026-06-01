@@ -1,5 +1,6 @@
 const { GROUPS } = require('./data/groups');
 const localProvider = require('./squad-providers/local');
+const { normalizeKey } = require('./team-map');
 const bzzoiroProvider = require('./squad-providers/bzzoiro');
 
 const ALL_TEAMS = Object.values(GROUPS).flat();
@@ -38,7 +39,27 @@ function isSquadEnabled() {
   return providerOrder().some((name) => PROVIDERS[name].isEnabled());
 }
 
-async function getTeamSquad(teamName) {
+/** Full squad list from server/data/squads.json (no Bzzoiro). */
+function getLocalSquadsBulk() {
+  if (!localProvider.isEnabled()) return null;
+  return localProvider.getAllSquads();
+}
+
+function getTeamFromBulk(bulk, teamName) {
+  if (!bulk?.teams) return null;
+  const players = bulk.teams[teamName];
+  if (players?.length) return players;
+  const key = normalizeKey(teamName);
+  for (const [name, list] of Object.entries(bulk.teams)) {
+    if (normalizeKey(name) === key && list?.length) return list;
+  }
+  return null;
+}
+
+async function getTeamSquad(teamName, { bulk } = {}) {
+  const fromFile = getTeamFromBulk(bulk ?? getLocalSquadsBulk(), teamName);
+  if (fromFile?.length) return { players: fromFile, source: 'local' };
+
   for (const name of providerOrder()) {
     const provider = PROVIDERS[name];
     if (!provider.isEnabled()) continue;
@@ -57,9 +78,10 @@ function tagPlayers(teamName, players) {
 }
 
 async function getMatchSquads(homeTeam, awayTeam) {
+  const bulk = getLocalSquadsBulk();
   const [homeResult, awayResult] = await Promise.allSettled([
-    getTeamSquad(homeTeam),
-    getTeamSquad(awayTeam),
+    getTeamSquad(homeTeam, { bulk }),
+    getTeamSquad(awayTeam, { bulk }),
   ]);
 
   const warnings = [];
@@ -99,6 +121,7 @@ async function getMatchSquads(homeTeam, awayTeam) {
 
 module.exports = {
   isSquadEnabled,
+  getLocalSquadsBulk,
   getTeamSquad,
   getMatchSquads,
   providerOrder,

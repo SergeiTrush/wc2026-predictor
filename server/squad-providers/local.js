@@ -8,7 +8,7 @@ const SQUADS_PATH = path.join(__dirname, '../data/squads.json');
 let cache = null;
 let cacheMtime = 0;
 
-function isEnabled() {
+function hasSquadsFile() {
   try {
     return fs.existsSync(SQUADS_PATH);
   } catch {
@@ -16,8 +16,13 @@ function isEnabled() {
   }
 }
 
+function isEnabled() {
+  const data = loadFile();
+  return Boolean(data?.byKey?.size);
+}
+
 function loadFile() {
-  if (!isEnabled()) return null;
+  if (!hasSquadsFile()) return null;
 
   const stat = fs.statSync(SQUADS_PATH);
   if (cache && stat.mtimeMs === cacheMtime) return cache;
@@ -26,14 +31,18 @@ function loadFile() {
   const teams = raw.teams || {};
   const byKey = new Map();
 
+  const teamsByName = {};
   for (const [teamName, players] of Object.entries(teams)) {
-    byKey.set(normalizeKey(teamName), normalizePlayers(players));
+    const normalized = normalizePlayers(players);
+    teamsByName[teamName] = normalized;
+    byKey.set(normalizeKey(teamName), normalized);
   }
 
   cache = {
     updatedAt: raw.updated_at || null,
     source: raw.source || 'local',
     byKey,
+    teamsByName,
   };
   cacheMtime = stat.mtimeMs;
   return cache;
@@ -47,12 +56,12 @@ function getTeamSquad(teamName) {
 
 function getAllSquads() {
   const data = loadFile();
-  if (!data) return null;
+  if (!data?.teamsByName) return null;
   return {
     updatedAt: data.updatedAt,
     source: data.source,
-    teams: Object.fromEntries(data.byKey.entries()),
+    teams: { ...data.teamsByName },
   };
 }
 
-module.exports = { isEnabled, getTeamSquad, getAllSquads, SQUADS_PATH };
+module.exports = { isEnabled, hasSquadsFile, getTeamSquad, getAllSquads, SQUADS_PATH };

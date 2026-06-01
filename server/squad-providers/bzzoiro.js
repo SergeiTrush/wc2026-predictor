@@ -1,5 +1,5 @@
 const { GROUPS } = require('../data/groups');
-const { mapApiTeamName, normalizeKey } = require('../team-map');
+const { mapApiTeamName, normalizeKey, apiSearchNames } = require('../team-map');
 const { normalizePlayers, toPlayer } = require('../player-normalize');
 const { isEnabled, apiFetch } = require('../bzzoiro-client');
 
@@ -13,12 +13,14 @@ async function findTeamId(teamName) {
   const key = normalizeKey(teamName);
   if (teamIdCache.has(key)) return teamIdCache.get(key);
 
-  const data = await apiFetch(`/teams/?name=${encodeURIComponent(teamName)}&limit=50`);
-  for (const row of data.results || []) {
-    const canonical = mapApiTeamName(row.name);
-    if (canonical && normalizeKey(canonical) === key) {
-      teamIdCache.set(key, row.id);
-      return row.id;
+  for (const searchName of apiSearchNames(teamName)) {
+    const data = await apiFetch(`/teams/?name=${encodeURIComponent(searchName)}&limit=50`);
+    for (const row of data.results || []) {
+      const canonical = mapApiTeamName(row.name);
+      if (canonical && normalizeKey(canonical) === key) {
+        teamIdCache.set(key, row.id);
+        return row.id;
+      }
     }
   }
 

@@ -736,11 +736,13 @@ a {
 }
 
 .custom-select-menu--players {
-  max-height: 14rem;
+  max-height: 18rem;
 }
 
 .custom-select-dropdown {
   z-index: 1200;
+  display: flex;
+  flex-direction: column;
   background: #0c284f;
   border: 1px solid rgba(147, 197, 253, 0.35);
   border-radius: 8px;
@@ -750,9 +752,15 @@ a {
 
 .custom-select-dropdown--players {
   min-width: 220px;
+  max-height: min(75dvh, 32rem);
+}
+
+.custom-select-dropdown--players .custom-select-menu--in-dropdown {
+  max-height: var(--dropdown-menu-max, 18rem);
 }
 
 .custom-select-search {
+  flex-shrink: 0;
   padding: 0.45rem 0.5rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.12);
 }
@@ -787,10 +795,15 @@ a {
   border: none;
   border-radius: 0;
   box-shadow: none;
-  max-height: 12rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: var(--dropdown-menu-max, 14rem);
+  overflow-y: auto;
   width: 100%;
   padding: 0.25rem 0.5rem 0.35rem;
   box-sizing: border-box;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 .custom-select-menu--in-dropdown .custom-select-status {
@@ -1123,6 +1136,7 @@ a {
 }
 
 .friends-predictions-sheet {
+  --friends-scroll-gutter: 0.75rem;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
@@ -1160,15 +1174,43 @@ a {
   margin-top: 0;
 }
 
+/* Scrollbar in sheet side padding; cards same width as header (symmetric margins) */
+.friends-predictions-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  box-sizing: content-box;
+  width: 100%;
+  margin-right: calc(-1 * var(--friends-scroll-gutter));
+  padding-right: var(--friends-scroll-gutter);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.35) transparent;
+}
+
+.friends-predictions-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.friends-predictions-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.friends-predictions-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 999px;
+}
+
+.friends-predictions-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.45);
+}
+
 .friends-predictions-list {
   list-style: none;
   margin: 0;
   padding: 0;
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
 }
 
 .friends-predictions-sheet .friends-prediction-row {
@@ -1458,13 +1500,15 @@ a {
 }
 
 .points-info-btn {
-  width: 1.15rem;
-  height: 1.15rem;
+  width: 1.35rem;
+  height: 1.35rem;
+  min-width: 1.35rem;
+  min-height: 1.35rem;
   border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.85);
+  border: 2px solid rgba(255, 255, 255, 0.85);
   background: var(--card-blue);
   color: #fff;
-  font-size: 0.65rem;
+  font-size: 0.80rem;
   font-weight: 900;
   font-style: italic;
   font-family: Georgia, serif;
@@ -1958,14 +2002,26 @@ a {
 
 body.body-scroll-locked {
   overscroll-behavior: none;
+  touch-action: none;
 }
 
+body.body-scroll-locked #root,
+body.body-scroll-locked .app-root,
 body.body-scroll-locked .league-shell,
 body.body-scroll-locked .league-shell-body,
+body.body-scroll-locked .admin-results-body,
 body.body-scroll-locked .leaderboard-table-scroll {
   overflow: hidden !important;
   overscroll-behavior: none;
   touch-action: none;
+}
+
+.modal-overlay .modal-sheet,
+.modal-overlay .friends-predictions-scroll,
+.modal-overlay .centered-select-menu {
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .modal-overlay--top-menu {

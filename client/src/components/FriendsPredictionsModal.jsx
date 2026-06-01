@@ -161,22 +161,24 @@ export default function FriendsPredictionsModal({ leagueId, match, onClose }) {
             <p className="empty-hint">Пока нет прогнозов от других участников</p>
           )}
 
-          <ul className="friends-predictions-list">
-            {predictions.map((p) => {
-              const points = resolvePredictionPoints(p, displayMatch);
+          <div className="friends-predictions-scroll">
+            <ul className="friends-predictions-list">
+              {predictions.map((p) => {
+                const points = resolvePredictionPoints(p, displayMatch);
 
-              return (
-                <FriendPredictionRow
-                  key={p.userId}
-                  prediction={p}
-                  points={points}
-                  mult={mult}
-                  displayMatch={displayMatch}
-                  squadPlayers={squadPlayers}
-                />
-              );
-            })}
-          </ul>
+                return (
+                  <FriendPredictionRow
+                    key={p.userId}
+                    prediction={p}
+                    points={points}
+                    mult={mult}
+                    displayMatch={displayMatch}
+                    squadPlayers={squadPlayers}
+                  />
+                );
+              })}
+            </ul>
+          </div>
         </div>
       </div>
     </ModalOverlay>

@@ -62,7 +62,7 @@ export function resolveFirstTeamDisplay(value, homeTeam, awayTeam) {
   return { label: '—', flag: null, empty: true };
 }
 
-export function resolveFirstPlayerDisplay(value, squadPlayers) {
+export function resolveFirstPlayerDisplay(value, squadPlayers, teamName = null) {
   if (value === 'none') {
     return { label: 'Никто', flag: null, empty: false };
   }
@@ -71,7 +71,7 @@ export function resolveFirstPlayerDisplay(value, squadPlayers) {
   }
 
   const squadPlayer = findSquadPlayer(squadPlayers, value);
-  const team = squadPlayer?.team || null;
+  const team = squadPlayer?.team || teamName || null;
 
   return {
     label: value,

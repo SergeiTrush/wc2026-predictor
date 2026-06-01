@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { teamFlag } from '../utils';
+import { computeFixedDropdownStyle } from '../dropdownPosition';
 import CenteredSelectMenu from './CenteredSelectMenu';
 import PlusIconButton from './PlusIconButton';
 
@@ -45,21 +46,32 @@ export default function FirstTeamSelect({
   const updateMenuPosition = useCallback(() => {
     const rect = triggerRef.current?.getBoundingClientRect();
     if (!rect) return;
+    const placement = computeFixedDropdownStyle(rect, {
+      searchHeight: 0,
+      minMenuHeight: 80,
+      preferredMenuHeight: 160,
+      minWidth: rect.width,
+    });
     setMenuStyle({
-      position: 'fixed',
-      top: rect.bottom + 4,
-      left: rect.left,
-      width: rect.width,
-      zIndex: 1200,
+      position: placement.position,
+      top: placement.top,
+      bottom: placement.bottom,
+      left: placement.left,
+      width: placement.width,
+      zIndex: placement.zIndex,
+      maxHeight: placement.maxHeight,
+      ...placement.style,
     });
   }, []);
 
   useLayoutEffect(() => {
     if (!open || useIconTrigger) return;
     updateMenuPosition();
+    const id = requestAnimationFrame(updateMenuPosition);
     window.addEventListener('resize', updateMenuPosition);
     window.addEventListener('scroll', updateMenuPosition, true);
     return () => {
+      cancelAnimationFrame(id);
       window.removeEventListener('resize', updateMenuPosition);
       window.removeEventListener('scroll', updateMenuPosition, true);
     };

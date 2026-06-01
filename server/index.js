@@ -40,7 +40,7 @@ const {
   startResultsSyncScheduler,
   isEnabled: resultsSyncEnabled,
 } = require('./sync-results');
-const { isSquadEnabled, getTeamSquad, getMatchSquads } = require('./squad-service');
+const { isSquadEnabled, getLocalSquadsBulk, getTeamSquad, getMatchSquads } = require('./squad-service');
 const { refreshIfStale, getLiveScoreForMatch, startLiveScoresScheduler } = require('./live-scores');
 const { resolveAndApplyKnockoutTeams } = require('./resolve-knockout-teams');
 const {
@@ -973,6 +973,22 @@ app.get('/api/matches/:matchId/players', authMiddleware, async (req, res) => {
   }
 });
 
+app.get('/api/squads', authMiddleware, (req, res) => {
+  if (!isSquadEnabled()) {
+    return res.status(503).json({
+      error:
+        'Список игроков недоступен. Запустите npm run export:squads или добавьте BZZOIRO_API_TOKEN в .env.',
+    });
+  }
+
+  const bulk = getLocalSquadsBulk();
+  if (!bulk?.teams || !Object.keys(bulk.teams).length) {
+    return res.status(404).json({ error: 'Локальный squads.json пуст или отсутствует' });
+  }
+
+  res.json(bulk);
+});
+
 app.get('/api/teams/:teamName/players', authMiddleware, async (req, res) => {
   if (!isSquadEnabled()) {
     return res.status(503).json({
@@ -1339,7 +1355,8 @@ const server = app.listen(PORT, () => {
   startLiveScoresScheduler(db);
   console.log(`WC 2026 Predictor API on http://localhost:${PORT}`);
   console.log('  Final score fields (admin):', finalScoreColumnsOk() ? 'ready' : 'MISSING');
-  console.log('  GET /api/teams/:teamName/players — squad list (local JSON or API provider)');
+  console.log('  GET /api/squads — all squads from server/data/squads.json');
+  console.log('  GET /api/teams/:teamName/players — one team (JSON cache or Bzzoiro fallback)');
 });
 
 server.on('error', (err) => {

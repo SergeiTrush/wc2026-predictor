@@ -162,6 +162,7 @@ export const api = {
     request('/predictions/booster', { method: 'POST', body: JSON.stringify(body) }),
   matchFriendPredictions: (leagueId, matchId) =>
     request(`/matches/${matchId}/friend-predictions?leagueId=${leagueId}`),
+  squads: () => request('/squads'),
   teamPlayers: (teamName) =>
     request(`/teams/${encodeURIComponent(teamName)}/players`),
   matchPlayers: (matchId) => request(`/matches/${matchId}/players`),

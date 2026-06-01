@@ -20,10 +20,6 @@ export default function FriendsPredictionExtras({ firstTeam, firstPlayer, homeTe
   const teamPick = resolveFirstTeamDisplay(firstTeam, homeTeam, awayTeam);
   const playerPick = resolveFirstPlayerDisplay(firstPlayer, squadPlayers);
 
-  if (teamPick.empty && playerPick.empty) {
-    return null;
-  }
-
   return (
     <div className="friends-prediction-extras">
       <ExtraPick label="Команда, открывшая счет" pick={teamPick} />

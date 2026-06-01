@@ -9,7 +9,7 @@ Private league app for the **FIFA World Cup 2026** — full schedule (48 teams, 
 3. For each match enter:
    - **Exact score**
    - **First team to score** / **first goalscorer**
-   - **One booster per matchday** (2× group/R16, up to 5× in the final)
+   - **One booster per matchday** (×2 through quarter-finals, ×3 for 3rd-place, semi-final and final)
 4. Compete on the **Таблица** leaderboard.
 
 ## Scoring
@@ -21,7 +21,7 @@ Private league app for the **FIFA World Cup 2026** — full schedule (48 teams, 
 | Goal difference | 3 |
 | First team to score | 2 |
 | First player to score | 8 |
-| Booster | ×2–×5 by stage |
+| Booster | ×2 (group–QF), ×3 (3rd-place, SF, final) |
 
 ## Quick start
 

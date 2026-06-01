@@ -1,9 +1,7 @@
-/** Client copy of shared/scoring.js — keep in sync with shared/scoring.js */
+/** Client copy of shared/scoring.js — keep booster rules in sync with shared/scoring.js */
 
 function boosterMultiplier(stage) {
-  if (stage === 'quarter_final') return 3;
-  if (stage === 'semi_final') return 4;
-  if (stage === 'final') return 5;
+  if (stage === 'semi_final' || stage === 'third_place' || stage === 'final') return 3;
   return 2;
 }
 

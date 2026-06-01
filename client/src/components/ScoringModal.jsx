@@ -83,20 +83,12 @@ export default function ScoringModal({ onClose }) {
             Один бустер на тур (день матчей). Умножает очки за выбранный матч:
           </p>
           <div className="scoring-row">
-            <span>Группа / 1/16 / 1/8</span>
+            <span>Группа · 1/16 · 1/8 · Четвертьфинал</span>
             <span>×2</span>
           </div>
           <div className="scoring-row">
-            <span>Четвертьфинал</span>
+            <span>3-е · Полуфинал · Финал</span>
             <span>×3</span>
-          </div>
-          <div className="scoring-row">
-            <span>Полуфинал</span>
-            <span>×4</span>
-          </div>
-          <div className="scoring-row">
-            <span>Финал</span>
-            <span>×5</span>
           </div>
         </div>
 
@@ -112,7 +104,8 @@ export default function ScoringModal({ onClose }) {
           <ExampleRow label="Разница" points={b.goalDifference} />
           <ExampleRow label="Команда открыла счёт" points={b.firstTeam} />
           <ExampleRow label="Игрок открыл счёт" points={b.firstPlayer} />
-          <ExampleRow label={`Подытог ×${b.boosterMultiplier} (бустер)`} points={b.afterBooster} highlight />
+          <ExampleRow label="Подытог до бустера" points={b.scoreSubtotal} />
+          <ExampleRow label={`Бустер ×${b.boosterMultiplier}`} points={b.afterBooster - b.scoreSubtotal} />
           <ExampleRow label="Итого за матч" points={b.total} highlight />
         </div>
       </div>

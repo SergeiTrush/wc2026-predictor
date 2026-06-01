@@ -13,9 +13,11 @@ const baseActual = {
 test('booster multipliers by stage', () => {
   assert.equal(boosterMultiplier('group'), 2);
   assert.equal(boosterMultiplier('round_of_32'), 2);
-  assert.equal(boosterMultiplier('quarter_final'), 3);
-  assert.equal(boosterMultiplier('semi_final'), 4);
-  assert.equal(boosterMultiplier('final'), 5);
+  assert.equal(boosterMultiplier('round_of_16'), 2);
+  assert.equal(boosterMultiplier('quarter_final'), 2);
+  assert.equal(boosterMultiplier('semi_final'), 3);
+  assert.equal(boosterMultiplier('third_place'), 3);
+  assert.equal(boosterMultiplier('final'), 3);
 });
 
 test('exact score 2-1 without extras = 10 points', () => {
@@ -107,11 +109,12 @@ test('first player "none" on non 0-0 match = 0 player points', () => {
   assert.equal(b.firstPlayer, 0);
 });
 
-test('final with booster caps at 5x on match subtotal', () => {
+test('final with booster uses 3x on match subtotal', () => {
   const b = breakdownMatchPoints(
     { home_pred: 2, away_pred: 1, booster: 1 },
     { ...baseActual, stage: 'final' }
   );
-  assert.equal(b.boosterMultiplier, 5);
-  assert.equal(b.afterBooster, 50);
+  assert.equal(b.boosterMultiplier, 3);
+  assert.equal(b.scoreSubtotal, 10);
+  assert.equal(b.afterBooster, 30);
 });

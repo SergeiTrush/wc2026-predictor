@@ -19,13 +19,6 @@ function friendsLinkLabel(count) {
 }
 
 function resolvePredictionPoints(prediction, displayMatch) {
-  if (prediction.pointsDetail) {
-    return {
-      pointsDetail: prediction.pointsDetail,
-      provisional: !!prediction.provisional,
-    };
-  }
-
   const hasResult = matchHasResult(displayMatch);
   const liveScore = displayMatch.liveScore;
   if (!hasResult && !matchHasLiveScore(displayMatch)) return null;

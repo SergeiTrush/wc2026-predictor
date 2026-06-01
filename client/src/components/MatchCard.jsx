@@ -213,7 +213,6 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
         : 'Игрок';
 
   const pointsDetail = useMemo(() => {
-    if (match.pointsDetail) return match.pointsDetail;
     if (!pred) return null;
 
     let actual = null;

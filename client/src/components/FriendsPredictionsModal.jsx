@@ -1,22 +1,13 @@
-import { useEffect, useState } from 'react';
-import { api } from '../api';
+import { useEffect, useRef, useState } from 'react';
+import { api, isSessionExpiredError } from '../api';
+import { loadMatchSquads } from '../teamSquads';
 import { teamFlag, boosterLabel, matchHasResult, matchHasLiveScore, matchHasLiveManualScore, matchIsLive, liveBarDisplayScore, scoringActualFromLive, isLiveExtraTime } from '../utils';
 import { isKnockoutMatch } from '../matchdays';
 import { breakdownMatchPoints, formatPointsBreakdown } from '../scoring';
 import ModalOverlay from './ModalOverlay';
 import PointsTooltip from './PointsTooltip';
-
-function formatFirstTeam(value, homeTeam, awayTeam) {
-  if (value === 'home') return homeTeam;
-  if (value === 'away') return awayTeam;
-  if (value === 'none') return 'Никто / 0:0';
-  return '—';
-}
-
-function formatFirstPlayer(value) {
-  if (value === 'none') return 'Никто';
-  return value || '';
-}
+import PointsBreakdownPanel from './PointsBreakdownPanel';
+import FriendsPredictionExtras from './FriendsPredictionExtras';
 
 function friendsLinkLabel(count) {
   if (count === 1) return 'Посмотреть прогноз твоего друга';
@@ -75,6 +66,7 @@ export default function FriendsPredictionsModal({ leagueId, match, onClose }) {
   const [error, setError] = useState('');
   const [predictions, setPredictions] = useState([]);
   const [matchInfo, setMatchInfo] = useState(null);
+  const [squadPlayers, setSquadPlayers] = useState([]);
 
   useEffect(() => {
     if (match.friendPredictions != null) {
@@ -96,7 +88,7 @@ export default function FriendsPredictionsModal({ leagueId, match, onClose }) {
         setMatchInfo(data.match || match);
       })
       .catch((e) => {
-        if (!cancelled) setError(e.message);
+        if (!cancelled && !isSessionExpiredError(e)) setError(e.message);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -107,6 +99,26 @@ export default function FriendsPredictionsModal({ leagueId, match, onClose }) {
   }, [leagueId, match, match.id, match.friendPredictions]);
 
   const displayMatch = matchInfo || match;
+
+  useEffect(() => {
+    if (!displayMatch?.home_team || !displayMatch?.away_team) {
+      setSquadPlayers([]);
+      return undefined;
+    }
+
+    let cancelled = false;
+    loadMatchSquads(displayMatch.home_team, displayMatch.away_team)
+      .then((squads) => {
+        if (!cancelled) setSquadPlayers(squads.players || []);
+      })
+      .catch(() => {
+        if (!cancelled) setSquadPlayers([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [displayMatch?.home_team, displayMatch?.away_team]);
   const hasResult = matchHasResult(displayMatch);
   const isLive = matchIsLive(displayMatch);
   const liveScore = displayMatch.liveScore;
@@ -161,31 +173,62 @@ export default function FriendsPredictionsModal({ leagueId, match, onClose }) {
               const points = resolvePredictionPoints(p, displayMatch);
 
               return (
-                <li key={p.userId} className="friends-prediction-row">
-                  <div className="friends-prediction-name">{p.name}</div>
-                  <div className="friends-prediction-head">
-                    <span className="friends-prediction-score">
-                      {p.home_pred}:{p.away_pred}
-                      {p.booster ? <span className="friends-booster-tag">бустер {mult}</span> : null}
-                    </span>
-                    {points?.pointsDetail && (
-                      <PointsTooltip
-                        pointsDetail={points.pointsDetail}
-                        provisional={points.provisional}
-                        variant="inline"
-                      />
-                    )}
-                  </div>
-                  <div className="friends-prediction-meta">
-                    Первый гол: {formatFirstTeam(p.first_team, match.home_team, match.away_team)}
-                    {formatFirstPlayer(p.first_player) ? ` · ${formatFirstPlayer(p.first_player)}` : ''}
-                  </div>
-                </li>
+                <FriendPredictionRow
+                  key={p.userId}
+                  prediction={p}
+                  points={points}
+                  mult={mult}
+                  displayMatch={displayMatch}
+                  squadPlayers={squadPlayers}
+                />
               );
             })}
           </ul>
         </div>
       </div>
     </ModalOverlay>
+  );
+}
+
+function FriendPredictionRow({ prediction: p, points, mult, displayMatch, squadPlayers }) {
+  const rowRef = useRef(null);
+  const [breakdownOpen, setBreakdownOpen] = useState(false);
+
+  return (
+    <li className="friends-prediction-row" ref={rowRef}>
+      <div className="friends-prediction-header">
+        <div className="friends-prediction-top-main">
+          <div className="friends-prediction-name">{p.name}</div>
+          <span className="friends-prediction-score">
+            {p.home_pred}:{p.away_pred}
+            {p.booster ? <span className="friends-booster-tag">бустер {mult}</span> : null}
+          </span>
+        </div>
+        {points?.pointsDetail && (
+          <PointsTooltip
+            pointsDetail={points.pointsDetail}
+            provisional={points.provisional}
+            variant="inline"
+            detachPanel
+            wrapRef={rowRef}
+            onOpenChange={setBreakdownOpen}
+          />
+        )}
+      </div>
+      <FriendsPredictionExtras
+        firstTeam={p.first_team}
+        firstPlayer={p.first_player}
+        homeTeam={displayMatch.home_team}
+        awayTeam={displayMatch.away_team}
+        squadPlayers={squadPlayers}
+      />
+      {breakdownOpen && points?.pointsDetail && (
+        <PointsBreakdownPanel
+          pointsDetail={points.pointsDetail}
+          className="points-breakdown-inline friends-prediction-breakdown"
+          provisional={points.provisional}
+        />
+      )}
+    </li>
   );
 }

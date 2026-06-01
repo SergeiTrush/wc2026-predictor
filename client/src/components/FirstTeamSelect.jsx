@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { teamFlag } from '../utils';
 import CenteredSelectMenu from './CenteredSelectMenu';
 import PlusIconButton from './PlusIconButton';
 
 function buildOptions(homeTeam, awayTeam) {
   return [
-    { value: '', label: '—' },
-    { value: 'home', label: homeTeam },
-    { value: 'away', label: awayTeam },
-    { value: 'none', label: 'Никто / 0:0' },
+    { value: '', label: '—', flag: null },
+    { value: 'home', label: homeTeam, flag: teamFlag(homeTeam) },
+    { value: 'away', label: awayTeam, flag: teamFlag(awayTeam) },
+    { value: 'none', label: 'Никто / 0:0', flag: null },
   ];
 }
 
@@ -111,7 +112,12 @@ export default function FirstTeamSelect({
         className={`custom-select-option ${value === opt.value ? 'custom-select-option--selected' : ''}`}
         onClick={() => pick(opt.value)}
       >
-        {opt.label}
+        {opt.flag ? (
+          <span className="custom-select-option-flag" aria-hidden="true">
+            {opt.flag}
+          </span>
+        ) : null}
+        <span className="custom-select-option-label">{opt.label}</span>
       </button>
     </li>
   ));
@@ -180,7 +186,14 @@ export default function FirstTeamSelect({
           aria-controls={open ? listId : undefined}
           onClick={toggle}
         >
-          <span className="custom-select-value">{selected.label}</span>
+          <span className="custom-select-value">
+            {selected.flag ? (
+              <span className="custom-select-option-flag" aria-hidden="true">
+                {selected.flag}
+              </span>
+            ) : null}
+            <span className="custom-select-option-label">{selected.label}</span>
+          </span>
           <span className="custom-select-chevron" aria-hidden="true">
             ▾
           </span>

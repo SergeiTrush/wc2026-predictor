@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
-import { api } from '../api';
+import { api, isSessionExpiredError } from '../api';
 import { teamFlag, formatMatchTime, matchHasStoredScore, matchIsFinished, adminMatchScores, matchHasAdminResult, isMatchInPlayWindow, matchIsLive } from '../utils';
-import { redirectIfLeagueForbidden } from '../leagueAccess';
+import { createEffectGuard, redirectIfLeagueForbidden } from '../leagueAccess';
 import { loadMatchSquads } from '../teamSquads';
 import {
   matchdaysFromMatches,
@@ -12,9 +12,12 @@ import {
   isKnockoutMatch,
 } from '../matchdays';
 import FirstTeamSelect from '../components/FirstTeamSelect';
-import FirstPlayerSelect from '../components/FirstPlayerSelect';
+import FirstPlayerSelect, { NO_FIRST_SCORER } from '../components/FirstPlayerSelect';
+import { resolveFirstTeamName } from '../predictionExtras';
+import { useConfirm } from '../context/ConfirmContext';
 
 function AdminMatchRow({ match, leagueId, onSaved }) {
+  const { confirm } = useConfirm();
   const scores = adminMatchScores(match);
   const hasStoredScore = matchHasStoredScore(match);
   const hasScore = matchHasAdminResult(match);
@@ -124,10 +127,37 @@ function AdminMatchRow({ match, leagueId, onSaved }) {
       .finally(() => setSquadLoading(false));
   }, [squadLoading, squadTeams, squadError, match.home_team, match.away_team]);
 
+  const selectedTeamName = useMemo(
+    () => resolveFirstTeamName(firstTeam, match.home_team, match.away_team),
+    [firstTeam, match.home_team, match.away_team]
+  );
+
+  const filteredSquadTeams = useMemo(() => {
+    if (!Array.isArray(squadTeams)) return squadTeams;
+    if (!selectedTeamName) return [];
+    return squadTeams.filter((entry) => entry.team === selectedTeamName);
+  }, [squadTeams, selectedTeamName]);
+
   const playerOptions = useMemo(() => {
     if (!Array.isArray(squadPlayers)) return [];
-    return squadPlayers;
-  }, [squadPlayers]);
+    if (firstTeam === 'none' || !selectedTeamName) return [];
+    return squadPlayers.filter((p) => p.team === selectedTeamName);
+  }, [squadPlayers, selectedTeamName, firstTeam]);
+
+  const onFirstTeamChange = (next) => {
+    setFirstTeam(next);
+    if (next === 'none') {
+      setFirstPlayer(NO_FIRST_SCORER);
+      return;
+    }
+    const teamName = resolveFirstTeamName(next, match.home_team, match.away_team);
+    if (!teamName || !firstPlayer || firstPlayer === NO_FIRST_SCORER) return;
+    const stillValid = squadPlayers?.some((p) => {
+      const name = (p.name || p.surname || '').trim();
+      return name === firstPlayer && p.team === teamName;
+    });
+    if (!stillValid) setFirstPlayer('');
+  };
 
   const playerPlaceholder = squadLoading
     ? 'Загрузка…'
@@ -135,7 +165,9 @@ function AdminMatchRow({ match, leagueId, onSaved }) {
       ? 'Нет списка игроков'
       : Array.isArray(squadPlayers) && squadPlayers.length === 0
         ? 'Состав не найден'
-        : 'Игрок';
+        : selectedTeamName
+          ? 'Игрок команды'
+          : 'Сначала выберите команду';
 
   const save = async () => {
     const h = parseInt(home, 10);
@@ -202,7 +234,13 @@ function AdminMatchRow({ match, leagueId, onSaved }) {
   };
 
   const clear = async () => {
-    if (!confirm('Удалить результат этого матча?')) return;
+    const ok = await confirm({
+      title: 'Удалить результат этого матча?',
+      message: 'Счёт, первый гол и статус матча будут сброшены.',
+      confirmLabel: 'Удалить',
+      danger: true,
+    });
+    if (!ok) return;
     setSaving(true);
     setMsg('');
     try {
@@ -292,7 +330,7 @@ function AdminMatchRow({ match, leagueId, onSaved }) {
           <FirstTeamSelect
             className="custom-select--full"
             value={firstTeam}
-            onChange={setFirstTeam}
+            onChange={onFirstTeamChange}
             homeTeam={match.home_team}
             awayTeam={match.away_team}
           />
@@ -303,9 +341,10 @@ function AdminMatchRow({ match, leagueId, onSaved }) {
             className="custom-select--full"
             value={firstPlayer}
             onChange={setFirstPlayer}
-            teams={squadTeams}
+            teams={filteredSquadTeams}
             players={playerOptions}
             loading={squadLoading}
+            disabled={!selectedTeamName && firstTeam !== 'none'}
             placeholder={playerPlaceholder}
             title={squadError || undefined}
             onOpen={loadSquadPlayers}
@@ -382,21 +421,32 @@ export default function LeagueAdminResultsPage() {
   }, [layoutLeague]);
 
   useEffect(() => {
+    const guard = createEffectGuard();
     setLoading(true);
+    setError('');
+
     const leaguePromise = layoutLeague
       ? Promise.resolve({ league: layoutLeague })
       : api.league(id);
 
     Promise.all([leaguePromise, api.allMatches(id)])
       .then(([leagueData, matchData]) => {
+        if (!guard.isActive()) return;
         setLeague(leagueData.league);
         setMatches(matchData.matches || []);
       })
       .catch((e) => {
+        if (!guard.isActive()) return;
         if (redirectIfLeagueForbidden(e, navigate)) return;
+        if (isSessionExpiredError(e)) return;
         setError(e.message);
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!guard.isActive()) return;
+        setLoading(false);
+      });
+
+    return guard.cancel;
   }, [id, navigate, layoutLeague]);
 
   useEffect(() => {

@@ -1,9 +1,9 @@
 import { Fragment, useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { api } from '../api';
+import { api, isSessionExpiredError } from '../api';
 import ScoringModal from '../components/ScoringModal';
 import { formatDateTime } from '../utils';
-import { redirectIfLeagueForbidden } from '../leagueAccess';
+import { createEffectGuard, redirectIfLeagueForbidden } from '../leagueAccess';
 import { matchdaysFromMatches, formatMatchdayTabDate } from '../matchdays';
 
 const MATCHDAY_TAGS = [
@@ -63,24 +63,35 @@ export default function LeagueTablePage() {
   const [expandedUserId, setExpandedUserId] = useState(null);
   const [userBreakdown, setUserBreakdown] = useState({});
   const [pageReady, setPageReady] = useState(false);
+  const requestGenRef = useRef(0);
+
+  useEffect(() => {
+    requestGenRef.current += 1;
+  }, [id]);
 
   const loadLeaderboard = useCallback(() => {
+    const gen = requestGenRef.current;
     api
       .leaderboard(id, selectedDayKey)
-      .then((d) => setLeaderboard(d.leaderboard))
+      .then((d) => {
+        if (gen !== requestGenRef.current) return;
+        setLeaderboard(d.leaderboard);
+      })
       .catch((e) => {
+        if (gen !== requestGenRef.current) return;
         if (redirectIfLeagueForbidden(e, navigate)) return;
+        if (isSessionExpiredError(e)) return;
         setSyncMsg(e.message);
       });
   }, [id, navigate, selectedDayKey]);
 
   useEffect(() => {
-    let active = true;
+    const guard = createEffectGuard();
     setPageReady(false);
     setSelectedDayKey(null);
 
     Promise.allSettled([api.leaderboard(id), api.allMatches(id), api.resultsSyncStatus()]).then((results) => {
-      if (!active) return;
+      if (!guard.isActive()) return;
 
       const [leaderboardResult, matchesResult, syncResult] = results;
 
@@ -88,7 +99,8 @@ export default function LeagueTablePage() {
         setLeaderboard(leaderboardResult.value.leaderboard || []);
       } else {
         const e = leaderboardResult.reason;
-        if (!redirectIfLeagueForbidden(e, navigate)) setSyncMsg(e.message);
+        if (redirectIfLeagueForbidden(e, navigate)) return;
+        if (!isSessionExpiredError(e)) setSyncMsg(e.message);
       }
 
       if (matchesResult.status === 'fulfilled') {
@@ -96,7 +108,8 @@ export default function LeagueTablePage() {
         setMatchdays(days);
       } else {
         const e = matchesResult.reason;
-        if (!redirectIfLeagueForbidden(e, navigate)) setSyncMsg(e.message);
+        if (redirectIfLeagueForbidden(e, navigate)) return;
+        if (!isSessionExpiredError(e)) setSyncMsg(e.message);
       }
 
       if (syncResult.status === 'fulfilled') {
@@ -108,9 +121,7 @@ export default function LeagueTablePage() {
       setPageReady(true);
     });
 
-    return () => {
-      active = false;
-    };
+    return guard.cancel;
   }, [id, navigate]);
 
   useEffect(() => {

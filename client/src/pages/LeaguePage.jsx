@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
-import { api } from '../api';
+import { api, isSessionExpiredError } from '../api';
 import {
   matchdaysFromMatches,
   filterMatchesByDay,
@@ -10,7 +10,7 @@ import {
 } from '../matchdays';
 import MatchCard from '../components/MatchCard';
 import { isMatchLiveScoreBarVisible, isMatchInPlayWindow } from '../utils';
-import { redirectIfLeagueForbidden } from '../leagueAccess';
+import { createEffectGuard, redirectIfLeagueForbidden } from '../leagueAccess';
 
 function scrollPageTop() {
   window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
@@ -39,11 +39,12 @@ export default function LeaguePage() {
   const [topHeight, setTopHeight] = useState(220);
 
   const loadAll = useCallback(
-    async ({ silent = false } = {}) => {
+    async ({ silent = false, isActive } = {}) => {
       if (!silent) setLoadingMatches(true);
-      setError('');
+      if (!silent) setError('');
       try {
         const { matches } = await api.allMatches(id);
+        if (isActive && !isActive()) return;
         const list = matches || [];
         setAllMatches(list);
         const days = matchdaysFromMatches(list);
@@ -55,9 +56,12 @@ export default function LeaguePage() {
           return pickDefaultMatchday(days);
         });
       } catch (e) {
+        if (isActive && !isActive()) return;
         if (redirectIfLeagueForbidden(e, navigate)) return;
+        if (isSessionExpiredError(e)) return;
         setError(e.message);
       } finally {
+        if (isActive && !isActive()) return;
         if (!silent) setLoadingMatches(false);
       }
     },
@@ -69,6 +73,7 @@ export default function LeaguePage() {
   }, [layoutLeague]);
 
   useEffect(() => {
+    const guard = createEffectGuard();
     setUiReady(false);
     setLoadingLeague(!layoutLeague);
     scrollPageTop();
@@ -76,17 +81,24 @@ export default function LeaguePage() {
       api
         .league(id)
         .then((d) => {
+          if (!guard.isActive()) return;
           setLeague(d.league);
         })
         .catch((e) => {
+          if (!guard.isActive()) return;
           if (redirectIfLeagueForbidden(e, navigate)) return;
+          if (isSessionExpiredError(e)) return;
           setError(e.message);
         })
-        .finally(() => setLoadingLeague(false));
+        .finally(() => {
+          if (!guard.isActive()) return;
+          setLoadingLeague(false);
+        });
     } else {
       setLoadingLeague(false);
     }
-    loadAll();
+    loadAll({ isActive: guard.isActive });
+    return guard.cancel;
   }, [id, loadAll, navigate, layoutLeague]);
 
   useEffect(() => {

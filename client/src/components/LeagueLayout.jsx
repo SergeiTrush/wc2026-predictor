@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { api } from '../api';
-import { redirectIfLeagueForbidden } from '../leagueAccess';
+import { api, isSessionExpiredError } from '../api';
+import { createEffectGuard, redirectIfLeagueForbidden } from '../leagueAccess';
 import AppHeader from './AppHeader';
 
 function shellPageClass(pathname, leagueId) {
@@ -36,26 +36,24 @@ export default function LeagueLayout() {
   const active = useMemo(() => activeTab(location.pathname, id), [location.pathname, id]);
 
   useEffect(() => {
-    let cancelled = false;
+    const guard = createEffectGuard();
     setStatus('loading');
 
     api
       .league(id)
       .then((d) => {
-        if (!cancelled) {
-          setLeague(d.league);
-          setStatus('allowed');
-        }
+        if (!guard.isActive()) return;
+        setLeague(d.league);
+        setStatus('allowed');
       })
       .catch((e) => {
-        if (cancelled) return;
+        if (!guard.isActive()) return;
         if (redirectIfLeagueForbidden(e, navigate)) return;
+        if (isSessionExpiredError(e)) return;
         setStatus('denied');
       });
 
-    return () => {
-      cancelled = true;
-    };
+    return guard.cancel;
   }, [id, navigate]);
 
   useLayoutEffect(() => {

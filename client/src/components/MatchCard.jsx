@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { api } from '../api';
+import { useConfirm } from '../context/ConfirmContext';
 import { loadMatchSquads } from '../teamSquads';
 import { teamFlag, formatMatchTime, boosterLabel, isMatchLiveScoreBarVisible, matchHasResult, matchHasLiveScore, matchHasLiveManualScore, matchIsLive, liveBarDisplayScore, scoringActualFromLive, isLiveExtraTime } from '../utils';
 import { isKnockoutMatch } from '../matchdays';
@@ -9,6 +10,7 @@ import FriendsPredictionsModal, { friendsLinkLabel } from './FriendsPredictionsM
 import FirstTeamSelect from './FirstTeamSelect';
 import FirstPlayerSelect, { NO_FIRST_SCORER } from './FirstPlayerSelect';
 import PlusIconButton from './PlusIconButton';
+import { resolveFirstPlayerDisplay } from '../predictionExtras';
 
 function firstTeamSelection(value, homeTeam, awayTeam) {
   if (value === 'home') return { label: homeTeam, flag: teamFlag(homeTeam) };
@@ -17,13 +19,8 @@ function firstTeamSelection(value, homeTeam, awayTeam) {
   return null;
 }
 
-function firstPlayerSelection(value) {
-  if (value === NO_FIRST_SCORER) return 'Никто';
-  if (value) return value;
-  return null;
-}
-
 export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, boosterLocked }) {
+  const { alert: showAlert } = useConfirm();
   const pred = match.prediction;
   const [home, setHome] = useState(pred?.home_pred?.toString() ?? '');
   const [away, setAway] = useState(pred?.away_pred?.toString() ?? '');
@@ -49,6 +46,8 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
   const inputsLocked = liveBarVisible;
   /** One booster per matchday; frozen once the boosted match has started. */
   const canChangeBooster = !inputsLocked && !boosterSaving && !boosterLocked;
+  const boosterRowDisabled = !canChangeBooster && !liveBarVisible;
+  const showBoosterStatusLabel = !boosterSaving && (isBoosterHere || liveBarVisible);
 
   useEffect(() => {
     if (pred) {
@@ -67,7 +66,7 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
   }, [match.id]);
 
   const loadSquadPlayers = useCallback(() => {
-    if (inputsLocked || squadLoading) return;
+    if (squadLoading) return;
     if (squadTeams !== null && !squadError) return;
 
     setSquadLoading(true);
@@ -84,7 +83,13 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
         setSquadError(e?.message || 'Не удалось загрузить игроков');
       })
       .finally(() => setSquadLoading(false));
-  }, [inputsLocked, squadLoading, squadTeams, squadError, match.home_team, match.away_team]);
+  }, [squadLoading, squadTeams, squadError, match.home_team, match.away_team]);
+
+  useEffect(() => {
+    if (!firstPlayer || firstPlayer === NO_FIRST_SCORER) return;
+    if (squadPlayers !== null || squadLoading) return;
+    loadSquadPlayers();
+  }, [firstPlayer, squadPlayers, squadLoading, loadSquadPlayers]);
 
   const playerOptions = useMemo(() => {
     if (!Array.isArray(squadPlayers)) return [];
@@ -123,7 +128,7 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
       onSaved?.();
       setTimeout(() => setSaved(false), 2000);
     } catch (e) {
-      alert(e.message);
+      showAlert(e.message);
     } finally {
       setSaving(false);
     }
@@ -131,14 +136,14 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
 
   const moveBooster = async () => {
     if (boosterLocked) {
-      alert('Бустер закреплён — матч с бустером уже начался');
+      showAlert('Бустер закреплён — матч с бустером уже начался');
       return;
     }
     if (!canChangeBooster) return;
     const h = home === '' ? null : parseInt(home, 10);
     const a = away === '' ? null : parseInt(away, 10);
     if (h == null || a == null || Number.isNaN(h) || Number.isNaN(a) || h < 0 || a < 0) {
-      alert('Сначала укажите и сохраните счёт матча');
+      showAlert('Сначала укажите и сохраните счёт матча');
       return;
     }
     const assignHere = !isBoosterHere;
@@ -159,7 +164,7 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
       });
       onSaved?.();
     } catch (e) {
-      alert(e.message);
+      showAlert(e.message);
     } finally {
       setBoosterSaving(false);
     }
@@ -243,7 +248,10 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
   const isProvisionalPoints = isLive && !!pointsDetail;
 
   const selectedFirstTeam = firstTeamSelection(firstTeam, match.home_team, match.away_team);
-  const selectedFirstPlayer = firstPlayerSelection(firstPlayer);
+  const selectedFirstPlayer = useMemo(() => {
+    const pick = resolveFirstPlayerDisplay(firstPlayer, squadPlayers ?? []);
+    return pick.empty ? null : pick;
+  }, [firstPlayer, squadPlayers]);
 
   const lockBannerText = inputsLocked
     ? hasResult
@@ -388,8 +396,13 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
           </span>
           <div className="extra-row-picker">
             {selectedFirstPlayer ? (
-              <span className="extra-row-selection" title={selectedFirstPlayer}>
-                <span className="extra-row-selection-text">{selectedFirstPlayer}</span>
+              <span className="extra-row-selection" title={selectedFirstPlayer.label}>
+                {selectedFirstPlayer.flag ? (
+                  <span className="extra-row-selection-flag" aria-hidden="true">
+                    {selectedFirstPlayer.flag}
+                  </span>
+                ) : null}
+                <span className="extra-row-selection-text">{selectedFirstPlayer.label}</span>
               </span>
             ) : missingFirstPlayer ? (
               <span className="extra-row-missing" aria-hidden="true">
@@ -417,12 +430,7 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
           <p className="squad-hint squad-hint--error">{squadError}</p>
         )}
         <div
-          className={`extra-row booster-row ${isBoosterHere ? 'booster-active' : ''} ${!canChangeBooster ? 'booster-row-disabled' : ''}`}
-          onClick={() => moveBooster()}
-          role="button"
-          tabIndex={canChangeBooster ? 0 : -1}
-          aria-disabled={!canChangeBooster}
-          onKeyDown={(e) => e.key === 'Enter' && canChangeBooster && moveBooster()}
+          className={`extra-row booster-row ${isBoosterHere ? 'booster-active' : ''} ${boosterRowDisabled ? 'booster-row-disabled' : ''}`}
         >
           <span>
             {boosterLocked && !isBoosterHere
@@ -430,13 +438,25 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
               : `Переставить бустер ${mult}`}
           </span>
           <div className="extra-row-picker booster-row-picker">
-            {isBoosterHere && !boosterSaving && (
-              <span className="extra-row-selection extra-row-selection--booster">Активирован</span>
+            {showBoosterStatusLabel && (
+              <span
+                className={`extra-row-selection${isBoosterHere ? ' extra-row-selection--booster' : ' extra-row-selection--booster-inactive'}`}
+                title={isBoosterHere ? 'Активирован' : 'Не активирован'}
+              >
+                <span className="extra-row-selection-text">
+                  {isBoosterHere ? 'Активирован' : 'Не активирован'}
+                </span>
+              </span>
             )}
             {boosterSaving ? (
               <span className="booster-row-status">…</span>
             ) : (
-              <PlusIconButton interactive={false} active={isBoosterHere} />
+              <PlusIconButton
+                active={isBoosterHere}
+                disabled={!canChangeBooster}
+                onClick={() => moveBooster()}
+                ariaLabel={isBoosterHere ? 'Снять бустер с матча' : `Поставить бустер ${mult}`}
+              />
             )}
           </div>
         </div>

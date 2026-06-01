@@ -1,12 +1,23 @@
-const TOKEN_KEY = 'wc2026_token';
+export const AUTH_TOKEN_KEY = 'wc2026_token';
+
+let unauthorizedHandler = null;
+
+/** Called on 401 for authenticated requests — register from App to clear session and redirect. */
+export function setUnauthorizedHandler(handler) {
+  unauthorizedHandler = handler;
+}
 
 export function getToken() {
-  return localStorage.getItem(TOKEN_KEY);
+  return localStorage.getItem(AUTH_TOKEN_KEY);
 }
 
 export function setToken(token) {
-  if (token) localStorage.setItem(TOKEN_KEY, token);
-  else localStorage.removeItem(TOKEN_KEY);
+  if (token) localStorage.setItem(AUTH_TOKEN_KEY, token);
+  else localStorage.removeItem(AUTH_TOKEN_KEY);
+}
+
+export function isSessionExpiredError(err) {
+  return Boolean(err?.sessionExpired || err?.status === 401);
 }
 
 const DEV_HINT = 'Запустите API из корня проекта: npm run dev';
@@ -76,6 +87,14 @@ async function request(path, options = {}) {
   if (!res.ok) {
     const err = new Error(apiErrorMessage(res.status, data, path));
     err.status = res.status;
+    if (res.status === 401 && token) {
+      const isPublicAuth = path === '/auth/login' || path === '/auth/register';
+      if (!isPublicAuth) {
+        setToken(null);
+        err.sessionExpired = true;
+        unauthorizedHandler?.();
+      }
+    }
     throw err;
   }
   return data;

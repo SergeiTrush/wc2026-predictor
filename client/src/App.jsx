@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom';
-import { api, getToken, setToken } from './api';
+import { api, AUTH_TOKEN_KEY, getToken, setToken, setUnauthorizedHandler } from './api';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import LeaguePage from './pages/LeaguePage';
@@ -20,6 +20,14 @@ function App() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    setUnauthorizedHandler(() => {
+      setUser(null);
+      navigate('/login', { replace: true });
+    });
+    return () => setUnauthorizedHandler(null);
+  }, [navigate]);
+
+  useEffect(() => {
     const token = getToken();
     if (!token) {
       setLoading(false);
@@ -30,6 +38,25 @@ function App() {
       .then((d) => setUser(d.user))
       .catch(() => setToken(null))
       .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key !== AUTH_TOKEN_KEY) return;
+      if (!e.newValue) {
+        setUser(null);
+        return;
+      }
+      api
+        .me()
+        .then((d) => setUser(d.user))
+        .catch(() => {
+          setToken(null);
+          setUser(null);
+        });
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
   }, []);
 
   const onAuth = (data) => {

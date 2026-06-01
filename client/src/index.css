@@ -469,10 +469,13 @@ a {
   border-top: 1px solid rgba(255, 255, 255, 0.12);
 }
 
-.booster-row-disabled {
+.booster-row-disabled .plus-icon-btn {
   pointer-events: none;
-  opacity: 0.65;
   cursor: not-allowed;
+}
+
+.booster-row-disabled {
+  opacity: 0.65;
 }
 
 .btn-save-prediction {
@@ -603,6 +606,7 @@ a {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-family: 'Outfit', system-ui, sans-serif;
 }
 
 .match-card-locked .extra-row-selection {
@@ -643,10 +647,24 @@ a {
 }
 
 .custom-select-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  overflow: hidden;
+  flex: 1;
+  min-width: 0;
+}
+
+.custom-select-option-flag {
+  flex-shrink: 0;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.custom-select-option-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  flex: 1;
   min-width: 0;
 }
 
@@ -687,6 +705,7 @@ a {
 .custom-select-option {
   display: flex;
   align-items: center;
+  gap: 0.4rem;
   width: 100%;
   box-sizing: border-box;
   min-height: 2.5rem;
@@ -780,29 +799,73 @@ a {
 }
 
 .custom-select-group + .custom-select-group {
-  margin-top: 0.15rem;
-  padding-top: 0.15rem;
-  border-top: 1px solid rgba(147, 197, 253, 0.18);
+  margin-top: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(147, 197, 253, 0.2);
 }
 
 .custom-select-group {
   width: 100%;
+  margin-top: 0.65rem;
+  padding-top: 0.15rem;
 }
 
 .custom-select-group-label {
-  padding: 0.35rem 0.65rem 0.2rem;
-  font-size: 0.68rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0.15rem 0.4rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    rgba(250, 204, 21, 0.14) 0%,
+    rgba(59, 130, 246, 0.1) 100%
+  );
+  border: 1px solid rgba(250, 204, 21, 0.28);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  font-size: 0.72rem;
+  font-weight: 600;
+  pointer-events: none;
+  user-select: none;
+}
+
+.custom-select-group-flag {
+  flex-shrink: 0;
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.custom-select-group-name {
+  color: #fff;
+  font-size: 0.84rem;
   font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--yellow);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .custom-select-group-list {
   margin: 0;
-  padding: 0;
+  padding: 0 0 0.15rem 0.35rem;
   list-style: none;
   width: 100%;
+  border-left: 2px solid rgba(147, 197, 253, 0.22);
+  margin-left: 0.5rem;
+}
+
+.custom-select-group-list .custom-select-option {
+  padding-left: 0.75rem;
+}
+
+.centered-select-menu .custom-select-group {
+  margin-top: 0.75rem;
+}
+
+.centered-select-menu .custom-select-group-label {
+  margin-left: 0;
+  margin-right: 0;
 }
 
 .custom-select-status {
@@ -966,7 +1029,6 @@ a {
 }
 
 .booster-row {
-  cursor: pointer;
   align-items: center;
   min-height: 2.75rem;
 }
@@ -990,12 +1052,19 @@ a {
   flex-shrink: 0;
 }
 
-.extra-row-selection--booster {
+.extra-row-selection--booster,
+.extra-row-selection--booster .extra-row-selection-text {
   color: var(--yellow);
   font-weight: 600;
 }
 
-.booster-active {
+.extra-row-selection--booster-inactive,
+.extra-row-selection--booster-inactive .extra-row-selection-text {
+  color: rgba(255, 255, 255, 0.72);
+  font-weight: 500;
+}
+
+.booster-active > span:first-child {
   color: var(--yellow);
   font-weight: 700;
 }
@@ -1056,17 +1125,39 @@ a {
 .friends-predictions-sheet {
   display: flex;
   flex-direction: column;
+  justify-content: flex-start;
+  align-items: stretch;
   width: 100%;
   height: auto;
   max-height: min(92dvh, 720px) !important;
   min-height: 0;
   overflow: hidden;
-  padding: 1rem 1.15rem 1.15rem;
+  padding: 0.85rem 1.15rem 1.15rem;
 }
 
 .friends-predictions-sheet .modal-header {
   flex-shrink: 0;
-  margin-bottom: 0.75rem;
+  align-items: flex-start;
+  align-self: stretch;
+  margin: 0 0 0.75rem;
+  padding-top: 0;
+}
+
+.friends-predictions-sheet .modal-header > div {
+  min-width: 0;
+  flex: 1 1 auto;
+  padding-right: 0.5rem;
+}
+
+.friends-predictions-sheet .modal-header h2 {
+  margin: 0;
+  line-height: 1.25;
+}
+
+.friends-predictions-sheet .modal-header .modal-close {
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin-top: 0;
 }
 
 .friends-predictions-list {
@@ -1081,6 +1172,9 @@ a {
 }
 
 .friends-predictions-sheet .friends-prediction-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
   background: rgba(255, 255, 255, 0.08);
   border-radius: 10px;
   padding: 0.75rem;
@@ -1092,42 +1186,57 @@ a {
   margin-bottom: 0;
 }
 
+.friends-predictions-sheet .friends-prediction-header {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.friends-predictions-sheet .friends-prediction-top-main {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  flex: 1 1 0;
+}
+
 .friends-predictions-sheet .friends-prediction-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-weight: 800;
   font-size: 1rem;
   color: #fff;
-  margin-bottom: 0.45rem;
   line-height: 1.2;
 }
 
-.friends-predictions-sheet .friends-prediction-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 0.5rem;
-  margin-bottom: 0.35rem;
-}
-
-.friends-predictions-sheet .points-tooltip-wrap--inline {
-  flex: 1;
-  min-width: 0;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  align-content: flex-start;
-}
-
-.friends-predictions-sheet .points-breakdown-inline {
-  flex-basis: 100%;
-  width: 100%;
-  margin-top: 0.55rem;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-}
-
 .friends-predictions-sheet .friends-prediction-score {
+  flex: 0 0 auto;
   font-weight: 800;
   font-size: 1.1rem;
   color: #fff;
   white-space: nowrap;
+}
+
+.friends-predictions-sheet .friends-prediction-header .points-tooltip-wrap--inline {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.friends-predictions-sheet .friends-prediction-header .points-tooltip-controls {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.friends-predictions-sheet .friends-prediction-breakdown {
+  width: 100%;
+  margin: 0;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
 }
 
 .friends-booster-tag {
@@ -1142,10 +1251,57 @@ a {
   vertical-align: middle;
 }
 
-.friends-predictions-sheet .friends-prediction-meta {
+.friends-predictions-sheet .friends-prediction-extras {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.friends-predictions-sheet .friends-prediction-extra {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  min-width: 0;
   font-size: 0.75rem;
-  color: var(--text-muted);
   line-height: 1.35;
+}
+
+.friends-predictions-sheet .friends-prediction-extra--empty .friends-prediction-extra-value {
+  color: var(--text-dim);
+}
+
+.friends-predictions-sheet .friends-prediction-extra-label {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+}
+
+.friends-predictions-sheet .friends-prediction-extra-value {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  min-width: 0;
+  max-width: 62%;
+  padding: 0.2rem 0.45rem;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.92);
+  font-weight: 600;
+  text-align: right;
+}
+
+.friends-predictions-sheet .friends-prediction-extra-flag {
+  flex-shrink: 0;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.friends-predictions-sheet .friends-prediction-extra-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .friends-predictions-live-score {
@@ -1272,6 +1428,12 @@ a {
   display: flex;
   align-items: center;
   align-self: center;
+  gap: 0.3rem;
+}
+
+.points-tooltip-controls {
+  display: flex;
+  align-items: center;
   gap: 0.3rem;
 }
 
@@ -1925,6 +2087,15 @@ body.body-scroll-locked .leaderboard-table-scroll {
 
 .confirm-sheet-actions .btn-primary {
   flex: 1;
+}
+
+.confirm-sheet-actions--single {
+  justify-content: center;
+}
+
+.confirm-sheet-actions--single .btn-primary {
+  flex: 1;
+  max-width: 12rem;
 }
 
 .btn-confirm-cancel {

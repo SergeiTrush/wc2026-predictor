@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { teamFlag } from '../utils';
 import CenteredSelectMenu from './CenteredSelectMenu';
 import PlusIconButton from './PlusIconButton';
 
@@ -9,11 +10,10 @@ function playerValue(player) {
   return (player.name || player.surname || '').trim();
 }
 
-function formatPlayerLabel(player, { grouped = false } = {}) {
+function formatPlayerDisplayName(player) {
   const name = playerValue(player);
   let label = name;
   if (player.number != null) label += ` #${player.number}`;
-  if (!grouped && player.team) label += ` (${player.team})`;
   return label;
 }
 
@@ -25,6 +25,8 @@ function buildOptionsFromPlayers(players, { grouped = false } = {}) {
     const dedupeKey = p.id != null ? `${p.team}:${p.id}` : `${p.team}:${value.toLowerCase()}`;
     if (seen.has(dedupeKey)) return [];
     seen.add(dedupeKey);
+    const displayName = formatPlayerDisplayName(p);
+    const team = p.team || null;
     const searchHaystack = [value, p.surname, p.name, p.team, p.number != null ? String(p.number) : '']
       .filter(Boolean)
       .join(' ')
@@ -32,7 +34,10 @@ function buildOptionsFromPlayers(players, { grouped = false } = {}) {
     return [
       {
         value,
-        label: formatPlayerLabel(p, { grouped }),
+        displayName,
+        label: grouped ? displayName : team ? `${displayName} (${team})` : displayName,
+        flag: team ? teamFlag(team) : null,
+        team,
         legacySurname: p.surname || '',
         searchHaystack,
         key: `${dedupeKey}:${value}:${p.number ?? ''}`,
@@ -52,6 +57,7 @@ function buildGroupedSections(teams) {
     .filter((entry) => entry?.team && Array.isArray(entry.players) && entry.players.length)
     .map((entry) => ({
       team: entry.team,
+      flag: teamFlag(entry.team),
       options: buildOptionsFromPlayers(entry.players, { grouped: true }),
     }))
     .filter((section) => section.options.length);
@@ -90,10 +96,10 @@ export default function FirstPlayerSelect({
 
   const selected =
     value === NO_FIRST_SCORER
-      ? { value: NO_FIRST_SCORER, label: 'Никто' }
+      ? { value: NO_FIRST_SCORER, label: 'Никто', displayName: 'Никто', flag: null }
       : flatOptions.find((o) => o.value === value) ||
         flatOptions.find((o) => o.legacySurname && o.legacySurname === value);
-  const triggerLabel = selected?.label || value || placeholder;
+  const triggerLabel = selected?.displayName || selected?.label || value || placeholder;
 
   const close = useCallback(
     (fireBlur = true) => {
@@ -181,7 +187,12 @@ export default function FirstPlayerSelect({
         className={`custom-select-option ${value === opt.value ? 'custom-select-option--selected' : ''}`}
         onClick={() => pick(opt.value)}
       >
-        {opt.label}
+        {opt.flag ? (
+          <span className="custom-select-option-flag" aria-hidden="true">
+            {opt.flag}
+          </span>
+        ) : null}
+        <span className="custom-select-option-label">{opt.displayName ?? opt.label}</span>
       </button>
     </li>
   );
@@ -190,7 +201,14 @@ export default function FirstPlayerSelect({
     if (sections.length && !searchQuery.trim()) {
       return sections.map((section) => (
         <li key={section.team} className="custom-select-group" role="presentation">
-          <div className="custom-select-group-label">{section.team}</div>
+          <div className="custom-select-group-label">
+            {section.flag ? (
+              <span className="custom-select-group-flag" aria-hidden="true">
+                {section.flag}
+              </span>
+            ) : null}
+            <span className="custom-select-group-name">{section.team}</span>
+          </div>
           <ul className="custom-select-group-list">
             {section.options.map((opt) => renderOptionButton(opt))}
           </ul>
@@ -354,7 +372,14 @@ export default function FirstPlayerSelect({
           aria-controls={open ? listId : undefined}
           onClick={toggle}
         >
-          <span className="custom-select-value">{triggerLabel}</span>
+          <span className="custom-select-value">
+            {selected?.flag ? (
+              <span className="custom-select-option-flag" aria-hidden="true">
+                {selected.flag}
+              </span>
+            ) : null}
+            <span className="custom-select-option-label">{triggerLabel}</span>
+          </span>
           <span className="custom-select-chevron" aria-hidden="true">
             ▾
           </span>

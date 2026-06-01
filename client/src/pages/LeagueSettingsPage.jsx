@@ -1,25 +1,22 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { api, setToken } from '../api';
-import ModalOverlay from '../components/ModalOverlay';
-import { redirectIfLeagueForbidden } from '../leagueAccess';
+import { api, isSessionExpiredError, setToken } from '../api';
+import { createEffectGuard, redirectIfLeagueForbidden } from '../leagueAccess';
+import { useConfirm } from '../context/ConfirmContext';
 
 export default function LeagueSettingsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { confirmAction } = useConfirm();
   const [data, setData] = useState(null);
   const [loadError, setLoadError] = useState('');
   const [userNameError, setUserNameError] = useState('');
   const [leagueNameError, setLeagueNameError] = useState('');
-  const [deleteError, setDeleteError] = useState('');
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState('');
   const [editingUserName, setEditingUserName] = useState(false);
   const [userName, setUserName] = useState('');
   const [copied, setCopied] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-
   const load = async () => {
     const leagueRes = await api.league(id);
     const isOwner = !!leagueRes.league?.is_owner;
@@ -49,12 +46,23 @@ export default function LeagueSettingsPage() {
   };
 
   useEffect(() => {
+    const guard = createEffectGuard();
+    setData(null);
+    setLoadError('');
+
     load()
-      .then(setData)
+      .then((payload) => {
+        if (!guard.isActive()) return;
+        setData(payload);
+      })
       .catch((e) => {
+        if (!guard.isActive()) return;
         if (redirectIfLeagueForbidden(e, navigate)) return;
+        if (isSessionExpiredError(e)) return;
         setLoadError(e.message || 'Не удалось загрузить настройки');
       });
+
+    return guard.cancel;
   }, [id, navigate]);
 
   if (loadError && !data) {
@@ -120,16 +128,18 @@ export default function LeagueSettingsPage() {
     load().then(setData).catch(() => {});
   };
 
-  const deleteLeague = async () => {
-    setDeleting(true);
-    setDeleteError('');
-    try {
-      await api.deleteLeague(id);
-      navigate('/');
-    } catch (e) {
-      setDeleteError(e.message);
-      setDeleting(false);
-    }
+  const promptDeleteLeague = () => {
+    if (!data?.league) return;
+    confirmAction({
+      title: 'Удалить лигу?',
+      message: `Лига «${data.league.name}» и все прогнозы участников будут удалены. Это действие нельзя отменить.`,
+      confirmLabel: 'Удалить',
+      danger: true,
+      action: async () => {
+        await api.deleteLeague(id);
+        navigate('/');
+      },
+    });
   };
 
   return (
@@ -260,45 +270,10 @@ export default function LeagueSettingsPage() {
 
       {isOwner && (
         <div className="delete-league-bar">
-          <button type="button" className="delete-league-btn" onClick={() => setShowDeleteConfirm(true)}>
+          <button type="button" className="delete-league-btn" onClick={promptDeleteLeague}>
             🗑 Удалить лигу
           </button>
         </div>
-      )}
-
-      {isOwner && showDeleteConfirm && data && (
-        <ModalOverlay
-          onClick={() => {
-            if (!deleting) setShowDeleteConfirm(false);
-          }}
-        >
-          <div className="modal-sheet confirm-sheet" onClick={(e) => e.stopPropagation()}>
-            <h3 className="confirm-sheet-title">Удалить лигу?</h3>
-            <p className="confirm-sheet-text">
-              Лига «{data.league.name}» и все прогнозы участников будут удалены. Это действие нельзя
-              отменить.
-            </p>
-            {deleteError && <p className="error-banner confirm-sheet-error">{deleteError}</p>}
-            <div className="confirm-sheet-actions">
-              <button
-                type="button"
-                className="btn-primary btn-confirm-cancel"
-                disabled={deleting}
-                onClick={() => setShowDeleteConfirm(false)}
-              >
-                Отмена
-              </button>
-              <button
-                type="button"
-                className="btn-primary btn-confirm-danger"
-                disabled={deleting}
-                onClick={deleteLeague}
-              >
-                {deleting ? 'Удаление…' : 'Удалить'}
-              </button>
-            </div>
-          </div>
-        </ModalOverlay>
       )}
     </>
   );

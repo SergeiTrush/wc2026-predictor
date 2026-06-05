@@ -56,10 +56,6 @@ export default function DashboardPage({ user, onLogout }) {
           </div>
           <AuthExitButton onClick={onLogout} label="Выйти" />
         </div>
-        {(leagueAccessError || error) && (
-          <div className="error-banner">{leagueAccessError || error}</div>
-        )}
-
         <div className="dashboard-actions">
           <button type="button" className="btn-primary" onClick={() => setShowCreate(true)}>
             Создать лигу
@@ -73,27 +69,33 @@ export default function DashboardPage({ user, onLogout }) {
           </button>
         </div>
 
-        {leagues.map((l) => (
-          <button
-            key={l.id}
-            type="button"
-            className="league-list-card"
-            style={{ width: '100%', cursor: 'pointer', border: 'none', textAlign: 'left', color: 'inherit' }}
-            onClick={() => navigate(`/league/${l.id}`)}
-          >
-            <div>
-              <strong>
-                {l.name}
-                {l.is_owner ? <span className="owner-badge">Владелец</span> : null}
-              </strong>
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginTop: '0.25rem' }}>
-                {l.member_count} участников
-                {l.owner_name && !l.is_owner && ` · владелец: ${l.owner_name}`}
-              </p>
-            </div>
-            <span className="league-code">{l.code}</span>
-          </button>
-        ))}
+        <div className="dashboard-scroll">
+          {(leagueAccessError || error) && (
+            <div className="error-banner">{leagueAccessError || error}</div>
+          )}
+
+          {leagues.map((l) => (
+            <button
+              key={l.id}
+              type="button"
+              className="league-list-card"
+              style={{ width: '100%', cursor: 'pointer', border: 'none', textAlign: 'left', color: 'inherit' }}
+              onClick={() => navigate(`/league/${l.id}`)}
+            >
+              <div>
+                <strong>
+                  {l.name}
+                  {l.is_owner ? <span className="owner-badge">Владелец</span> : null}
+                </strong>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginTop: '0.25rem' }}>
+                  {l.member_count} участников
+                  {l.owner_name && !l.is_owner && ` · владелец: ${l.owner_name}`}
+                </p>
+              </div>
+              <span className="league-code">{l.code}</span>
+            </button>
+          ))}
+        </div>
 
         {showCreate && (
           <ModalOverlay onClick={() => setShowCreate(false)}>

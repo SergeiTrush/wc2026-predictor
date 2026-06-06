@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { api, isSessionExpiredError } from '../api';
-import { teamFlag, formatMatchTime, matchHasStoredScore, matchIsFinished, adminMatchScores, matchHasAdminResult, isMatchInPlayWindow, matchIsLive } from '../utils';
+import { teamFlag, formatMatchTime, matchHasStoredScore, matchIsFinished, adminMatchScores, matchHasAdminResult, isMatchInPlayWindow } from '../utils';
 import { createEffectGuard, redirectIfLeagueForbidden } from '../leagueAccess';
 import { loadMatchSquads } from '../teamSquads';
 import {
@@ -21,8 +21,8 @@ function AdminMatchRow({ match, leagueId, onSaved }) {
   const scores = adminMatchScores(match);
   const hasStoredScore = matchHasStoredScore(match);
   const hasScore = matchHasAdminResult(match);
-  const [home, setHome] = useState(scores ? String(scores.home) : '');
-  const [away, setAway] = useState(scores ? String(scores.away) : '');
+  const [home, setHome] = useState(scores ? String(scores.home) : (!match.kickoff || new Date(match.kickoff).getTime() <= Date.now()) && !match.admin_cleared ? '0' : '');
+  const [away, setAway] = useState(scores ? String(scores.away) : (!match.kickoff || new Date(match.kickoff).getTime() <= Date.now()) && !match.admin_cleared ? '0' : '');
   const [matchFinished, setMatchFinished] = useState(matchIsFinished(match));
   const [finalHome, setFinalHome] = useState(
     scores?.finalHome != null
@@ -47,6 +47,32 @@ function AdminMatchRow({ match, leagueId, onSaved }) {
   const [squadLoading, setSquadLoading] = useState(false);
   const [squadError, setSquadError] = useState('');
   const knockout = isKnockoutMatch(match);
+  const autoSavedRef = useRef(false);
+
+  // Reactive kickoff flag — transitions to true at kickoff time even if component is already mounted.
+  const [matchStarted, setMatchStarted] = useState(
+    () => !match.kickoff || new Date(match.kickoff).getTime() <= Date.now()
+  );
+  useEffect(() => {
+    if (matchStarted || !match.kickoff) return;
+    const delay = new Date(match.kickoff).getTime() - Date.now();
+    if (delay <= 0) { setMatchStarted(true); return; }
+    const t = setTimeout(() => setMatchStarted(true), delay);
+    return () => clearTimeout(t);
+  }, [match.kickoff, matchStarted]);
+
+  useEffect(() => {
+    if (!matchStarted || hasStoredScore || match.admin_cleared || autoSavedRef.current) return;
+    autoSavedRef.current = true;
+    api.setResult(match.id, {
+      leagueId: Number(leagueId),
+      homeScore: 0,
+      awayScore: 0,
+      isFinished: false,
+      firstScorerTeam: null,
+      firstScorerPlayer: null,
+    }).then(() => onSaved()).catch(() => {});
+  }, [matchStarted]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const applyMatchFields = (saved, { keepFinalOnMissing = false } = {}) => {
     if (!saved) return;
@@ -69,8 +95,8 @@ function AdminMatchRow({ match, leagueId, onSaved }) {
 
   useEffect(() => {
     const nextScores = adminMatchScores(match);
-    setHome(nextScores ? String(nextScores.home) : '');
-    setAway(nextScores ? String(nextScores.away) : '');
+    setHome(nextScores ? String(nextScores.home) : matchStarted && !match.admin_cleared ? '0' : '');
+    setAway(nextScores ? String(nextScores.away) : matchStarted && !match.admin_cleared ? '0' : '');
     if (nextScores?.finalHome != null) {
       setFinalHome(String(nextScores.finalHome));
     } else {
@@ -89,6 +115,7 @@ function AdminMatchRow({ match, leagueId, onSaved }) {
     match.home_score,
     match.away_score,
     match.is_finished,
+    match.admin_cleared,
     match.final_home_score,
     match.final_away_score,
     match.first_scorer_team,
@@ -98,6 +125,7 @@ function AdminMatchRow({ match, leagueId, onSaved }) {
     match.liveScore?.regulationHomeScore,
     match.liveScore?.regulationAwayScore,
     match.liveScore?.status,
+    matchStarted,
   ]);
 
   useEffect(() => {
@@ -178,9 +206,9 @@ function AdminMatchRow({ match, leagueId, onSaved }) {
           : 'Сначала выберите команду';
 
   const save = async () => {
-    const h = parseInt(home, 10);
-    const a = parseInt(away, 10);
-    if (Number.isNaN(h) || Number.isNaN(a) || h < 0 || a < 0) {
+    const h = home === '' ? null : parseInt(home, 10);
+    const a = away === '' ? null : parseInt(away, 10);
+    if (h === null || a === null || Number.isNaN(h) || Number.isNaN(a) || h < 0 || a < 0) {
       setMsg('Укажите счёт');
       return;
     }
@@ -243,9 +271,9 @@ function AdminMatchRow({ match, leagueId, onSaved }) {
 
   const clear = async () => {
     const ok = await confirm({
-      title: 'Удалить результат этого матча?',
-      message: 'Счёт, первый гол и статус матча будут сброшены.',
-      confirmLabel: 'Удалить',
+      title: 'Сбросить результат этого матча?',
+      message: 'Счёт, первая команда, первый гол и статус матча будут удалены.',
+      confirmLabel: 'Сбросить',
       danger: true,
     });
     if (!ok) return;
@@ -260,7 +288,7 @@ function AdminMatchRow({ match, leagueId, onSaved }) {
       setFirstTeam('');
       setFirstPlayer('');
       setMatchFinished(false);
-      setMsg('Результат удалён');
+      setMsg('');
       onSaved();
     } catch (e) {
       setMsg(e.message);
@@ -282,110 +310,118 @@ function AdminMatchRow({ match, leagueId, onSaved }) {
         <span>
           {teamFlag(match.home_team)} {match.home_team}
         </span>
-        <span className="admin-score-inputs">
-          <input
-            type="text"
-            inputMode="numeric"
-            className="admin-score-in"
-            value={home}
-            onChange={(e) => setHome(e.target.value.replace(/\D/g, '').slice(0, 2))}
-            aria-label="Голы хозяев"
-          />
-          <span>:</span>
-          <input
-            type="text"
-            inputMode="numeric"
-            className="admin-score-in"
-            value={away}
-            onChange={(e) => setAway(e.target.value.replace(/\D/g, '').slice(0, 2))}
-            aria-label="Голы гостей"
-          />
-        </span>
+        {matchStarted ? (
+          <span className="admin-score-inputs">
+            <input
+              type="text"
+              inputMode="numeric"
+              className="admin-score-in"
+              value={home}
+              onChange={(e) => setHome(e.target.value.replace(/\D/g, '').slice(0, 2))}
+              aria-label="Голы хозяев"
+            />
+            <span>:</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              className="admin-score-in"
+              value={away}
+              onChange={(e) => setAway(e.target.value.replace(/\D/g, '').slice(0, 2))}
+              aria-label="Голы гостей"
+            />
+          </span>
+        ) : (
+          <span className="admin-score-inputs" style={{ color: 'rgba(147, 197, 253, 0.35)' }}>– : –</span>
+        )}
         <span>
           {match.away_team} {teamFlag(match.away_team)}
         </span>
       </div>
 
-      {knockout && (
-        <div className="admin-final-score">
-          <span className="admin-final-score-label">Итоговый счет</span>
-          <span className="admin-final-score-inputs">
-            <input
-              type="text"
-              inputMode="numeric"
-              className="admin-final-score-in"
-              value={finalHome}
-              onChange={(e) => setFinalHome(e.target.value.replace(/\D/g, '').slice(0, 2))}
-              aria-label="Итоговый счёт хозяев"
-            />
-            <span className="admin-final-score-sep">:</span>
-            <input
-              type="text"
-              inputMode="numeric"
-              className="admin-final-score-in"
-              value={finalAway}
-              onChange={(e) => setFinalAway(e.target.value.replace(/\D/g, '').slice(0, 2))}
-              aria-label="Итоговый счёт гостей"
-            />
-          </span>
-          <span className="admin-final-score-spacer" aria-hidden="true" />
+      {!matchStarted ? (
+        <div className="admin-match-not-started">
+          <span className="admin-match-not-started-icon">⏳</span>
+          <span>Матч ещё не начался</span>
         </div>
-      )}
+      ) : (
+        <>
+          {knockout && (
+            <div className="admin-final-score">
+              <span className="admin-final-score-label">Итоговый счет</span>
+              <span className="admin-final-score-inputs">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  className="admin-final-score-in"
+                  value={finalHome}
+                  onChange={(e) => setFinalHome(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                  aria-label="Итоговый счёт хозяев"
+                />
+                <span className="admin-final-score-sep">:</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  className="admin-final-score-in"
+                  value={finalAway}
+                  onChange={(e) => setFinalAway(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                  aria-label="Итоговый счёт гостей"
+                />
+              </span>
+              <span className="admin-final-score-spacer" aria-hidden="true" />
+            </div>
+          )}
 
-      <div className="admin-match-extra">
-        <label>
-          Первая команда
-          <FirstTeamSelect
-            className="custom-select--full"
-            triggerVariant="modal"
-            pickerTitle="Первая команда"
-            value={firstTeam}
-            onChange={onFirstTeamChange}
-            homeTeam={match.home_team}
-            awayTeam={match.away_team}
-          />
-        </label>
-        <label>
-          Первый гол (игрок)
-          <FirstPlayerSelect
-            className="custom-select--full"
-            triggerVariant="modal"
-            pickerTitle="Первый гол (игрок)"
-            value={firstPlayer}
-            onChange={setFirstPlayer}
-            teams={filteredSquadTeams}
-            players={playerOptions}
-            loading={squadLoading}
-            disabled={!selectedTeamName && firstTeam !== 'none'}
-            placeholder={playerPlaceholder}
-            title={squadError || undefined}
-            teamHint={selectedTeamName}
-            onOpen={loadSquadPlayers}
-          />
-        </label>
-        {squadError && <p className="squad-hint squad-hint--error admin-squad-hint">{squadError}</p>}
-      </div>
-      <label className="admin-match-finished">
-        <input
-          type="checkbox"
-          className="admin-match-finished-input"
-          checked={matchFinished}
-          onChange={(e) => setMatchFinished(e.target.checked)}
-        />
-        <span className="admin-match-finished-label">Матч завершён</span>
-        {hasScore && !matchFinished && <span className="admin-match-live-tag">LIVE</span>}
-      </label>
-      <div className="admin-match-actions">
-        <button type="button" className="btn-primary btn-admin-save" disabled={saving} onClick={save}>
-          {saving ? '…' : 'Сохранить результат'}
-        </button>
-        {hasStoredScore && (
-          <button type="button" className="btn-admin-clear" disabled={saving} onClick={clear}>
-            Сбросить
-          </button>
-        )}
-        {msg && <span className="admin-match-msg">{msg}</span>}
-      </div>
+          <div className="admin-match-extra">
+            <label>
+              Первая команда
+              <FirstTeamSelect
+                className="custom-select--full"
+                triggerVariant="modal"
+                pickerTitle="Первая команда"
+                value={firstTeam}
+                onChange={onFirstTeamChange}
+                homeTeam={match.home_team}
+                awayTeam={match.away_team}
+              />
+            </label>
+            <label>
+              Первый гол (игрок)
+              <FirstPlayerSelect
+                className="custom-select--full"
+                triggerVariant="modal"
+                pickerTitle="Первый гол (игрок)"
+                value={firstPlayer}
+                onChange={setFirstPlayer}
+                teams={filteredSquadTeams}
+                players={playerOptions}
+                loading={squadLoading}
+                disabled={!selectedTeamName && firstTeam !== 'none'}
+                placeholder={playerPlaceholder}
+                title={squadError || undefined}
+                teamHint={selectedTeamName}
+                onOpen={loadSquadPlayers}
+              />
+            </label>
+            {squadError && <p className="squad-hint squad-hint--error admin-squad-hint">{squadError}</p>}
+          </div>
+          <label className="admin-match-finished">
+            <input
+              type="checkbox"
+              className="admin-match-finished-input"
+              checked={matchFinished}
+              onChange={(e) => setMatchFinished(e.target.checked)}
+            />
+            <span className="admin-match-finished-label">Матч завершён</span>
+            {hasScore && !matchFinished && <span className="admin-match-live-tag">LIVE</span>}
+          </label>
+          <div className="admin-match-actions">
+            <button type="button" className="btn-primary btn-admin-save" disabled={saving} onClick={save}>
+              {saving ? '…' : 'Сохранить результат'}
+            </button>
+            {msg && <span className="admin-match-msg">{msg}</span>}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -397,7 +433,7 @@ export default function LeagueAdminResultsPage() {
   const [league, setLeague] = useState(layoutLeague ?? null);
   const [matches, setMatches] = useState([]);
   const [selectedDay, setSelectedDay] = useState(null);
-  const [filter, setFilter] = useState('pending');
+  const [filter, setFilter] = useState('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const listRef = useRef(null);
@@ -478,17 +514,19 @@ export default function LeagueAdminResultsPage() {
     return filtered.length > 0 ? filtered : matches;
   }, [matches, selectedDay?.day]);
 
+  const matchInScope = (m) => matchHasAdminResult(m) || isMatchInPlayWindow(m);
+
   const filtered = useMemo(() => {
     let list = [...dayMatches];
     if (filter === 'pending') {
-      list = list.filter((m) => !matchHasAdminResult(m));
+      list = list.filter((m) => !matchInScope(m));
     } else if (filter === 'done') {
-      list = list.filter((m) => matchHasAdminResult(m));
+      list = list.filter((m) => matchInScope(m));
     }
     return list.sort((a, b) => a.kickoff.localeCompare(b.kickoff));
   }, [dayMatches, filter]);
 
-  const doneCount = dayMatches.filter((m) => matchHasAdminResult(m)).length;
+  const doneCount = dayMatches.filter((m) => matchInScope(m)).length;
   const activeMd = selectedDay || matchdays[0];
 
   useEffect(() => {
@@ -496,9 +534,6 @@ export default function LeagueAdminResultsPage() {
   }, [filter, selectedDay?.day]);
 
   useEffect(() => {
-    const needsLivePoll = matches.some((m) => isMatchInPlayWindow(m) || matchIsLive(m));
-    if (!needsLivePoll) return;
-
     const poll = () => {
       if (document.visibilityState === 'hidden') return;
       api
@@ -507,9 +542,11 @@ export default function LeagueAdminResultsPage() {
         .catch(() => {});
     };
 
+    // Always poll so we catch matches crossing kickoff while the page is open
+    // and so the server auto-init (0:0) is applied and reflected in the UI.
     const timer = setInterval(poll, 60000);
     return () => clearInterval(timer);
-  }, [matches, id]);
+  }, [id]);
 
   if (loading) {
     return (

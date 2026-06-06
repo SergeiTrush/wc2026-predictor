@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-06-04T20:18:04.707Z",
+  "updated_at": "2026-06-06T17:15:55.549Z",
   "source": "bzzoiro",
   "teams": {
     "Mexico": [
@@ -3072,6 +3072,13 @@
         "surname": "Nübel",
         "number": 21,
         "position": "GK"
+      },
+      {
+        "id": 3854,
+        "name": "Assan Ouédraogo",
+        "surname": "Ouédraogo",
+        "number": 25,
+        "position": "MF"
       },
       {
         "id": 2462,

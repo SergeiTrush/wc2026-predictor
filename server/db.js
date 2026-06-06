@@ -255,6 +255,35 @@ function migratePredictionsPerLeague() {
 
 migratePredictionsPerLeague();
 
+function ensureAdminClearedColumn() {
+  const cols = new Set(db.prepare('PRAGMA table_info(matches)').all().map((c) => c.name));
+  if (!cols.has('admin_cleared')) {
+    db.exec('ALTER TABLE matches ADD COLUMN admin_cleared INTEGER NOT NULL DEFAULT 0');
+  }
+}
+
+ensureAdminClearedColumn();
+
+function fixRelativeFirstScorerTeams() {
+  // One-time migration: resolve 'home'/'away' in first_scorer_team to actual team names.
+  // Old sync code saved relative identifiers; scoring requires actual team names.
+  const stale = db.prepare(
+    `SELECT id, home_team, away_team, first_scorer_team FROM matches
+     WHERE first_scorer_team IN ('home', 'away')`
+  ).all();
+  if (!stale.length) return;
+  const upd = db.prepare('UPDATE matches SET first_scorer_team = ? WHERE id = ?');
+  const run = db.transaction(() => {
+    for (const m of stale) {
+      const name = m.first_scorer_team === 'home' ? m.home_team : m.away_team;
+      if (name) upd.run(name, m.id);
+    }
+  });
+  run();
+}
+
+fixRelativeFirstScorerTeams();
+
 function predictionsSchemaOk() {
   const cols = db.prepare('PRAGMA table_info(predictions)').all();
   return cols.some((c) => c.name === 'league_id');

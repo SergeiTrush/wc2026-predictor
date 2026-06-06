@@ -436,6 +436,9 @@ app.post('/api/auth/register', (req, res) => {
     return res.status(400).json({ error: 'Имя и пароль (мин. 4 символа) обязательны' });
   }
   const trimmed = name.trim();
+  if (!/^[a-zA-Z0-9 ._'-]+$/.test(trimmed)) {
+    return res.status(400).json({ error: 'Имя должно содержать только латинские символы' });
+  }
   if (q('SELECT id FROM users WHERE name = ? COLLATE NOCASE').get(trimmed)) {
     return res.status(409).json({ error: 'Имя уже занято' });
   }
@@ -829,6 +832,10 @@ app.get('/api/matches', authMiddleware, async (req, res) => {
   if (!matchday && !stage && !group && !returnAll) {
     query += ' LIMIT 48';
   }
+  // Auto-initialize scores to 0:0 for matches that have started but have no score yet.
+  // Skips matches where admin explicitly cleared the result (admin_cleared = 1).
+  initStartedMatchScores();
+
   const matches = q(query).all(...params);
 
   await refreshIfStale(db);
@@ -1064,8 +1071,8 @@ app.put('/api/matches/:id/result', authMiddleware, (req, res) => {
   const match = q('SELECT * FROM matches WHERE id = ?').get(matchId);
   if (!match) return res.status(404).json({ error: 'Матч не найден' });
 
-  if (homeScore == null || awayScore == null || homeScore < 0 || awayScore < 0) {
-    return res.status(400).json({ error: 'Укажите счёт' });
+  if ((homeScore != null && homeScore < 0) || (awayScore != null && awayScore < 0)) {
+    return res.status(400).json({ error: 'Некорректный счёт' });
   }
 
   let finalHome = match.final_home_score ?? null;
@@ -1092,10 +1099,16 @@ app.put('/api/matches/:id/result', authMiddleware, (req, res) => {
 
   const finished = parseIsFinishedFlag(req.body);
 
+  // Mark admin_cleared only when null scores are saved AFTER kickoff.
+  // A null save before kickoff should not block the auto-init that fires at match start.
+  const kickoffPassed = match.kickoff && new Date(match.kickoff) <= new Date();
+  const adminCleared = kickoffPassed && homeScore == null && awayScore == null ? 1 : 0;
+
   q(
     `UPDATE matches SET home_score = ?, away_score = ?,
      first_scorer_team = ?, first_scorer_player = ?,
-     final_home_score = ?, final_away_score = ?, is_finished = ? WHERE id = ?`
+     final_home_score = ?, final_away_score = ?,
+     is_finished = ?, admin_cleared = ? WHERE id = ?`
   ).run(
     homeScore,
     awayScore,
@@ -1104,6 +1117,7 @@ app.put('/api/matches/:id/result', authMiddleware, (req, res) => {
     finalHome,
     finalAway,
     finished,
+    adminCleared,
     matchId
   );
 
@@ -1123,7 +1137,8 @@ app.delete('/api/matches/:id/result', authMiddleware, (req, res) => {
   q(
     `UPDATE matches SET home_score = NULL, away_score = NULL,
      first_scorer_team = NULL, first_scorer_player = NULL,
-     final_home_score = NULL, final_away_score = NULL, is_finished = 0 WHERE id = ?`
+     final_home_score = NULL, final_away_score = NULL,
+     is_finished = 0, admin_cleared = 1 WHERE id = ?`
   ).run(matchId);
 
   resolveAndApplyKnockoutTeams(db);
@@ -1344,6 +1359,14 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: err.message || 'Ошибка сервера' });
 });
 
+function initStartedMatchScores() {
+  db.prepare(
+    `UPDATE matches SET home_score = 0, away_score = 0, admin_cleared = 0
+     WHERE home_score IS NULL AND away_score IS NULL
+     AND is_finished = 0 AND kickoff <= ?`
+  ).run(new Date().toISOString());
+}
+
 const server = app.listen(PORT, () => {
   if (!predictionsSchemaOk()) {
     console.error('FATAL: predictions table missing league_id — restart after db migration');
@@ -1353,6 +1376,10 @@ const server = app.listen(PORT, () => {
   }
   startResultsSyncScheduler(db);
   startLiveScoresScheduler(db);
+  // Set 0:0 for any matches that started while the server was down.
+  initStartedMatchScores();
+  // Keep running every 60 s so newly started matches get 0:0 without waiting for an API call.
+  setInterval(initStartedMatchScores, 60000);
   console.log(`WC 2026 Predictor API on http://localhost:${PORT}`);
   console.log('  Final score fields (admin):', finalScoreColumnsOk() ? 'ready' : 'MISSING');
   console.log('  GET /api/squads — all squads from server/data/squads.json');

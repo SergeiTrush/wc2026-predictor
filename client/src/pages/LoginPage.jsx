@@ -13,6 +13,10 @@ export default function LoginPage({ onAuth }) {
   const submit = async (e) => {
     e.preventDefault();
     setError('');
+    if (isRegister && !/^[a-zA-Z0-9 ._'-]+$/.test(name.trim())) {
+      setError('Имя должно содержать только латинские символы');
+      return;
+    }
     if (isRegister && password !== confirm) {
       setError('Пароли не совпадают');
       return;

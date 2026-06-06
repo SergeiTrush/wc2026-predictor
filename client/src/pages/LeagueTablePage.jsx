@@ -50,6 +50,15 @@ function formatDayPoints(dayStats) {
   return String(pts);
 }
 
+function getPlayerEmoji(position, totalPlayers, maxPoints) {
+  if (maxPoints === 0) return;
+  if (position === 1) return '🐐';
+  if (position === 2) return '💪';
+  if (position === 3) return '✌️';
+  if (position === totalPlayers) return '🍺';
+  return '💩';
+}
+
 export default function LeagueTablePage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -397,9 +406,12 @@ export default function LeagueTablePage() {
             </tr>
           </thead>
           <tbody>
-            {leaderboard.map((row, i) => {
+            {(() => {
+              const maxPoints = leaderboard[0]?.points ?? 0;
+              return leaderboard.map((row, i) => {
               const open = expandedUserId === row.userId;
               const breakdown = userBreakdown[row.userId];
+              const emoji = getPlayerEmoji(i + 1, leaderboard.length, maxPoints);
 
               return (
                 <Fragment key={row.userId}>
@@ -409,8 +421,7 @@ export default function LeagueTablePage() {
                   >
                     <td>{i + 1}</td>
                     <td>
-                      {row.name}
-                      {row.isOwner ? <span className="owner-badge">Владелец</span> : null}
+                      {row.name} {emoji}
                       <span
                         aria-hidden="true"
                         style={{
@@ -500,7 +511,8 @@ export default function LeagueTablePage() {
                   )}
                 </Fragment>
               );
-            })}
+            });
+            })()}
           </tbody>
         </table>
         {leaderboard.length === 0 && (

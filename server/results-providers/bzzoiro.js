@@ -118,7 +118,7 @@ function mapEvent(event) {
   };
 }
 
-function parseFirstScorer(incidents) {
+function parseFirstScorer(incidents, homeTeamName, awayTeamName) {
   if (!Array.isArray(incidents)) return { team: null, player: null };
 
   const goals = incidents
@@ -134,8 +134,8 @@ function parseFirstScorer(incidents) {
 
   const first = goals[0];
   let firstTeam = null;
-  if (first.isHome === true) firstTeam = 'home';
-  else if (first.isHome === false) firstTeam = 'away';
+  if (first.isHome === true) firstTeam = homeTeamName || 'home';
+  else if (first.isHome === false) firstTeam = awayTeamName || 'away';
 
   return { team: firstTeam, player: first.player };
 }
@@ -158,7 +158,7 @@ async function maybeFetchFirstScorer(cfg, eventFetches, match, fixture, errors) 
     await sleep(120);
     const incidents = await fetchIncidents(fixture.externalId);
     eventFetches.value += 1;
-    const scorer = parseFirstScorer(incidents);
+    const scorer = parseFirstScorer(incidents, fixture.home, fixture.away);
     return { firstTeam: scorer.team, firstPlayer: scorer.player, eventFetches: eventFetches.value };
   } catch (err) {
     errors.push(`incidents ${fixture.externalId}: ${err.message}`);

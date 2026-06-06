@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { api } from '../api';
 import { useConfirm } from '../context/ConfirmContext';
 import { loadMatchSquads } from '../teamSquads';
-import { teamFlag, formatMatchTime, boosterLabel, isMatchLiveScoreBarVisible, matchHasResult, matchHasLiveScore, matchHasLiveManualScore, matchIsLive, liveBarDisplayScore, scoringActualFromLive, isLiveExtraTime } from '../utils';
+import { teamFlag, formatMatchTime, boosterLabel, isMatchLiveScoreBarVisible, isMatchInPlayWindow, matchHasResult, matchHasLiveScore, matchHasLiveManualScore, matchIsLive, liveBarDisplayScore, scoringActualFromLive, isLiveExtraTime } from '../utils';
 import { isKnockoutMatch } from '../matchdays';
 import { breakdownMatchPoints, formatPointsBreakdown } from '../scoring';
 import PointsTooltip from './PointsTooltip';
@@ -42,7 +42,7 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
   const displayScore = liveScore ? liveBarDisplayScore(match, liveScore) : null;
   const showLiveScore = hasResult || matchHasLiveScore(match);
   const locked = !!match.locked;
-  const liveBarVisible = isMatchLiveScoreBarVisible(match);
+  const liveBarVisible = isMatchLiveScoreBarVisible(match) || isMatchInPlayWindow(match);
   const inputsLocked = liveBarVisible;
   /** One booster per matchday; frozen once the boosted match has started. */
   const canChangeBooster = !inputsLocked && !boosterSaving && !boosterLocked;
@@ -299,7 +299,7 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
       {liveBarVisible && !showLiveScore && (
         <div className="live-score-bar live-score-pending">
           <span className="live-tag">Матч идёт</span>
-          <span className="live-score-muted">Результат появится после финального свистка</span>
+          <span className="live-score-muted">Результат скоро появится</span>
         </div>
       )}
 

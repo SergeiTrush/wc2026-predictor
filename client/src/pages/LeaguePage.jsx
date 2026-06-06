@@ -9,7 +9,7 @@ import {
   matchdayKey,
 } from '../matchdays';
 import MatchCard from '../components/MatchCard';
-import { isMatchLiveScoreBarVisible, isMatchInPlayWindow } from '../utils';
+import { isMatchLiveScoreBarVisible, isMatchInPlayWindow, matchHasResult } from '../utils';
 import { createEffectGuard, redirectIfLeagueForbidden } from '../leagueAccess';
 
 function scrollPageTop() {
@@ -186,9 +186,23 @@ export default function LeaguePage() {
       loadAll({ silent: true });
     };
 
-    const intervalMs = 60000;
-    const timer = setInterval(poll, intervalMs);
+    const timer = setInterval(poll, 10000);
     return () => clearInterval(timer);
+  }, [allMatches, loadAll]);
+
+  // Fire a one-shot fetch exactly when the next unstarted match kicks off
+  useEffect(() => {
+    const now = Date.now();
+    const nextKickoff = allMatches
+      .filter((m) => m.kickoff && !matchHasResult(m))
+      .map((m) => new Date(m.kickoff).getTime())
+      .filter((t) => t > now)
+      .sort((a, b) => a - b)[0];
+
+    if (!nextKickoff) return;
+    const delay = nextKickoff - now;
+    const timer = setTimeout(() => loadAll({ silent: true }), delay);
+    return () => clearTimeout(timer);
   }, [allMatches, loadAll]);
 
   if (isPageLoading) {

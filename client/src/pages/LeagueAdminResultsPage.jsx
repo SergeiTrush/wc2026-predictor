@@ -433,7 +433,7 @@ export default function LeagueAdminResultsPage() {
   const [league, setLeague] = useState(layoutLeague ?? null);
   const [matches, setMatches] = useState([]);
   const [selectedDay, setSelectedDay] = useState(null);
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter] = useState('pending');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const listRef = useRef(null);

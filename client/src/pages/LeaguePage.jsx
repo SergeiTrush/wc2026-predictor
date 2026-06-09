@@ -9,8 +9,8 @@ import {
   matchdayKey,
 } from '../matchdays';
 import MatchCard from '../components/MatchCard';
-import { isMatchLiveScoreBarVisible, isMatchInPlayWindow, matchHasResult } from '../utils';
-import { createEffectGuard, redirectIfLeagueForbidden } from '../leagueAccess';
+import { isMatchLiveScoreBarVisible, isMatchInPlayWindow, matchHasResult, matchIsFinished } from '../utils';
+import { redirectIfLeagueForbidden } from '../leagueAccess';
 
 function scrollPageTop() {
   window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
@@ -37,14 +37,16 @@ export default function LeaguePage() {
   const [error, setError] = useState('');
   const topRef = useRef(null);
   const [topHeight, setTopHeight] = useState(220);
+  const [filter, setFilter] = useState('live');
+  const autoFilterRef = useRef(false);
 
   const loadAll = useCallback(
-    async ({ silent = false, isActive } = {}) => {
+    async ({ silent = false, signal } = {}) => {
       if (!silent) setLoadingMatches(true);
       if (!silent) setError('');
       try {
-        const { matches } = await api.allMatches(id);
-        if (isActive && !isActive()) return;
+        const { matches } = await api.allMatches(id, signal);
+        if (signal?.aborted) return;
         const list = matches || [];
         setAllMatches(list);
         const days = matchdaysFromMatches(list);
@@ -56,12 +58,12 @@ export default function LeaguePage() {
           return pickDefaultMatchday(days);
         });
       } catch (e) {
-        if (isActive && !isActive()) return;
+        if (e.name === 'AbortError') return;
         if (redirectIfLeagueForbidden(e, navigate)) return;
         if (isSessionExpiredError(e)) return;
         setError(e.message);
       } finally {
-        if (isActive && !isActive()) return;
+        if (signal?.aborted) return;
         if (!silent) setLoadingMatches(false);
       }
     },
@@ -73,33 +75,33 @@ export default function LeaguePage() {
   }, [layoutLeague]);
 
   useEffect(() => {
-    const guard = createEffectGuard();
+    const controller = new AbortController();
     setUiReady(false);
     setLoadingLeague(!layoutLeague);
     scrollPageTop();
     if (!layoutLeague) {
       api
-        .league(id)
+        .league(id, controller.signal)
         .then((d) => {
-          if (!guard.isActive()) return;
+          if (controller.signal.aborted) return;
           setLeague(d.league);
         })
         .catch((e) => {
-          if (!guard.isActive()) return;
+          if (controller.signal.aborted || e.name === 'AbortError') return;
           if (redirectIfLeagueForbidden(e, navigate)) return;
           if (isSessionExpiredError(e)) return;
           setError(e.message);
         })
         .finally(() => {
-          if (!guard.isActive()) return;
+          if (controller.signal.aborted) return;
           setLoadingLeague(false);
         });
     } else {
       setLoadingLeague(false);
     }
-    loadAll({ isActive: guard.isActive });
-    return guard.cancel;
-  }, [id, loadAll, navigate, layoutLeague]);
+    loadAll({ signal: controller.signal });
+    return () => controller.abort();
+  }, [id, loadAll, navigate, layoutLeague?.id]);
 
   useEffect(() => {
     if (loadingLeague || loadingMatches) return;
@@ -151,6 +153,31 @@ export default function LeaguePage() {
   const boosterLocked = boosterMatch ? isMatchLiveScoreBarVisible(boosterMatch) : false;
   const boosterUsed = boosterMatchId != null;
   const isPageLoading = !uiReady;
+
+  useEffect(() => {
+    autoFilterRef.current = false;
+  }, [selected?.day]);
+
+  useEffect(() => {
+    if (autoFilterRef.current || !matches.length) return;
+    const hasLive = matches.some((m) => new Date(m.kickoff).getTime() <= Date.now() && !matchIsFinished(m));
+    const hasSchedule = matches.some((m) => new Date(m.kickoff).getTime() > Date.now());
+    setFilter(hasLive ? 'live' : hasSchedule ? 'schedule' : 'finished');
+    autoFilterRef.current = true;
+  }, [matches]);
+
+  const filteredMatches = useMemo(() => {
+    if (filter === 'schedule') return matches.filter((m) => new Date(m.kickoff).getTime() > Date.now());
+    if (filter === 'finished') return matches.filter((m) => matchIsFinished(m));
+    if (filter === 'live') return matches.filter((m) => new Date(m.kickoff).getTime() <= Date.now() && !matchIsFinished(m));
+    return matches;
+  }, [matches, filter]);
+
+  const scheduleCount = matches.filter((m) => new Date(m.kickoff).getTime() > Date.now()).length;
+  const finishedCount = matches.filter((m) => matchIsFinished(m)).length;
+  const liveCount = matches.filter((m) => new Date(m.kickoff).getTime() <= Date.now() && !matchIsFinished(m)).length;
+  const filterCount = filter === 'schedule' ? scheduleCount : filter === 'live' ? liveCount : finishedCount;
+  const filterLabel = filter === 'schedule' ? 'запланировано' : filter === 'live' ? 'live' : 'завершено';
 
   useLayoutEffect(() => {
     const el = topRef.current;
@@ -252,22 +279,46 @@ export default function LeaguePage() {
                     {activeMd.label} · {formatMatchdayTabDate(activeMd.day)}
                   </span>
                   <span>
-                    {progress.done}/{progress.total} матчей
+                    {filterCount}/{progress.total} {filterLabel}
                   </span>
                 </div>
                 <div className="matchday-progress-bar">
                   <div
                     className="matchday-progress-fill"
-                    style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }}
+                    style={{ width: `${Math.round((filterCount / progress.total) * 100)}%` }}
                   />
                 </div>
                 {!boosterUsed && !boosterLocked && (
                   <p className="matchday-hint">
-                    Один бустер на тур — нажми «Переставить бустер» на выбранном матче
+                      Один бустер на тур - не забудьте поставить
                   </p>
                 )}
               </div>
             )}
+
+            <div className="admin-filters">
+              <button
+                type="button"
+                className={filter === 'schedule' ? 'active' : ''}
+                onClick={() => setFilter('schedule')}
+              >
+                Расписание
+              </button>
+              <button
+                type="button"
+                className={filter === 'finished' ? 'active' : ''}
+                onClick={() => setFilter('finished')}
+              >
+                Завершенные
+              </button>
+              <button
+                type="button"
+                className={filter === 'live' ? 'active' : ''}
+                onClick={() => setFilter('live')}
+              >
+                LIVE
+              </button>
+            </div>
           </>
         )}
       </div>
@@ -277,7 +328,7 @@ export default function LeaguePage() {
         style={{ paddingTop: topHeight + 8 }}
       >
         {error && <div className="error-banner">{error}</div>}
-        {matches.map((m) => (
+        {filteredMatches.map((m) => (
           <MatchCard
             key={m.id}
             match={m}
@@ -287,11 +338,15 @@ export default function LeaguePage() {
             onSaved={onSaved}
           />
         ))}
-        {!error && matches.length === 0 && (
+        {!error && filteredMatches.length === 0 && (
           <p className="empty-hint">
             {allMatches.length === 0
               ? 'Матчи не найдены. Перезапустите сервер: npm run dev'
-              : 'Нет матчей на выбранный тур — выбери другой MD выше.'}
+              : filter === 'live'
+                ? 'Нет матчей в прямом эфире в этом туре'
+                : filter === 'finished'
+                  ? 'Нет завершённых матчей в этом туре'
+                  : 'Нет предстоящих матчей в этом туре'}
           </p>
         )}
       </div>

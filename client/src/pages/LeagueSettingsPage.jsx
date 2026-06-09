@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { api, isSessionExpiredError, setToken } from '../api';
-import { createEffectGuard, redirectIfLeagueForbidden } from '../leagueAccess';
+import { redirectIfLeagueForbidden } from '../leagueAccess';
 import { useConfirm } from '../context/ConfirmContext';
 
 export default function LeagueSettingsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { league: layoutLeague } = useOutletContext() || {};
   const { confirmAction } = useConfirm();
   const [data, setData] = useState(null);
   const [loadError, setLoadError] = useState('');
@@ -17,19 +18,22 @@ export default function LeagueSettingsPage() {
   const [editingUserName, setEditingUserName] = useState(false);
   const [userName, setUserName] = useState('');
   const [copied, setCopied] = useState(false);
-  const load = async () => {
-    const leagueRes = await api.league(id);
+
+  const load = async (signal, cachedLeague) => {
+    const leagueRes = cachedLeague
+      ? { league: cachedLeague }
+      : await api.league(id, signal);
     const isOwner = !!leagueRes.league?.is_owner;
 
     if (isOwner) {
       if (leagueRes.members) {
         return { league: leagueRes.league, members: leagueRes.members, isOwner: true };
       }
-      const settings = await api.leagueSettings(id);
+      const settings = await api.leagueSettings(id, signal);
       return { ...settings, isOwner: true };
     }
 
-    const me = await api.me();
+    const me = await api.me(signal);
     return {
       league: leagueRes.league,
       members: [
@@ -46,23 +50,23 @@ export default function LeagueSettingsPage() {
   };
 
   useEffect(() => {
-    const guard = createEffectGuard();
+    const controller = new AbortController();
     setData(null);
     setLoadError('');
 
-    load()
+    load(controller.signal, layoutLeague)
       .then((payload) => {
-        if (!guard.isActive()) return;
+        if (controller.signal.aborted) return;
         setData(payload);
       })
       .catch((e) => {
-        if (!guard.isActive()) return;
+        if (controller.signal.aborted || e.name === 'AbortError') return;
         if (redirectIfLeagueForbidden(e, navigate)) return;
         if (isSessionExpiredError(e)) return;
         setLoadError(e.message || 'Не удалось загрузить настройки');
       });
 
-    return guard.cancel;
+    return () => controller.abort();
   }, [id, navigate]);
 
   if (loadError && !data) {

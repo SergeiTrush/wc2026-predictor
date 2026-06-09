@@ -60,7 +60,8 @@ async function request(path, options = {}) {
   let res;
   try {
     res = await fetch(`/api${path}`, { ...options, headers });
-  } catch {
+  } catch (e) {
+    if (e?.name === 'AbortError') throw e;
     throw new Error(`Не удалось подключиться к API. ${DEV_HINT}`);
   }
 
@@ -105,13 +106,13 @@ export const api = {
     request('/auth/register', { method: 'POST', body: JSON.stringify({ name, password }) }),
   login: (name, password) =>
     request('/auth/login', { method: 'POST', body: JSON.stringify({ name, password }) }),
-  me: () => request('/auth/me'),
+  me: (signal) => request('/auth/me', signal ? { signal } : {}),
   updateProfile: (name) =>
     request('/auth/me', { method: 'PATCH', body: JSON.stringify({ name }) }),
   tournament: () => request('/tournament'),
   leagues: () => request('/leagues'),
-  league: (id) => request(`/leagues/${id}`),
-  leagueSettings: (id) => request(`/leagues/${id}/settings`),
+  league: (id, signal) => request(`/leagues/${id}`, signal ? { signal } : {}),
+  leagueSettings: (id, signal) => request(`/leagues/${id}/settings`, signal ? { signal } : {}),
   createLeague: (name) =>
     request('/leagues', { method: 'POST', body: JSON.stringify({ name }) }),
   joinLeague: (code) =>
@@ -121,32 +122,34 @@ export const api = {
   deleteLeague: (id) => request(`/leagues/${id}`, { method: 'DELETE' }),
   suspendMember: (leagueId, userId) =>
     request(`/leagues/${leagueId}/members/${userId}/suspend`, { method: 'POST' }),
-  leaderboard: (leagueId, matchday) =>
-    request(`/leagues/${leagueId}/leaderboard${matchday ? `?matchday=${encodeURIComponent(matchday)}` : ''}`),
+  leaderboard: (leagueId, matchday, signal) =>
+    request(`/leagues/${leagueId}/leaderboard${matchday ? `?matchday=${encodeURIComponent(matchday)}` : ''}`, signal ? { signal } : {}),
   userMatchdayPoints: (leagueId, userId) =>
     request(`/leagues/${leagueId}/users/${userId}/matchday-points`),
   matchdays: () => request('/matchdays'),
-  matches: (params = {}) => {
+  matches: (params = {}, signal) => {
     const q = new URLSearchParams(params).toString();
-    return request(`/matches${q ? `?${q}` : ''}`);
+    return request(`/matches${q ? `?${q}` : ''}`, signal ? { signal } : {});
   },
   /** All tournament matches for a league (with predictions). */
-  async allMatches(leagueId) {
+  async allMatches(leagueId, signal) {
     let data;
     try {
-      data = await this.matches({ leagueId, all: '1' });
+      data = await this.matches({ leagueId, all: '1' }, signal);
     } catch (e) {
+      if (e.name === 'AbortError') throw e;
       if (e.status === 403) throw e;
-      data = await this.matches({ leagueId });
+      data = await this.matches({ leagueId }, signal);
     }
     const count = data.matches?.length ?? 0;
     if (count < 80) {
       try {
-        const full = await this.matches({ leagueId, matchday: '2026-06-11' });
+        const full = await this.matches({ leagueId, matchday: '2026-06-11' }, signal);
         if ((full.matches?.length ?? 0) > count) {
           data = full;
         }
       } catch (e) {
+        if (e.name === 'AbortError') throw e;
         if (e.status === 403) throw e;
         /* keep partial list */
       }
@@ -170,6 +173,6 @@ export const api = {
     request(`/matches/${matchId}/result`, { method: 'PUT', body: JSON.stringify(body) }),
   clearResult: (matchId, leagueId) =>
     request(`/matches/${matchId}/result?leagueId=${leagueId}`, { method: 'DELETE' }),
-  resultsSyncStatus: () => request('/results/sync-status'),
+  resultsSyncStatus: (signal) => request('/results/sync-status', signal ? { signal } : {}),
   syncResults: () => request('/results/sync', { method: 'POST' }),
 };

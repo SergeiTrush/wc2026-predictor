@@ -334,6 +334,7 @@ a {
 .page-content--matches {
   margin-bottom: 0;
   padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+  min-height: calc(100dvh - var(--shell-header-height, 96px));
 }
 
 .page-content--matches .match-card:last-child {
@@ -3053,6 +3054,10 @@ body.body-scroll-locked .leaderboard-table-scroll {
   text-align: center;
   padding: 2rem 1rem;
   color: var(--text-dim);
+}
+
+.page-content--matches .empty-hint {
+  background: var(--card-blue-light);
 }
 
 .predictor-hero {

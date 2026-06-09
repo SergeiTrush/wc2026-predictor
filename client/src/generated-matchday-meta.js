@@ -14,7 +14,7 @@ export const MATCHDAY_ORDER = [
 export const MATCHDAY_META = {
   "md1": {
     "label": "MD1",
-    "start": "2026-06-11",
+    "start": "2026-06-09",
     "end": "2026-06-18"
   },
   "md2": {

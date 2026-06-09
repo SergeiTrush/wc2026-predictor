@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { api, isSessionExpiredError } from '../api';
 import ScoringModal from '../components/ScoringModal';
 import { formatDateTime } from '../utils';
-import { createEffectGuard, redirectIfLeagueForbidden } from '../leagueAccess';
+import { redirectIfLeagueForbidden } from '../leagueAccess';
 import { matchdaysFromMatches, formatMatchdayTabDate } from '../matchdays';
 
 const MATCHDAY_TAGS = [
@@ -78,16 +78,16 @@ export default function LeagueTablePage() {
     requestGenRef.current += 1;
   }, [id]);
 
-  const loadLeaderboard = useCallback(() => {
+  const loadLeaderboard = useCallback((signal) => {
     const gen = requestGenRef.current;
     api
-      .leaderboard(id, selectedDayKey)
+      .leaderboard(id, selectedDayKey, signal)
       .then((d) => {
-        if (gen !== requestGenRef.current) return;
+        if (signal?.aborted || gen !== requestGenRef.current) return;
         setLeaderboard(d.leaderboard);
       })
       .catch((e) => {
-        if (gen !== requestGenRef.current) return;
+        if (e.name === 'AbortError' || gen !== requestGenRef.current) return;
         if (redirectIfLeagueForbidden(e, navigate)) return;
         if (isSessionExpiredError(e)) return;
         setSyncMsg(e.message);
@@ -95,28 +95,21 @@ export default function LeagueTablePage() {
   }, [id, navigate, selectedDayKey]);
 
   useEffect(() => {
-    const guard = createEffectGuard();
+    const controller = new AbortController();
     setPageReady(false);
     setSelectedDayKey(null);
 
-    Promise.allSettled([api.leaderboard(id), api.allMatches(id), api.resultsSyncStatus()]).then((results) => {
-      if (!guard.isActive()) return;
+    Promise.allSettled([api.allMatches(id, controller.signal), api.resultsSyncStatus(controller.signal)]).then((results) => {
+      if (controller.signal.aborted) return;
 
-      const [leaderboardResult, matchesResult, syncResult] = results;
-
-      if (leaderboardResult.status === 'fulfilled') {
-        setLeaderboard(leaderboardResult.value.leaderboard || []);
-      } else {
-        const e = leaderboardResult.reason;
-        if (redirectIfLeagueForbidden(e, navigate)) return;
-        if (!isSessionExpiredError(e)) setSyncMsg(e.message);
-      }
+      const [matchesResult, syncResult] = results;
 
       if (matchesResult.status === 'fulfilled') {
         const days = matchdaysFromMatches(matchesResult.value.matches || []);
         setMatchdays(days);
       } else {
         const e = matchesResult.reason;
+        if (e?.name === 'AbortError') return;
         if (redirectIfLeagueForbidden(e, navigate)) return;
         if (!isSessionExpiredError(e)) setSyncMsg(e.message);
       }
@@ -130,12 +123,14 @@ export default function LeagueTablePage() {
       setPageReady(true);
     });
 
-    return guard.cancel;
+    return () => controller.abort();
   }, [id, navigate]);
 
   useEffect(() => {
     if (!pageReady) return;
-    loadLeaderboard();
+    const controller = new AbortController();
+    loadLeaderboard(controller.signal);
+    return () => controller.abort();
   }, [pageReady, loadLeaderboard]);
 
   const lastSyncRef = useRef(null);

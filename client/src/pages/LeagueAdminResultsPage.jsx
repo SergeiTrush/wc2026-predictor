@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { api, isSessionExpiredError } from '../api';
 import { teamFlag, formatMatchTime, matchHasStoredScore, matchIsFinished, adminMatchScores, matchHasAdminResult, isMatchInPlayWindow } from '../utils';
-import { createEffectGuard, redirectIfLeagueForbidden } from '../leagueAccess';
+import { redirectIfLeagueForbidden } from '../leagueAccess';
 import { loadMatchSquads } from '../teamSquads';
 import {
   matchdaysFromMatches,
@@ -433,10 +433,11 @@ export default function LeagueAdminResultsPage() {
   const [league, setLeague] = useState(layoutLeague ?? null);
   const [matches, setMatches] = useState([]);
   const [selectedDay, setSelectedDay] = useState(null);
-  const [filter, setFilter] = useState('pending');
+  const [filter, setFilter] = useState('live');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const listRef = useRef(null);
+  const autoFilterRef = useRef(false);
   const matchdays = useMemo(() => matchdaysFromMatches(matches), [matches]);
 
   const refreshMatches = (savedMatch) => {
@@ -470,33 +471,47 @@ export default function LeagueAdminResultsPage() {
   }, [layoutLeague]);
 
   useEffect(() => {
-    const guard = createEffectGuard();
+    const controller = new AbortController();
     setLoading(true);
     setError('');
 
     const leaguePromise = layoutLeague
       ? Promise.resolve({ league: layoutLeague })
-      : api.league(id);
+      : api.league(id, controller.signal);
 
-    Promise.all([leaguePromise, api.allMatches(id)])
-      .then(([leagueData, matchData]) => {
-        if (!guard.isActive()) return;
+    leaguePromise
+      .then((leagueData) => {
+        if (controller.signal.aborted) return;
         setLeague(leagueData.league);
-        setMatches(matchData.matches || []);
       })
       .catch((e) => {
-        if (!guard.isActive()) return;
+        if (controller.signal.aborted || e.name === 'AbortError') return;
         if (redirectIfLeagueForbidden(e, navigate)) return;
         if (isSessionExpiredError(e)) return;
         setError(e.message);
       })
       .finally(() => {
-        if (!guard.isActive()) return;
+        if (controller.signal.aborted) return;
         setLoading(false);
       });
 
-    return guard.cancel;
-  }, [id, navigate, layoutLeague]);
+    return () => controller.abort();
+  }, [id, navigate, layoutLeague?.id]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    api
+      .allMatches(id, controller.signal)
+      .then((d) => setMatches(d.matches || []))
+      .catch((e) => {
+        if (e.name === 'AbortError') return;
+        if (isSessionExpiredError(e)) return;
+        setError(e.message);
+      });
+
+    return () => controller.abort();
+  }, [id]);
 
   useEffect(() => {
     if (!matchdays.length) return;
@@ -514,19 +529,38 @@ export default function LeagueAdminResultsPage() {
     return filtered.length > 0 ? filtered : matches;
   }, [matches, selectedDay?.day]);
 
+  useEffect(() => {
+    autoFilterRef.current = false;
+  }, [selectedDay?.day]);
+
+  useEffect(() => {
+    if (autoFilterRef.current || !dayMatches.length) return;
+    const hasLive = dayMatches.some(
+      (m) => new Date(m.kickoff).getTime() <= Date.now() && !matchIsFinished(m)
+    );
+    setFilter(hasLive ? 'live' : 'finished');
+    autoFilterRef.current = true;
+  }, [dayMatches]);
+
   const matchInScope = (m) => matchHasAdminResult(m) || isMatchInPlayWindow(m);
 
   const filtered = useMemo(() => {
     let list = [...dayMatches];
-    if (filter === 'pending') {
-      list = list.filter((m) => !matchInScope(m));
-    } else if (filter === 'done') {
-      list = list.filter((m) => matchInScope(m));
+    if (filter === 'finished') {
+      list = list.filter((m) => matchIsFinished(m));
+    } else if (filter === 'schedule') {
+      list = list.filter((m) => new Date(m.kickoff).getTime() > Date.now());
+    } else if (filter === 'live') {
+      list = list.filter((m) => new Date(m.kickoff).getTime() <= Date.now() && !matchIsFinished(m));
     }
     return list.sort((a, b) => a.kickoff.localeCompare(b.kickoff));
   }, [dayMatches, filter]);
 
-  const doneCount = dayMatches.filter((m) => matchInScope(m)).length;
+  const finishedCount = dayMatches.filter((m) => matchIsFinished(m)).length;
+  const scheduleCount = dayMatches.filter((m) => new Date(m.kickoff).getTime() > Date.now()).length;
+  const liveCount = dayMatches.filter((m) => new Date(m.kickoff).getTime() <= Date.now() && !matchIsFinished(m)).length;
+  const doneCount = filter === 'schedule' ? scheduleCount : filter === 'live' ? liveCount : finishedCount;
+  const doneLabel = filter === 'schedule' ? 'запланировано' : filter === 'live' ? 'live' : 'завершено';
   const activeMd = selectedDay || matchdays[0];
 
   useEffect(() => {
@@ -588,7 +622,7 @@ export default function LeagueAdminResultsPage() {
                     {activeMd.label} · {formatMatchdayTabDate(activeMd.day)}
                   </span>
                   <span>
-                    {doneCount}/{dayMatches.length} с результатом
+                    {doneCount}/{dayMatches.length} {doneLabel}
                   </span>
                 </div>
                 <div className="matchday-progress-bar">
@@ -607,24 +641,24 @@ export default function LeagueAdminResultsPage() {
         <div className="admin-filters">
           <button
             type="button"
-            className={filter === 'pending' ? 'active' : ''}
-            onClick={() => setFilter('pending')}
+            className={filter === 'schedule' ? 'active' : ''}
+            onClick={() => setFilter('schedule')}
           >
-            Без результата
+            Расписание
           </button>
           <button
             type="button"
-            className={filter === 'done' ? 'active' : ''}
-            onClick={() => setFilter('done')}
+            className={filter === 'finished' ? 'active' : ''}
+            onClick={() => setFilter('finished')}
           >
-            С результатом
+            Завершенные
           </button>
           <button
             type="button"
-            className={filter === 'all' ? 'active' : ''}
-            onClick={() => setFilter('all')}
+            className={filter === 'live' ? 'active' : ''}
+            onClick={() => setFilter('live')}
           >
-            Все
+            LIVE
           </button>
         </div>
       </div>
@@ -633,11 +667,11 @@ export default function LeagueAdminResultsPage() {
         <div className="page-content admin-results-list">
         {filtered.length === 0 && (
           <p className="empty-hint">
-            {filter === 'pending'
-              ? 'Все матчи с результатами — отлично!'
-              : filter === 'done'
-                ? 'Пока нет матчей с результатом в этом туре'
-                : 'Нет матчей в этой категории'}
+            {filter === 'finished'
+              ? 'Нет завершённых матчей в этом туре'
+              : filter === 'schedule'
+                ? 'Нет предстоящих матчей в этом туре'
+                : 'Нет матчей в прямом эфире в этом туре'}
           </p>
         )}
         {filtered.map((m) => (

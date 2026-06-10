@@ -37,7 +37,7 @@ export default function LeaguePage() {
   const [error, setError] = useState('');
   const topRef = useRef(null);
   const tabsRef = useRef(null);
-  const filterBarRef = useRef(null);
+
   const [topHeight, setTopHeight] = useState(220);
   const [filter, setFilter] = useState('live');
   const autoFilterRef = useRef(false);
@@ -166,19 +166,17 @@ export default function LeaguePage() {
     autoFilterRef.current = false;
   }, [selected?.day]);
 
-  // Native touchstart with passive:false so the filter switches on first tap
-  // even when the page is mid-momentum-scroll (iOS consumes synthetic events then).
+  // Document-level touchstart so the listener is live regardless of when the
+  // filter bar mounts. Fires before iOS's momentum-scroll-stop logic absorbs
+  // the touch, letting the filter switch on the very first tap.
   useEffect(() => {
-    const el = filterBarRef.current;
-    if (!el) return;
     const onTouch = (e) => {
       const btn = e.target.closest('button[data-filter]');
       if (!btn) return;
-      e.preventDefault();
       setFilter(btn.dataset.filter);
     };
-    el.addEventListener('touchstart', onTouch, { passive: false });
-    return () => el.removeEventListener('touchstart', onTouch);
+    document.addEventListener('touchstart', onTouch, { passive: true, capture: true });
+    return () => document.removeEventListener('touchstart', onTouch, { capture: true });
   }, []);
 
   useEffect(() => {
@@ -319,7 +317,7 @@ export default function LeaguePage() {
               </div>
             )}
 
-            <div className="admin-filters" ref={filterBarRef}>
+            <div className="admin-filters">
               <button type="button" data-filter="schedule" className={filter === 'schedule' ? 'active' : ''} onClick={() => setFilter('schedule')}>
                 Расписание
               </button>

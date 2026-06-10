@@ -37,6 +37,7 @@ export default function LeaguePage() {
   const [error, setError] = useState('');
   const topRef = useRef(null);
   const tabsRef = useRef(null);
+  const filterBarRef = useRef(null);
   const [topHeight, setTopHeight] = useState(220);
   const [filter, setFilter] = useState('live');
   const autoFilterRef = useRef(false);
@@ -164,6 +165,21 @@ export default function LeaguePage() {
   useEffect(() => {
     autoFilterRef.current = false;
   }, [selected?.day]);
+
+  // Native touchstart with passive:false so the filter switches on first tap
+  // even when the page is mid-momentum-scroll (iOS consumes synthetic events then).
+  useEffect(() => {
+    const el = filterBarRef.current;
+    if (!el) return;
+    const onTouch = (e) => {
+      const btn = e.target.closest('button[data-filter]');
+      if (!btn) return;
+      e.preventDefault();
+      setFilter(btn.dataset.filter);
+    };
+    el.addEventListener('touchstart', onTouch, { passive: false });
+    return () => el.removeEventListener('touchstart', onTouch);
+  }, []);
 
   useEffect(() => {
     if (autoFilterRef.current || !matches.length) return;
@@ -303,29 +319,14 @@ export default function LeaguePage() {
               </div>
             )}
 
-            <div className="admin-filters">
-              <button
-                type="button"
-                className={filter === 'schedule' ? 'active' : ''}
-                onPointerDown={(e) => { if (e.pointerType !== 'mouse') { e.preventDefault(); setFilter('schedule'); } }}
-                onClick={() => setFilter('schedule')}
-              >
+            <div className="admin-filters" ref={filterBarRef}>
+              <button type="button" data-filter="schedule" className={filter === 'schedule' ? 'active' : ''} onClick={() => setFilter('schedule')}>
                 Расписание
               </button>
-              <button
-                type="button"
-                className={filter === 'finished' ? 'active' : ''}
-                onPointerDown={(e) => { if (e.pointerType !== 'mouse') { e.preventDefault(); setFilter('finished'); } }}
-                onClick={() => setFilter('finished')}
-              >
+              <button type="button" data-filter="finished" className={filter === 'finished' ? 'active' : ''} onClick={() => setFilter('finished')}>
                 Завершенные
               </button>
-              <button
-                type="button"
-                className={filter === 'live' ? 'active' : ''}
-                onPointerDown={(e) => { if (e.pointerType !== 'mouse') { e.preventDefault(); setFilter('live'); } }}
-                onClick={() => setFilter('live')}
-              >
+              <button type="button" data-filter="live" className={filter === 'live' ? 'active' : ''} onClick={() => setFilter('live')}>
                 LIVE
               </button>
             </div>

@@ -327,14 +327,47 @@ a {
 }
 
 .league-matches-page.app-root {
+  height: 100dvh;
+  max-height: 100dvh;
   min-height: 100dvh;
-  padding-bottom: env(safe-area-inset-bottom, 0);
+  overflow: hidden;
+}
+
+.league-matches-page .league-shell-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.league-matches-container {
+  padding-top: 7px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.league-matches-container::-webkit-scrollbar {
+  display: none;
+}
+
+.league-matches-page .league-top-fixed {
+  position: static;
+  top: auto;
+  left: auto;
+  transform: none;
+  max-width: none;
+  width: 100%;
+  flex-shrink: 0;
 }
 
 .page-content--matches {
   margin-bottom: 0;
   padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
-  min-height: calc(100dvh - var(--shell-header-height, 96px));
 }
 
 .page-content--matches .match-card:last-child {

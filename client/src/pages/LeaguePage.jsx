@@ -12,17 +12,6 @@ import MatchCard from '../components/MatchCard';
 import { isMatchLiveScoreBarVisible, isMatchInPlayWindow, matchHasResult, matchIsFinished } from '../utils';
 import { redirectIfLeagueForbidden } from '../leagueAccess';
 
-function scrollPageTop() {
-  window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
-  if (document.documentElement) document.documentElement.scrollTop = 0;
-  if (document.body) document.body.scrollTop = 0;
-  if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
-  const root = document.getElementById('root');
-  if (root) root.scrollTop = 0;
-  const appRoot = document.querySelector('.app-root');
-  if (appRoot) appRoot.scrollTop = 0;
-}
-
 export default function LeaguePage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -37,10 +26,24 @@ export default function LeaguePage() {
   const [error, setError] = useState('');
   const topRef = useRef(null);
   const tabsRef = useRef(null);
+  const matchesContainerRef = useRef(null);
+  const filterScrollPositions = useRef({ schedule: 0, finished: 0, live: 0 });
+  const prevFilterRef = useRef('live');
 
-  const [topHeight, setTopHeight] = useState(220);
+  const scrollToTop = useCallback(() => {
+    filterScrollPositions.current = { schedule: 0, finished: 0, live: 0 };
+    if (matchesContainerRef.current) matchesContainerRef.current.scrollTop = 0;
+  }, []);
+
   const [filter, setFilter] = useState('live');
   const autoFilterRef = useRef(false);
+
+  const switchFilter = useCallback((newFilter) => {
+    if (matchesContainerRef.current) {
+      filterScrollPositions.current[filter] = matchesContainerRef.current.scrollTop;
+    }
+    setFilter(newFilter);
+  }, [filter]);
 
   useEffect(() => {
     if (!tabsRef.current || !selected) return;
@@ -86,7 +89,7 @@ export default function LeaguePage() {
     const controller = new AbortController();
     setUiReady(false);
     setLoadingLeague(!layoutLeague);
-    scrollPageTop();
+    scrollToTop();
     if (!layoutLeague) {
       api
         .league(id, controller.signal)
@@ -109,16 +112,16 @@ export default function LeaguePage() {
     }
     loadAll({ signal: controller.signal });
     return () => controller.abort();
-  }, [id, loadAll, navigate, layoutLeague?.id]);
+  }, [id, loadAll, navigate, layoutLeague?.id, scrollToTop]);
 
   useEffect(() => {
     if (loadingLeague || loadingMatches) return;
     let raf1 = 0;
     let raf2 = 0;
     raf1 = requestAnimationFrame(() => {
-      scrollPageTop();
+      scrollToTop();
       raf2 = requestAnimationFrame(() => {
-        scrollPageTop();
+        scrollToTop();
         setUiReady(true);
       });
     });
@@ -126,7 +129,7 @@ export default function LeaguePage() {
       if (raf1) cancelAnimationFrame(raf1);
       if (raf2) cancelAnimationFrame(raf2);
     };
-  }, [loadingLeague, loadingMatches]);
+  }, [loadingLeague, loadingMatches, scrollToTop]);
 
   const matches = useMemo(() => {
     const list = !selected?.day
@@ -166,19 +169,6 @@ export default function LeaguePage() {
     autoFilterRef.current = false;
   }, [selected?.day]);
 
-  // Document-level touchstart so the listener is live regardless of when the
-  // filter bar mounts. Fires before iOS's momentum-scroll-stop logic absorbs
-  // the touch, letting the filter switch on the very first tap.
-  useEffect(() => {
-    const onTouch = (e) => {
-      const btn = e.target.closest('button[data-filter]');
-      if (!btn) return;
-      setFilter(btn.dataset.filter);
-    };
-    document.addEventListener('touchstart', onTouch, { passive: true, capture: true });
-    return () => document.removeEventListener('touchstart', onTouch, { capture: true });
-  }, []);
-
   useEffect(() => {
     if (autoFilterRef.current || !matches.length) return;
     const hasLive = matches.some((m) => new Date(m.kickoff).getTime() <= Date.now() && !matchIsFinished(m));
@@ -186,6 +176,15 @@ export default function LeaguePage() {
     setFilter(hasLive ? 'live' : hasSchedule ? 'schedule' : 'finished');
     autoFilterRef.current = true;
   }, [matches]);
+
+  useEffect(() => {
+    if (prevFilterRef.current === filter) return;
+    prevFilterRef.current = filter;
+    if (matchesContainerRef.current) {
+      matchesContainerRef.current.scrollTop =
+        filteredMatches.length > 0 ? (filterScrollPositions.current[filter] ?? 0) : 0;
+    }
+  }, [filter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filteredMatches = useMemo(() => {
     if (filter === 'schedule') return matches.filter((m) => new Date(m.kickoff).getTime() > Date.now());
@@ -205,9 +204,7 @@ export default function LeaguePage() {
     if (!el) return;
 
     const update = () => {
-      const h = el.offsetHeight;
-      setTopHeight(h);
-      document.documentElement.style.setProperty('--league-top-height', `${h}px`);
+      document.documentElement.style.setProperty('--league-top-height', `${el.offsetHeight}px`);
     };
     update();
 
@@ -222,8 +219,8 @@ export default function LeaguePage() {
 
   useEffect(() => {
     if (!selected?.day) return;
-    scrollPageTop();
-  }, [selected?.day]);
+    scrollToTop();
+  }, [selected?.day, scrollToTop]);
 
   useEffect(() => {
     const needsLivePoll = allMatches.some(isMatchInPlayWindow);
@@ -318,13 +315,13 @@ export default function LeaguePage() {
             )}
 
             <div className="admin-filters">
-              <button type="button" data-filter="schedule" className={filter === 'schedule' ? 'active' : ''} onClick={() => setFilter('schedule')}>
+              <button type="button" className={filter === 'schedule' ? 'active' : ''} onClick={() => switchFilter('schedule')}>
                 Расписание
               </button>
-              <button type="button" data-filter="finished" className={filter === 'finished' ? 'active' : ''} onClick={() => setFilter('finished')}>
+              <button type="button" className={filter === 'finished' ? 'active' : ''} onClick={() => switchFilter('finished')}>
                 Завершенные
               </button>
-              <button type="button" data-filter="live" className={filter === 'live' ? 'active' : ''} onClick={() => setFilter('live')}>
+              <button type="button" className={filter === 'live' ? 'active' : ''} onClick={() => switchFilter('live')}>
                 LIVE
               </button>
             </div>
@@ -332,32 +329,31 @@ export default function LeaguePage() {
         )}
       </div>
 
-      <div
-        className="page-content page-content--matches"
-        style={{ paddingTop: topHeight + 8 }}
-      >
-        {error && <div className="error-banner">{error}</div>}
-        {filteredMatches.map((m) => (
-          <MatchCard
-            key={m.id}
-            match={m}
-            leagueId={id}
-            boosterMatchId={boosterMatchId}
-            boosterLocked={boosterLocked}
-            onSaved={onSaved}
-          />
-        ))}
-        {!error && filteredMatches.length === 0 && (
-          <p className="empty-hint">
-            {allMatches.length === 0
-              ? 'Матчи не найдены. Перезапустите сервер: npm run dev'
-              : filter === 'live'
-                ? 'Нет матчей в прямом эфире в этом туре'
-                : filter === 'finished'
-                  ? 'Нет завершённых матчей в этом туре'
-                  : 'Нет предстоящих матчей в этом туре'}
-          </p>
-        )}
+      <div className="league-matches-container" ref={matchesContainerRef}>
+        <div className="page-content page-content--matches">
+          {error && <div className="error-banner">{error}</div>}
+          {filteredMatches.map((m) => (
+            <MatchCard
+              key={m.id}
+              match={m}
+              leagueId={id}
+              boosterMatchId={boosterMatchId}
+              boosterLocked={boosterLocked}
+              onSaved={onSaved}
+            />
+          ))}
+          {!error && filteredMatches.length === 0 && (
+            <p className="empty-hint">
+              {allMatches.length === 0
+                ? 'Матчи не найдены. Перезапустите сервер: npm run dev'
+                : filter === 'live'
+                  ? 'Нет матчей в прямом эфире в этом туре'
+                  : filter === 'finished'
+                    ? 'Нет завершённых матчей в этом туре'
+                    : 'Нет предстоящих матчей в этом туре'}
+            </p>
+          )}
+        </div>
       </div>
     </>
   );

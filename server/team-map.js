@@ -24,6 +24,8 @@ const ALIASES = {
   'cabo verde': 'Cape Verde',
   turkiye: 'Turkey',
   türkiye: 'Turkey',
+  'ir iran': 'Iran',
+  irn: 'Iran',
 };
 
 const CANONICAL = new Set([

@@ -73,9 +73,11 @@ export default function LeagueTablePage() {
   const [userBreakdown, setUserBreakdown] = useState({});
   const [pageReady, setPageReady] = useState(false);
   const requestGenRef = useRef(0);
+  const leaderboardInitializedRef = useRef(false);
 
   useEffect(() => {
     requestGenRef.current += 1;
+    leaderboardInitializedRef.current = false;
   }, [id]);
 
   const loadLeaderboard = useCallback((signal) => {
@@ -99,10 +101,14 @@ export default function LeagueTablePage() {
     setPageReady(false);
     setSelectedDayKey(null);
 
-    Promise.allSettled([api.allMatches(id, controller.signal), api.resultsSyncStatus(controller.signal)]).then((results) => {
+    Promise.allSettled([
+      api.allMatches(id, controller.signal),
+      api.resultsSyncStatus(controller.signal),
+      api.leaderboard(id, null, controller.signal),
+    ]).then((results) => {
       if (controller.signal.aborted) return;
 
-      const [matchesResult, syncResult] = results;
+      const [matchesResult, syncResult, leaderboardResult] = results;
 
       if (matchesResult.status === 'fulfilled') {
         const days = matchdaysFromMatches(matchesResult.value.matches || []);
@@ -120,6 +126,10 @@ export default function LeagueTablePage() {
         setSyncStatus({ enabled: false });
       }
 
+      if (leaderboardResult.status === 'fulfilled') {
+        setLeaderboard(leaderboardResult.value.leaderboard || []);
+      }
+
       setPageReady(true);
     });
 
@@ -128,6 +138,10 @@ export default function LeagueTablePage() {
 
   useEffect(() => {
     if (!pageReady) return;
+    if (!leaderboardInitializedRef.current) {
+      leaderboardInitializedRef.current = true;
+      return; // initial load already handled in Promise.allSettled
+    }
     const controller = new AbortController();
     loadLeaderboard(controller.signal);
     return () => controller.abort();

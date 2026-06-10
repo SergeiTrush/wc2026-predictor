@@ -28,7 +28,7 @@ function ExampleRow({ label, points, highlight }) {
 }
 
 export default function ScoringModal({ onClose }) {
-  const b = breakdownMatchPoints(EXAMPLE_PRED, EXAMPLE_ACTUAL);
+  const b = breakdownMatchPoints(EXAMPLE_PRED, EXAMPLE_ACTUAL, { underdogBonus: 5 });
 
   return (
     <ModalOverlay onClick={onClose}>
@@ -78,6 +78,14 @@ export default function ScoringModal({ onClose }) {
         </div>
 
         <div className="scoring-section">
+          <div className="scoring-row scoring-row--bold">
+            <span>Андердог-бонус</span>
+            <span>5 оч.</span>
+          </div>
+          <p className="scoring-note">Угадай точный счёт, которого нет в топ популярных прогнозах для выбранного матча</p>
+        </div>
+
+        <div className="scoring-section">
           <h3>Бустер</h3>
           <p className="scoring-note">
             Один бустер на тур (день матчей). Умножает очки за выбранный матч:
@@ -96,7 +104,7 @@ export default function ScoringModal({ onClose }) {
           <h3>Пример расчёта</h3>
           <p className="scoring-note">
             Прогноз <strong>2:1</strong>, факт <strong>2:1</strong>, первая команда и игрок угаданы,
-            бустер на матч (группа ×2):
+            бустер на матч (группа ×2), андердог-бонус:
           </p>
           <ExampleRow label="Исход" points={b.outcome} />
           <ExampleRow label="Голы хозяев" points={b.homeGoals} />
@@ -104,9 +112,10 @@ export default function ScoringModal({ onClose }) {
           <ExampleRow label="Разница" points={b.goalDifference} />
           <ExampleRow label="Команда открыла счёт" points={b.firstTeam} />
           <ExampleRow label="Игрок открыл счёт" points={b.firstPlayer} />
-          <ExampleRow label="Подытог до бустера" points={b.scoreSubtotal} />
-          <ExampleRow label={`Бустер ×${b.boosterMultiplier}`} points={b.afterBooster - b.scoreSubtotal} />
-          <ExampleRow label="Итого за матч" points={b.total} highlight />
+          <ExampleRow label="Андердог-бонус" points={b.underdog} />
+          <ExampleRow label="Подытог до бустера" points={b.scoreSubtotal + b.underdog} />
+          <ExampleRow label={`Бустер ×${b.boosterMultiplier}`} points={(b.scoreSubtotal + b.underdog) * (b.boosterMultiplier - 1)} />
+          <ExampleRow label="Итого за матч" points={(b.scoreSubtotal + b.underdog) * b.boosterMultiplier} highlight />
         </div>
       </div>
     </ModalOverlay>

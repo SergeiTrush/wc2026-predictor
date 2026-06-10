@@ -434,11 +434,19 @@ export default function LeagueAdminResultsPage() {
   const [matches, setMatches] = useState([]);
   const [selectedDay, setSelectedDay] = useState(null);
   const [filter, setFilter] = useState('live');
-  const [loading, setLoading] = useState(true);
+  const [loadingLeague, setLoadingLeague] = useState(!layoutLeague);
+  const [loadingMatches, setLoadingMatches] = useState(true);
   const [error, setError] = useState('');
   const listRef = useRef(null);
+  const tabsRef = useRef(null);
   const autoFilterRef = useRef(false);
   const matchdays = useMemo(() => matchdaysFromMatches(matches), [matches]);
+
+  useEffect(() => {
+    if (!tabsRef.current || !selectedDay) return;
+    const activeBtn = tabsRef.current.querySelector('.matchday-tab.active');
+    activeBtn?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+  }, [selectedDay]);
 
   const refreshMatches = (savedMatch) => {
     if (savedMatch?.id != null) {
@@ -472,7 +480,7 @@ export default function LeagueAdminResultsPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true);
+    setLoadingLeague(!layoutLeague);
     setError('');
 
     const leaguePromise = layoutLeague
@@ -492,7 +500,7 @@ export default function LeagueAdminResultsPage() {
       })
       .finally(() => {
         if (controller.signal.aborted) return;
-        setLoading(false);
+        setLoadingLeague(false);
       });
 
     return () => controller.abort();
@@ -500,14 +508,22 @@ export default function LeagueAdminResultsPage() {
 
   useEffect(() => {
     const controller = new AbortController();
+    setLoadingMatches(true);
 
     api
       .allMatches(id, controller.signal)
-      .then((d) => setMatches(d.matches || []))
+      .then((d) => {
+        if (controller.signal.aborted) return;
+        setMatches(d.matches || []);
+      })
       .catch((e) => {
         if (e.name === 'AbortError') return;
         if (isSessionExpiredError(e)) return;
         setError(e.message);
+      })
+      .finally(() => {
+        if (controller.signal.aborted) return;
+        setLoadingMatches(false);
       });
 
     return () => controller.abort();
@@ -528,6 +544,8 @@ export default function LeagueAdminResultsPage() {
     const filtered = filterMatchesByDay(matches, selectedDay.day);
     return filtered.length > 0 ? filtered : matches;
   }, [matches, selectedDay?.day]);
+
+  const activeMd = selectedDay || matchdays[0];
 
   useEffect(() => {
     autoFilterRef.current = false;
@@ -561,7 +579,6 @@ export default function LeagueAdminResultsPage() {
   const liveCount = dayMatches.filter((m) => new Date(m.kickoff).getTime() <= Date.now() && !matchIsFinished(m)).length;
   const doneCount = filter === 'schedule' ? scheduleCount : filter === 'live' ? liveCount : finishedCount;
   const doneLabel = filter === 'schedule' ? 'запланировано' : filter === 'live' ? 'live' : 'завершено';
-  const activeMd = selectedDay || matchdays[0];
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -582,7 +599,7 @@ export default function LeagueAdminResultsPage() {
     return () => clearInterval(timer);
   }, [id]);
 
-  if (loading) {
+  if (loadingLeague || loadingMatches) {
     return (
       <div className="league-page-loading" aria-busy="true" aria-live="polite">
         <p>Загрузка…</p>
@@ -601,7 +618,7 @@ export default function LeagueAdminResultsPage() {
       <div className="admin-top-fixed">
         {matchdays.length > 0 && (
           <>
-            <div className="matchday-tabs">
+            <div className="matchday-tabs" ref={tabsRef}>
               {matchdays.map((md) => (
                 <button
                   key={md.day}

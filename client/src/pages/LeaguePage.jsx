@@ -36,9 +36,16 @@ export default function LeaguePage() {
   const [uiReady, setUiReady] = useState(false);
   const [error, setError] = useState('');
   const topRef = useRef(null);
+  const tabsRef = useRef(null);
   const [topHeight, setTopHeight] = useState(220);
   const [filter, setFilter] = useState('live');
   const autoFilterRef = useRef(false);
+
+  useEffect(() => {
+    if (!tabsRef.current || !selected) return;
+    const activeBtn = tabsRef.current.querySelector('.matchday-tab.active');
+    activeBtn?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+  }, [selected, uiReady]);
 
   const loadAll = useCallback(
     async ({ silent = false, signal } = {}) => {
@@ -258,7 +265,7 @@ export default function LeaguePage() {
 
         {matchdays.length > 0 && (
           <>
-            <div className="matchday-tabs">
+            <div className="matchday-tabs" ref={tabsRef}>
               {matchdays.map((md) => (
                 <button
                   key={md.day}
@@ -300,6 +307,7 @@ export default function LeaguePage() {
               <button
                 type="button"
                 className={filter === 'schedule' ? 'active' : ''}
+                onPointerDown={(e) => { if (e.pointerType !== 'mouse') { e.preventDefault(); setFilter('schedule'); } }}
                 onClick={() => setFilter('schedule')}
               >
                 Расписание
@@ -307,6 +315,7 @@ export default function LeaguePage() {
               <button
                 type="button"
                 className={filter === 'finished' ? 'active' : ''}
+                onPointerDown={(e) => { if (e.pointerType !== 'mouse') { e.preventDefault(); setFilter('finished'); } }}
                 onClick={() => setFilter('finished')}
               >
                 Завершенные
@@ -314,6 +323,7 @@ export default function LeaguePage() {
               <button
                 type="button"
                 className={filter === 'live' ? 'active' : ''}
+                onPointerDown={(e) => { if (e.pointerType !== 'mouse') { e.preventDefault(); setFilter('live'); } }}
                 onClick={() => setFilter('live')}
               >
                 LIVE

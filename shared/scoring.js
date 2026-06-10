@@ -61,8 +61,10 @@ function isNoGoalMatch(homeScore, awayScore) {
 
 /**
  * @returns {object} Line-by-line breakdown for one prediction vs actual result.
+ * @param {object} [opts]
+ * @param {number} [opts.underdogBonus=0] Extra +5 if this exact score was predicted by <10% of league members.
  */
-function breakdownMatchPoints(pred, actual) {
+function breakdownMatchPoints(pred, actual, { underdogBonus = 0 } = {}) {
   const empty = {
     outcome: 0,
     homeGoals: 0,
@@ -73,6 +75,7 @@ function breakdownMatchPoints(pred, actual) {
     scoreSubtotal: 0,
     boosterMultiplier: 1,
     afterBooster: 0,
+    underdog: 0,
     total: 0,
     maxPossible: 20,
   };
@@ -113,7 +116,8 @@ function breakdownMatchPoints(pred, actual) {
   const scoreSubtotal = outcome + homeGoals + awayGoals + goalDifference + firstTeam + firstPlayer;
 
   const mult = booster ? boosterMultiplier(stage) : 1;
-  const afterBooster = scoreSubtotal * mult;
+  const underdog = underdogBonus;
+  const afterBooster = (scoreSubtotal + underdog) * mult;
   const total = afterBooster;
 
   return {
@@ -126,6 +130,7 @@ function breakdownMatchPoints(pred, actual) {
     scoreSubtotal,
     boosterMultiplier: mult,
     afterBooster,
+    underdog,
     total,
     maxPossible: 10 * mult,
   };
@@ -149,11 +154,14 @@ function formatPointsBreakdown(b) {
   if (b.goalDifference) lines.push({ label: 'Разница в счёте', points: b.goalDifference });
   if (b.firstTeam) lines.push({ label: 'Команда открыла счёт', points: b.firstTeam });
   if (b.firstPlayer) lines.push({ label: 'Игрок открыл счёт', points: b.firstPlayer });
-  if (b.boosterMultiplier > 1 && b.scoreSubtotal > 0) {
+  if (b.underdog) {
+    lines.push({ label: 'Андердог-бонус', points: b.underdog });
+  }
+  if (b.boosterMultiplier > 1 && (b.scoreSubtotal + b.underdog) > 0) {
     lines.push({
       label: `Бустер ×${b.boosterMultiplier}`,
-      points: b.afterBooster - b.scoreSubtotal,
-      note: `${b.scoreSubtotal} × ${b.boosterMultiplier}`,
+      points: (b.scoreSubtotal + b.underdog) * (b.boosterMultiplier - 1),
+      note: `${b.scoreSubtotal + b.underdog} × ${b.boosterMultiplier}`,
     });
   }
   return { lines, total: b.total };

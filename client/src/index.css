@@ -419,7 +419,7 @@ a {
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 0.5rem;
-  padding: 0 1rem 1rem;
+  padding: 0 1rem 0.4rem;
 }
 
 .team-col {
@@ -460,6 +460,69 @@ a {
 .score-box:disabled {
   opacity: 0.65;
   cursor: not-allowed;
+}
+
+.score-suggestions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 1rem 0.8rem;
+}
+
+.score-suggestions-label {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.65);
+  text-align: center;
+}
+
+.score-suggestions-list {
+  display: flex;
+  justify-content: center;
+  gap: 0.55rem;
+}
+
+.score-suggestion {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.88rem;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.score-suggestion-pct {
+  font-size: 0.72rem;
+  font-weight: 400;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.score-suggestion:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.32);
+}
+
+.score-suggestion--active {
+  background: rgba(255, 193, 7, 0.18);
+  border-color: var(--yellow);
+  color: var(--yellow);
+}
+
+.score-suggestion--active .score-suggestion-pct {
+  color: rgba(255, 193, 7, 0.75);
+}
+
+.score-suggestion:disabled {
+  opacity: 0.5;
 }
 
 .match-card-locked .extra-predictions {
@@ -1771,6 +1834,7 @@ a {
   color: var(--text-muted);
   font-size: 0.75rem;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .admin-filters button.active {
@@ -2421,6 +2485,11 @@ body.body-scroll-locked .leaderboard-table-scroll {
 .scoring-row span:last-child {
   font-weight: 700;
   color: var(--yellow);
+}
+
+.scoring-row--bold span:first-child {
+  font-weight: 700;
+  color: var(--text-muted);
 }
 
 .scoring-desc {

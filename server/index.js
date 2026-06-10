@@ -42,6 +42,11 @@ const {
 } = require('./sync-results');
 const { isSquadEnabled, getLocalSquadsBulk, getTeamSquad, getMatchSquads } = require('./squad-service');
 const { refreshIfStale, getLiveScoreForMatch, startLiveScoresScheduler } = require('./live-scores');
+const {
+  getSuggestionsMap,
+  getSuggestionsForMatch,
+  startFifaScoreSuggestionsScheduler,
+} = require('./fifa-score-suggestions');
 const { resolveAndApplyKnockoutTeams } = require('./resolve-knockout-teams');
 const {
   GROUPS,
@@ -265,19 +270,35 @@ function liveScoreAsResult(match, liveScore) {
 }
 
 /** Final DB result, or provisional score from live feed when kickoff has passed. */
-function matchPointsForLeaderboard(pred, match, liveScore) {
+function computeUnderdogBonusFromActual(pred, actual, match, suggestionsMap) {
+  if (!actual || actual.home_score == null || actual.away_score == null) return 0;
+  if (pred.home_pred == null || pred.away_pred == null) return 0;
+  if (pred.home_pred !== actual.home_score || pred.away_pred !== actual.away_score) return 0;
+  const suggestions = getSuggestionsForMatch(match, suggestionsMap);
+  if (!suggestions || suggestions.length === 0) return 0;
+  const isPopular = suggestions.some((s) => s.home === pred.home_pred && s.away === pred.away_pred);
+  return isPopular ? 0 : 5;
+}
+
+function computeUnderdogBonus(pred, match, suggestionsMap) {
+  if (!matchHasResult(match)) return 0;
+  return computeUnderdogBonusFromActual(pred, match, suggestionsMap);
+}
+
+function matchPointsForLeaderboard(pred, match, liveScore, underdogBonus = 0) {
+  const opts = { underdogBonus };
   if (matchHasResult(match)) {
-    return { points: totalMatchPoints(pred, match), provisional: false };
+    return { points: breakdownMatchPoints(pred, match, opts).total, provisional: false };
   }
   if (matchHasLiveManualScore(match)) {
     return {
-      points: totalMatchPoints(pred, {
+      points: breakdownMatchPoints(pred, {
         home_score: match.home_score,
         away_score: match.away_score,
         first_scorer_team: match.first_scorer_team ?? null,
         first_scorer_player: match.first_scorer_player ?? null,
         stage: match.stage,
-      }),
+      }, opts).total,
       provisional: true,
     };
   }
@@ -288,7 +309,7 @@ function matchPointsForLeaderboard(pred, match, liveScore) {
   if (!actual) {
     return { points: 0, provisional: false };
   }
-  return { points: totalMatchPoints(pred, actual), provisional: true };
+  return { points: breakdownMatchPoints(pred, actual, opts).total, provisional: true };
 }
 
 function matchesForLeaderboardScope(selectedMatchday) {
@@ -707,6 +728,8 @@ app.get('/api/leagues/:id/leaderboard', authMiddleware, async (req, res) => {
     'SELECT * FROM predictions WHERE league_id = ? AND user_id = ? AND match_id = ?'
   );
 
+  const suggestionsMap = await getSuggestionsMap();
+
   const leaderboard = members.map((member) => {
     let total = 0;
     let provisionalPoints = 0;
@@ -715,7 +738,9 @@ app.get('/api/leagues/:id/leaderboard', authMiddleware, async (req, res) => {
       const pred = getPred.get(leagueId, member.id, match.id);
       if (!pred) continue;
       const liveScore = getLiveScoreForMatch(match.id);
-      const { points, provisional } = matchPointsForLeaderboard(pred, match, liveScore);
+      const actualForBonus = matchHasResult(match) ? match : scoringActualFromLive(match, liveScore) ?? (matchHasLiveManualScore(match) ? match : null);
+      const bonus = computeUnderdogBonusFromActual(pred, actualForBonus, match, suggestionsMap);
+      const { points, provisional } = matchPointsForLeaderboard(pred, match, liveScore, bonus);
       total += points;
       if (provisional) provisionalPoints += points;
       scoredMatches += 1;
@@ -775,6 +800,8 @@ app.get('/api/leagues/:id/users/:userId/matchday-points', authMiddleware, async 
     'SELECT * FROM predictions WHERE league_id = ? AND user_id = ? AND match_id = ?'
   );
 
+  const suggestionsMap = await getSuggestionsMap();
+
   const pointsByDay = {};
   for (const row of days) {
     const day = row.day;
@@ -790,7 +817,9 @@ app.get('/api/leagues/:id/users/:userId/matchday-points', authMiddleware, async 
       const pred = getPred.get(leagueId, userId, match.id);
       if (!pred) continue;
       const liveScore = getLiveScoreForMatch(match.id);
-      const result = matchPointsForLeaderboard(pred, match, liveScore);
+      const actualForBonus = matchHasResult(match) ? match : scoringActualFromLive(match, liveScore) ?? (matchHasLiveManualScore(match) ? match : null);
+      const bonus = computeUnderdogBonusFromActual(pred, actualForBonus, match, suggestionsMap);
+      const result = matchPointsForLeaderboard(pred, match, liveScore, bonus);
       points += result.points;
       if (result.provisional) provisionalPoints += result.points;
       scoredMatches += 1;
@@ -839,6 +868,7 @@ app.get('/api/matches', authMiddleware, async (req, res) => {
   const matches = q(query).all(...params);
 
   await refreshIfStale(db);
+  const scoreSuggestionsByKey = await getSuggestionsMap();
 
   const getPred = q(
     'SELECT * FROM predictions WHERE league_id = ? AND user_id = ? AND match_id = ?'
@@ -847,7 +877,7 @@ app.get('/api/matches', authMiddleware, async (req, res) => {
   if (lid === false) return;
 
   const enriched = matches.map((m) => {
-    const prediction =
+    let prediction =
       lid && isActiveLeagueMember(lid, req.user.id)
         ? getPred.get(lid, req.user.id, m.id) || null
         : null;
@@ -873,8 +903,10 @@ app.get('/api/matches', authMiddleware, async (req, res) => {
               }
             : scoringActualFromLive(m, liveScore);
         if (actual) {
-          const raw = breakdownMatchPoints(prediction, actual);
+          const underdogBonus = computeUnderdogBonusFromActual(prediction, actual, m, scoreSuggestionsByKey);
+          const raw = breakdownMatchPoints(prediction, actual, { underdogBonus });
           pointsDetail = formatPointsBreakdown(raw);
+          if (underdogBonus) prediction = { ...prediction, underdogBonus };
         }
       }
     }
@@ -900,6 +932,7 @@ app.get('/api/matches', authMiddleware, async (req, res) => {
       hasLiveManualScore: matchHasLiveManualScore(m),
       pointsDetail,
       liveScore,
+      suggestedScores: getSuggestionsForMatch(m, scoreSuggestionsByKey),
     };
   });
 
@@ -1376,6 +1409,7 @@ const server = app.listen(PORT, () => {
   }
   startResultsSyncScheduler(db);
   startLiveScoresScheduler(db);
+  startFifaScoreSuggestionsScheduler();
   // Set 0:0 for any matches that started while the server was down.
   initStartedMatchScores();
   // Keep running every 60 s so newly started matches get 0:0 without waiting for an API call.

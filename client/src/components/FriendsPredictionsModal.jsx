@@ -35,6 +35,21 @@ function resolvePredictionPoints(prediction, displayMatch) {
         }
       : scoringActualFromLive(displayMatch, liveScore);
 
+  const suggestions = displayMatch.suggestedScores;
+  let underdogBonus = 0;
+  if (
+    actual?.home_score != null &&
+    actual?.away_score != null &&
+    prediction.home_pred === actual.home_score &&
+    prediction.away_pred === actual.away_score &&
+    suggestions?.length
+  ) {
+    const isPopular = suggestions.some(
+      (s) => s.home === prediction.home_pred && s.away === prediction.away_pred
+    );
+    if (!isPopular) underdogBonus = 5;
+  }
+
   const raw = breakdownMatchPoints(
     {
       home_pred: prediction.home_pred,
@@ -43,7 +58,8 @@ function resolvePredictionPoints(prediction, displayMatch) {
       first_player: prediction.first_player,
       booster: prediction.booster ? 1 : 0,
     },
-    actual
+    actual,
+    { underdogBonus }
   );
 
   return {

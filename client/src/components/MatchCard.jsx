@@ -179,6 +179,27 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
     else setAway(digits);
   };
 
+  const handleScoreBlur = () => {
+    if (!canSave || saving) return;
+    const h = parseInt(home, 10);
+    const a = parseInt(away, 10);
+    if (h === pred?.home_pred && a === pred?.away_pred) return;
+    save();
+  };
+
+  const handleScoreKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.target.blur();
+    }
+  };
+
+  const applySuggestedScore = (suggestion) => {
+    if (inputsLocked) return;
+    setHome(String(suggestion.home));
+    setAway(String(suggestion.away));
+    save({ homeScore: suggestion.home, awayScore: suggestion.away });
+  };
+
   const friends = match.friendsPredicted || 0;
   const canViewFriendsPredictions = friends > 0 && liveBarVisible && leagueId;
   const hasSavedPrediction = pred?.home_pred != null && pred?.away_pred != null;
@@ -192,9 +213,7 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
       ? '✓ Сохранено'
       : saving
         ? 'Сохранение…'
-        : !hasSavedPrediction && hasLocalScore
-          ? 'Нажмите «Сохранить прогноз» выше'
-          : !hasSavedPrediction
+        : !hasSavedPrediction
             ? 'Сделайте прогноз на этот матч'
             : friends === 0
               ? 'Пока только ваш прогноз в лиге'
@@ -233,6 +252,21 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
     }
     if (!actual) return null;
 
+    const suggestions = match.suggestedScores;
+    let underdogBonus = 0;
+    if (
+      actual.home_score != null &&
+      actual.away_score != null &&
+      pred.home_pred === actual.home_score &&
+      pred.away_pred === actual.away_score &&
+      suggestions?.length
+    ) {
+      const isPopular = suggestions.some(
+        (s) => s.home === pred.home_pred && s.away === pred.away_pred
+      );
+      if (!isPopular) underdogBonus = 5;
+    }
+
     const raw = breakdownMatchPoints(
       {
         home_pred: pred.home_pred,
@@ -241,7 +275,8 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
         first_player: pred.first_player,
         booster: pred.booster ? 1 : 0,
       },
-      actual
+      actual,
+      { underdogBonus }
     );
     return formatPointsBreakdown(raw);
   }, [match, pred, hasResult, liveScore]);
@@ -316,6 +351,8 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
             className="score-box"
             value={home}
             onChange={(e) => onScoreChange('home', e.target.value)}
+            onBlur={handleScoreBlur}
+            onKeyDown={handleScoreKeyDown}
             readOnly={inputsLocked}
             disabled={inputsLocked}
             aria-label={`Прогноз ${match.home_team}`}
@@ -328,6 +365,8 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
             className="score-box"
             value={away}
             onChange={(e) => onScoreChange('away', e.target.value)}
+            onBlur={handleScoreBlur}
+            onKeyDown={handleScoreKeyDown}
             readOnly={inputsLocked}
             disabled={inputsLocked}
             aria-label={`Прогноз ${match.away_team}`}
@@ -339,16 +378,26 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
         </div>
       </div>
 
-      {!inputsLocked && (
-        <div style={{ padding: '0 1rem 0.5rem', textAlign: 'center' }}>
-          <button
-            type="button"
-            className="btn-save-prediction"
-            disabled={!canSave || saving}
-            onClick={() => save()}
-          >
-            Сохранить прогноз
-          </button>
+      {match.suggestedScores?.length > 0 && (
+        <div className="score-suggestions">
+          <span className="score-suggestions-label">Популярные прогнозы</span>
+          <div className="score-suggestions-list">
+            {match.suggestedScores.map((suggestion) => {
+              const active =
+                home === String(suggestion.home) && away === String(suggestion.away);
+              return (
+                <button
+                  key={suggestion.score}
+                  type="button"
+                  className={`score-suggestion${active ? ' score-suggestion--active' : ''}`}
+                  disabled={saving || inputsLocked}
+                  onClick={() => applySuggestedScore(suggestion)}
+                >
+                  {suggestion.score} <span className="score-suggestion-pct">{Math.round(suggestion.prob * 100)}%</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 

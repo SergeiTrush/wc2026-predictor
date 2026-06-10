@@ -17,7 +17,8 @@
     "render-build": "npm install --include=dev && npm run build",
     "start": "node server/index.js",
     "test": "node --test server/scoring.test.js",
-    "export:squads": "node scripts/export-squads.js"
+    "export:squads": "node scripts/export-squads.js",
+    "generate:scores": "node scripts/generate-fifa-score-suggestions.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

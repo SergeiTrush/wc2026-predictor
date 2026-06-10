@@ -52,7 +52,7 @@ function isNoGoalMatch(homeScore, awayScore) {
   return homeScore === 0 && awayScore === 0;
 }
 
-export function breakdownMatchPoints(pred, actual) {
+export function breakdownMatchPoints(pred, actual, { underdogBonus = 0 } = {}) {
   const empty = {
     outcome: 0,
     homeGoals: 0,
@@ -63,6 +63,7 @@ export function breakdownMatchPoints(pred, actual) {
     scoreSubtotal: 0,
     boosterMultiplier: 1,
     afterBooster: 0,
+    underdog: 0,
     total: 0,
   };
 
@@ -101,7 +102,8 @@ export function breakdownMatchPoints(pred, actual) {
 
   const scoreSubtotal = outcome + homeGoals + awayGoals + goalDifference + firstTeam + firstPlayer;
   const mult = booster ? boosterMultiplier(stage) : 1;
-  const afterBooster = scoreSubtotal * mult;
+  const underdog = underdogBonus;
+  const afterBooster = (scoreSubtotal + underdog) * mult;
 
   return {
     outcome,
@@ -113,6 +115,7 @@ export function breakdownMatchPoints(pred, actual) {
     scoreSubtotal,
     boosterMultiplier: mult,
     afterBooster,
+    underdog,
     total: afterBooster,
   };
 }
@@ -126,10 +129,13 @@ export function formatPointsBreakdown(b) {
   if (b.goalDifference) lines.push({ label: 'Разница в счёте', points: b.goalDifference });
   if (b.firstTeam) lines.push({ label: 'Команда открыла счёт', points: b.firstTeam });
   if (b.firstPlayer) lines.push({ label: 'Игрок открыл счёт', points: b.firstPlayer });
-  if (b.boosterMultiplier > 1 && b.scoreSubtotal > 0) {
+  if (b.underdog) {
+    lines.push({ label: 'Андердог-бонус', points: b.underdog });
+  }
+  if (b.boosterMultiplier > 1 && (b.scoreSubtotal + b.underdog) > 0) {
     lines.push({
       label: `Бустер ×${b.boosterMultiplier}`,
-      points: b.afterBooster - b.scoreSubtotal,
+      points: (b.scoreSubtotal + b.underdog) * (b.boosterMultiplier - 1),
     });
   }
   return { lines, total: b.total };

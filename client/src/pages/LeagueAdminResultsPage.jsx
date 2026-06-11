@@ -13,7 +13,7 @@ import {
 } from '../matchdays';
 import FirstTeamSelect from '../components/FirstTeamSelect';
 import FirstPlayerSelect, { NO_FIRST_SCORER } from '../components/FirstPlayerSelect';
-import { resolveFirstTeamName } from '../predictionExtras';
+import { resolveFirstTeamName, findSquadPlayer } from '../predictionExtras';
 import { useConfirm } from '../context/ConfirmContext';
 
 function AdminMatchRow({ match, leagueId, onSaved }) {
@@ -48,6 +48,7 @@ function AdminMatchRow({ match, leagueId, onSaved }) {
   const [squadError, setSquadError] = useState('');
   const knockout = isKnockoutMatch(match);
   const autoSavedRef = useRef(false);
+  const autoTeamSavedRef = useRef(false);
 
   // Reactive kickoff flag — transitions to true at kickoff time even if component is already mounted.
   const [matchStarted, setMatchStarted] = useState(
@@ -133,6 +134,7 @@ function AdminMatchRow({ match, leagueId, onSaved }) {
     setSquadTeams(null);
     setSquadLoading(false);
     setSquadError('');
+    autoTeamSavedRef.current = false;
   }, [match.id]);
 
   const loadSquadPlayers = useCallback(() => {
@@ -162,6 +164,34 @@ function AdminMatchRow({ match, leagueId, onSaved }) {
     if (!needsSquad) return;
     loadSquadPlayers();
   }, [match.id, match.first_scorer_player, match.first_scorer_team, loadSquadPlayers]);
+
+  // When player is known but team is missing, infer team from squads and auto-save.
+  useEffect(() => {
+    if (autoTeamSavedRef.current) return;
+    if (firstTeam || !firstPlayer || firstPlayer === NO_FIRST_SCORER) return;
+    if (!Array.isArray(squadPlayers) || !squadPlayers.length) return;
+    const found = findSquadPlayer(squadPlayers, firstPlayer);
+    if (!found?.team) return;
+    const detectedTeam =
+      found.team === match.home_team ? 'home' : found.team === match.away_team ? 'away' : null;
+    if (!detectedTeam) return;
+    autoTeamSavedRef.current = true;
+    setFirstTeam(detectedTeam);
+    const h = home === '' ? null : parseInt(home, 10);
+    const a = away === '' ? null : parseInt(away, 10);
+    if (h == null || a == null || Number.isNaN(h) || Number.isNaN(a)) return;
+    api
+      .setResult(match.id, {
+        leagueId: Number(leagueId),
+        homeScore: h,
+        awayScore: a,
+        isFinished: matchFinished,
+        firstScorerTeam: detectedTeam,
+        firstScorerPlayer: firstPlayer,
+      })
+      .then((d) => { if (d?.match) onSaved(d.match); })
+      .catch(() => {});
+  }, [squadPlayers, firstPlayer, firstTeam]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedTeamName = useMemo(
     () => resolveFirstTeamName(firstTeam, match.home_team, match.away_team),

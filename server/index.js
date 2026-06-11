@@ -1137,6 +1137,26 @@ app.put('/api/matches/:id/result', authMiddleware, (req, res) => {
   const kickoffPassed = match.kickoff && new Date(match.kickoff) <= new Date();
   const adminCleared = kickoffPassed && homeScore == null && awayScore == null ? 1 : 0;
 
+  // Auto-infer first scorer team from squad when player is set but team is not.
+  let resolvedFirstScorerTeam = firstScorerTeam || null;
+  if (!resolvedFirstScorerTeam && firstScorerPlayer && firstScorerPlayer !== 'none') {
+    try {
+      const bulk = getLocalSquadsBulk();
+      if (bulk?.teams) {
+        const normName = (s) => (s || '').toLowerCase().normalize('NFD')
+          .replace(/\p{M}/gu, '').replace(/#\d+/g, '').trim();
+        const pn = normName(firstScorerPlayer);
+        for (const [side, teamName] of [['home', match.home_team], ['away', match.away_team]]) {
+          const found = (bulk.teams[teamName] || []).some((p) => {
+            const n = normName(p.name || p.surname || '');
+            return n && (pn.includes(n) || n.includes(pn));
+          });
+          if (found) { resolvedFirstScorerTeam = side; break; }
+        }
+      }
+    } catch { /* squad lookup is best-effort */ }
+  }
+
   q(
     `UPDATE matches SET home_score = ?, away_score = ?,
      first_scorer_team = ?, first_scorer_player = ?,
@@ -1145,7 +1165,7 @@ app.put('/api/matches/:id/result', authMiddleware, (req, res) => {
   ).run(
     homeScore,
     awayScore,
-    firstScorerTeam || null,
+    resolvedFirstScorerTeam,
     firstScorerPlayer || null,
     finalHome,
     finalAway,

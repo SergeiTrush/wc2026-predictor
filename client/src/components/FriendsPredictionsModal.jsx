@@ -77,6 +77,11 @@ export default function FriendsPredictionsModal({ leagueId, match, onClose }) {
   const [matchInfo, setMatchInfo] = useState(null);
   const [squadPlayers, setSquadPlayers] = useState([]);
 
+  const ownPrediction =
+    match.prediction?.home_pred != null && match.prediction?.away_pred != null
+      ? match.prediction
+      : null;
+
   useEffect(() => {
     if (match.friendPredictions != null) {
       setPredictions(match.friendPredictions);
@@ -173,12 +178,23 @@ export default function FriendsPredictionsModal({ leagueId, match, onClose }) {
         {error && <p className="error-banner">{error}</p>}
 
         <div className="friends-predictions-body">
-          {!loading && !error && predictions.length === 0 && (
+          {!loading && !error && predictions.length === 0 && !ownPrediction && (
             <p className="empty-hint">Пока нет прогнозов от других участников</p>
           )}
 
           <div className="friends-predictions-scroll">
             <ul className="friends-predictions-list">
+              {ownPrediction && (
+                <FriendPredictionRow
+                  key="self"
+                  prediction={{ ...ownPrediction, name: 'Ты' }}
+                  points={resolvePredictionPoints(ownPrediction, displayMatch)}
+                  mult={mult}
+                  displayMatch={displayMatch}
+                  squadPlayers={squadPlayers}
+                  isSelf
+                />
+              )}
               {predictions.map((p) => {
                 const points = resolvePredictionPoints(p, displayMatch);
 
@@ -201,12 +217,12 @@ export default function FriendsPredictionsModal({ leagueId, match, onClose }) {
   );
 }
 
-function FriendPredictionRow({ prediction: p, points, mult, displayMatch, squadPlayers }) {
+function FriendPredictionRow({ prediction: p, points, mult, displayMatch, squadPlayers, isSelf = false }) {
   const rowRef = useRef(null);
   const [breakdownOpen, setBreakdownOpen] = useState(false);
 
   return (
-    <li className="friends-prediction-row" ref={rowRef}>
+    <li className={`friends-prediction-row${isSelf ? ' friends-prediction-row--self' : ''}`} ref={rowRef}>
       <div className="friends-prediction-header">
         <div className="friends-prediction-top-main">
           <div className="friends-prediction-name">{p.name}</div>

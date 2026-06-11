@@ -11,6 +11,7 @@ const {
   applyBzzoiroTeamPair,
   resolveAndApplyKnockoutTeams,
 } = require('../resolve-knockout-teams');
+const { getLocalSquadsBulk } = require('../squad-service');
 
 const FINISHED = new Set(['finished']);
 const IN_PROGRESS = new Set([
@@ -118,6 +119,32 @@ function mapEvent(event) {
   };
 }
 
+function normalizeForSquadMatch(name) {
+  return (name || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/#\d+/g, '')
+    .trim();
+}
+
+function inferTeamFromSquads(playerName, homeTeamName, awayTeamName) {
+  if (!playerName) return null;
+  const bulk = getLocalSquadsBulk();
+  if (!bulk?.teams) return null;
+  const pNorm = normalizeForSquadMatch(playerName);
+  if (!pNorm) return null;
+  for (const [side, teamName] of [['home', homeTeamName], ['away', awayTeamName]]) {
+    const players = bulk.teams[teamName] || [];
+    const found = players.some((p) => {
+      const n = normalizeForSquadMatch(p.name || p.surname || '');
+      return n && (pNorm.includes(n) || n.includes(pNorm));
+    });
+    if (found) return side === 'home' ? (homeTeamName || 'home') : (awayTeamName || 'away');
+  }
+  return null;
+}
+
 function parseFirstScorer(incidents, homeTeamName, awayTeamName) {
   if (!Array.isArray(incidents)) return { team: null, player: null };
 
@@ -137,6 +164,11 @@ function parseFirstScorer(incidents, homeTeamName, awayTeamName) {
   if (first.isHome === true) firstTeam = homeTeamName || 'home';
   else if (first.isHome === false) firstTeam = awayTeamName || 'away';
 
+  // Fallback: is_home missing in API response — infer from squad roster
+  if (!firstTeam && first.player) {
+    firstTeam = inferTeamFromSquads(first.player, homeTeamName, awayTeamName);
+  }
+
   return { team: firstTeam, player: first.player };
 }
 
@@ -146,11 +178,20 @@ async function fetchIncidents(eventId) {
 }
 
 async function maybeFetchFirstScorer(cfg, eventFetches, match, fixture, errors) {
-  if (
-    eventFetches.value >= cfg.maxEventFetches ||
-    !fixture.externalId ||
-    (match.first_scorer_team != null && match.first_scorer_player != null)
-  ) {
+  // Both already stored — nothing to do.
+  if (match.first_scorer_team != null && match.first_scorer_player != null) {
+    return { firstTeam: null, firstPlayer: null, eventFetches: eventFetches.value };
+  }
+
+  // Player stored but team missing — infer from squad without an extra API call.
+  if (match.first_scorer_player != null && match.first_scorer_team == null) {
+    const inferred = inferTeamFromSquads(match.first_scorer_player, fixture.home, fixture.away);
+    if (inferred) {
+      return { firstTeam: inferred, firstPlayer: null, eventFetches: eventFetches.value };
+    }
+  }
+
+  if (eventFetches.value >= cfg.maxEventFetches || !fixture.externalId) {
     return { firstTeam: null, firstPlayer: null, eventFetches: eventFetches.value };
   }
 

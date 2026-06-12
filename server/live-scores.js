@@ -13,6 +13,8 @@ const LIVE_STATUSES = new Set([
   'penalties',
 ]);
 
+const FINISHED_STATUSES = new Set(['finished', 'ended', 'ft', 'fulltime', 'full_time']);
+
 let cache = {
   byMatchId: new Map(),
   at: 0,
@@ -61,6 +63,15 @@ async function refreshLiveScores(db) {
       eventDate: live.kickoffDate,
     });
     if (!match) continue;
+
+    if (FINISHED_STATUSES.has(live.status)) {
+      if (Number(match.is_finished) !== 1) {
+        q(
+          `UPDATE matches SET home_score = ?, away_score = ?, is_finished = 1 WHERE id = ?`
+        ).run(live.homeScore, live.awayScore, match.id);
+      }
+      continue;
+    }
 
     const hasFinal =
       Number(match.is_finished) === 1 &&

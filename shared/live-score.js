@@ -1,5 +1,13 @@
 /** Knockout live score helpers — regulation time (90 min) vs current aggregate. */
 
+const FINISHED_STATUSES = new Set(['finished', 'ended', 'ft', 'fulltime', 'full_time']);
+
+function liveScoreIsFinished(liveScore) {
+  if (!liveScore) return false;
+  const status = String(liveScore.status || '').toLowerCase();
+  return FINISHED_STATUSES.has(status);
+}
+
 function isKnockoutMatch(match) {
   if (!match) return false;
   if (match.stage && match.stage !== 'group') return true;
@@ -55,6 +63,7 @@ function liveDisplayScore(match, liveScore) {
 }
 
 module.exports = {
+  liveScoreIsFinished,
   isKnockoutMatch,
   isLiveExtraTime,
   regulationScoresFromLive,

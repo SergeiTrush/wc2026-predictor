@@ -100,9 +100,16 @@ export function matchHasResult(match) {
   return matchIsFinished(match) && matchHasStoredScore(match);
 }
 
+export function liveScoreIsFinished(liveScore) {
+  if (!liveScore) return false;
+  const status = String(liveScore.status || '').toLowerCase();
+  return ['finished', 'ended', 'ft', 'fulltime', 'full_time'].includes(status);
+}
+
 export function matchIsLive(match) {
-  if (match?.isLive != null) return !!match.isLive;
   if (matchHasResult(match)) return false;
+  if (liveScoreIsFinished(match?.liveScore)) return false;
+  if (match?.isLive != null) return !!match.isLive;
   if (matchHasLiveManualScore(match)) return true;
   const ls = match?.liveScore;
   return !!(ls?.isLive && ls?.homeScore != null && ls?.awayScore != null);

@@ -33,7 +33,7 @@ const {
   breakdownMatchPoints,
   formatPointsBreakdown,
 } = require('../shared/scoring');
-const { scoringActualFromLive } = require('../shared/live-score');
+const { scoringActualFromLive, liveScoreIsFinished } = require('../shared/live-score');
 const {
   syncResultsFromApi,
   getSyncStatus,
@@ -242,6 +242,15 @@ function matchHasLiveManualScore(match) {
   return matchHasStoredScore(match) && !matchIsFinished(match);
 }
 
+function matchIsInPlay(match, liveScore = undefined) {
+  if (matchHasResult(match)) return false;
+  const feed = getLiveScoreForMatch(match.id);
+  if (liveScoreIsFinished(feed)) return false;
+  const ls = liveScore !== undefined ? liveScore : feed;
+  if (ls?.isLive) return true;
+  return matchHasLiveManualScore(match);
+}
+
 function manualLiveScoreFromMatch(match) {
   if (!matchHasLiveManualScore(match)) return null;
   return {
@@ -256,7 +265,10 @@ function manualLiveScoreFromMatch(match) {
 function resolveLiveScoreForMatch(match) {
   if (matchHasResult(match)) return null;
   const feed = getLiveScoreForMatch(match.id);
-  if (feed) return feed;
+  if (feed) {
+    if (liveScoreIsFinished(feed)) return null;
+    return feed;
+  }
   return manualLiveScoreFromMatch(match);
 }
 
@@ -289,6 +301,22 @@ function matchPointsForLeaderboard(pred, match, liveScore, underdogBonus = 0) {
   const opts = { underdogBonus };
   if (matchHasResult(match)) {
     return { points: breakdownMatchPoints(pred, match, opts).total, provisional: false };
+  }
+  if (liveScoreIsFinished(liveScore)) {
+    const actual =
+      liveScoreAsResult(match, liveScore) ??
+      (matchHasStoredScore(match)
+        ? {
+            home_score: match.home_score,
+            away_score: match.away_score,
+            first_scorer_team: match.first_scorer_team ?? null,
+            first_scorer_player: match.first_scorer_player ?? null,
+            stage: match.stage,
+          }
+        : null);
+    if (actual) {
+      return { points: breakdownMatchPoints(pred, actual, opts).total, provisional: false };
+    }
   }
   if (matchHasLiveManualScore(match)) {
     return {
@@ -408,15 +436,26 @@ function friendPredictionsForMatch(leagueId, matchId, userId, match, liveScore =
   const hasResult = matchHasResult(match);
   const scoreSource = hasResult
     ? match
-    : matchHasLiveManualScore(match)
-      ? {
-          home_score: match.home_score,
-          away_score: match.away_score,
-          first_scorer_team: match.first_scorer_team ?? null,
-          first_scorer_player: match.first_scorer_player ?? null,
-          stage: match.stage,
-        }
-      : scoringActualFromLive(match, liveScore);
+    : liveScoreIsFinished(liveScore)
+      ? liveScoreAsResult(match, liveScore) ??
+        (matchHasStoredScore(match)
+          ? {
+              home_score: match.home_score,
+              away_score: match.away_score,
+              first_scorer_team: match.first_scorer_team ?? null,
+              first_scorer_player: match.first_scorer_player ?? null,
+              stage: match.stage,
+            }
+          : null)
+      : matchHasLiveManualScore(match)
+        ? {
+            home_score: match.home_score,
+            away_score: match.away_score,
+            first_scorer_team: match.first_scorer_team ?? null,
+            first_scorer_player: match.first_scorer_player ?? null,
+            stage: match.stage,
+          }
+        : scoringActualFromLive(match, liveScore);
 
   return rows.map((row) => {
     const pred = {
@@ -433,7 +472,7 @@ function friendPredictionsForMatch(leagueId, matchId, userId, match, liveScore =
       const raw = breakdownMatchPoints(pred, scoreSource);
       points = raw.total;
       pointsDetail = formatPointsBreakdown(raw);
-      provisional = !hasResult;
+      provisional = !hasResult && !liveScoreIsFinished(liveScore);
     }
     return {
       userId: row.user_id,
@@ -865,9 +904,9 @@ app.get('/api/matches', authMiddleware, async (req, res) => {
   // Skips matches where admin explicitly cleared the result (admin_cleared = 1).
   initStartedMatchScores();
 
-  const matches = q(query).all(...params);
-
   await refreshIfStale(db);
+
+  const matches = q(query).all(...params);
   const scoreSuggestionsByKey = await getSuggestionsMap();
 
   const getPred = q(
@@ -927,8 +966,8 @@ app.get('/api/matches', authMiddleware, async (req, res) => {
       friendPredictions,
       hasResult,
       isFinished: matchIsFinished(m),
-      isLive: matchHasLiveManualScore(m) || (!matchHasResult(m) && !!liveScore?.isLive),
-      hasLiveScore: !!liveScore,
+      isLive: matchIsInPlay(m, liveScore),
+      hasLiveScore: !!liveScore && !liveScoreIsFinished(liveScore),
       hasLiveManualScore: matchHasLiveManualScore(m),
       pointsDetail,
       liveScore,

@@ -1145,11 +1145,21 @@ app.put('/api/matches/:id/result', authMiddleware, (req, res) => {
       if (bulk?.teams) {
         const normName = (s) => (s || '').toLowerCase().normalize('NFD')
           .replace(/\p{M}/gu, '').replace(/#\d+/g, '').trim();
+        const sqSurname = (s) => {
+          const parts = s.split(/[\s.\-]+/).filter(Boolean);
+          if (!parts.length) return '';
+          const last = parts[parts.length - 1];
+          return last.length <= 2 && parts.length >= 2 ? parts[parts.length - 2] : last;
+        };
         const pn = normName(firstScorerPlayer);
+        const ps = sqSurname(pn);
         for (const [side, teamName] of [['home', match.home_team], ['away', match.away_team]]) {
           const found = (bulk.teams[teamName] || []).some((p) => {
             const n = normName(p.name || p.surname || '');
-            return n && (pn.includes(n) || n.includes(pn));
+            if (!n) return false;
+            if (pn.includes(n) || n.includes(pn)) return true;
+            const ns = sqSurname(n);
+            return ns.length >= 3 && ns === ps;
           });
           if (found) { resolvedFirstScorerTeam = side; break; }
         }

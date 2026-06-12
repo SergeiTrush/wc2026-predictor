@@ -128,22 +128,35 @@ function normalizeForSquadMatch(name) {
     .trim();
 }
 
+function squadSurname(normalized) {
+  const parts = normalized.split(/[\s.\-]+/).filter(Boolean);
+  if (!parts.length) return '';
+  const last = parts[parts.length - 1];
+  return last.length <= 2 && parts.length >= 2 ? parts[parts.length - 2] : last;
+}
+
 function inferTeamFromSquads(playerName, homeTeamName, awayTeamName) {
   if (!playerName) return null;
   const bulk = getLocalSquadsBulk();
   if (!bulk?.teams) return null;
   const pNorm = normalizeForSquadMatch(playerName);
   if (!pNorm) return null;
+  const pSurname = squadSurname(pNorm);
   for (const [side, teamName] of [['home', homeTeamName], ['away', awayTeamName]]) {
     const players = bulk.teams[teamName] || [];
     const found = players.some((p) => {
       const n = normalizeForSquadMatch(p.name || p.surname || '');
-      return n && (pNorm.includes(n) || n.includes(pNorm));
+      if (!n) return false;
+      if (pNorm.includes(n) || n.includes(pNorm)) return true;
+      const ns = squadSurname(n);
+      return ns.length >= 3 && ns === pSurname;
     });
-    if (found) return side === 'home' ? (homeTeamName || 'home') : (awayTeamName || 'away');
+    if (found) return side; // 'home' or 'away' — matches FirstTeamSelect option values
   }
   return null;
 }
+
+const CANONICAL_TEAMS = new Set(['home', 'away', 'none']);
 
 function parseFirstScorer(incidents, homeTeamName, awayTeamName) {
   if (!Array.isArray(incidents)) return { team: null, player: null };
@@ -161,8 +174,8 @@ function parseFirstScorer(incidents, homeTeamName, awayTeamName) {
 
   const first = goals[0];
   let firstTeam = null;
-  if (first.isHome === true) firstTeam = homeTeamName || 'home';
-  else if (first.isHome === false) firstTeam = awayTeamName || 'away';
+  if (first.isHome === true) firstTeam = 'home';
+  else if (first.isHome === false) firstTeam = 'away';
 
   // Fallback: is_home missing in API response — infer from squad roster
   if (!firstTeam && first.player) {
@@ -178,13 +191,15 @@ async function fetchIncidents(eventId) {
 }
 
 async function maybeFetchFirstScorer(cfg, eventFetches, match, fixture, errors) {
-  // Both already stored — nothing to do.
-  if (match.first_scorer_team != null && match.first_scorer_player != null) {
+  const teamIsCanonical = CANONICAL_TEAMS.has(match.first_scorer_team);
+
+  // Both stored in canonical form — nothing to do.
+  if (teamIsCanonical && match.first_scorer_player != null) {
     return { firstTeam: null, firstPlayer: null, eventFetches: eventFetches.value };
   }
 
-  // Player stored but team missing — infer from squad without an extra API call.
-  if (match.first_scorer_player != null && match.first_scorer_team == null) {
+  // Player stored but team missing or stored as a raw team name → infer canonical 'home'/'away'.
+  if (match.first_scorer_player != null && !teamIsCanonical) {
     const inferred = inferTeamFromSquads(match.first_scorer_player, fixture.home, fixture.away);
     if (inferred) {
       return { firstTeam: inferred, firstPlayer: null, eventFetches: eventFetches.value };

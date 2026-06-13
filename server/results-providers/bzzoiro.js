@@ -51,6 +51,8 @@ function clearMatchResult(q, matchId) {
        away_score = NULL,
        first_scorer_team = NULL,
        first_scorer_player = NULL,
+       first_scorer_player_team = NULL,
+       first_scorer_is_own_goal = NULL,
        final_home_score = NULL,
        final_away_score = NULL,
        is_finished = 0
@@ -158,8 +160,15 @@ function inferTeamFromSquads(playerName, homeTeamName, awayTeamName) {
 
 const CANONICAL_TEAMS = new Set(['home', 'away', 'none']);
 
+function isOwnGoalIncident(incident) {
+  const gt = String(incident?.goal_type || '').toLowerCase().replace(/[\s_-]+/g, '');
+  return gt === 'owngoal';
+}
+
 function parseFirstScorer(incidents, homeTeamName, awayTeamName) {
-  if (!Array.isArray(incidents)) return { team: null, player: null };
+  if (!Array.isArray(incidents)) {
+    return { team: null, player: null, playerTeam: null, isOwnGoal: null };
+  }
 
   const goals = incidents
     .filter((i) => i.type === 'goal')
@@ -167,22 +176,40 @@ function parseFirstScorer(incidents, homeTeamName, awayTeamName) {
       minute: (i.minute ?? 999) + (i.added_time ?? 0) / 100,
       isHome: i.is_home,
       player: i.player || null,
+      isOwnGoal: isOwnGoalIncident(i),
     }))
     .sort((a, b) => a.minute - b.minute);
 
-  if (!goals.length) return { team: null, player: null };
+  if (!goals.length) return { team: null, player: null, playerTeam: null, isOwnGoal: null };
 
   const first = goals[0];
   let firstTeam = null;
   if (first.isHome === true) firstTeam = 'home';
   else if (first.isHome === false) firstTeam = 'away';
 
-  // Fallback: is_home missing in API response — infer from squad roster
-  if (!firstTeam && first.player) {
-    firstTeam = inferTeamFromSquads(first.player, homeTeamName, awayTeamName);
+  let playerTeam = null;
+  if (first.player) {
+    playerTeam = inferTeamFromSquads(first.player, homeTeamName, awayTeamName);
   }
 
-  return { team: firstTeam, player: first.player };
+  if (!firstTeam && first.player) {
+    if (first.isOwnGoal && playerTeam) {
+      firstTeam = playerTeam === 'home' ? 'away' : 'home';
+    } else {
+      firstTeam = playerTeam;
+    }
+  }
+
+  const isOwnGoal =
+    first.isOwnGoal ||
+    (firstTeam && playerTeam && firstTeam !== playerTeam && playerTeam !== null);
+
+  return {
+    team: firstTeam,
+    player: first.player,
+    playerTeam,
+    isOwnGoal: isOwnGoal ? 1 : 0,
+  };
 }
 
 async function fetchIncidents(eventId) {
@@ -215,7 +242,13 @@ async function maybeFetchFirstScorer(cfg, eventFetches, match, fixture, errors) 
     const incidents = await fetchIncidents(fixture.externalId);
     eventFetches.value += 1;
     const scorer = parseFirstScorer(incidents, fixture.home, fixture.away);
-    return { firstTeam: scorer.team, firstPlayer: scorer.player, eventFetches: eventFetches.value };
+    return {
+      firstTeam: scorer.team,
+      firstPlayer: scorer.player,
+      playerTeam: scorer.playerTeam,
+      isOwnGoal: scorer.isOwnGoal,
+      eventFetches: eventFetches.value,
+    };
   } catch (err) {
     errors.push(`incidents ${fixture.externalId}: ${err.message}`);
     return { firstTeam: null, firstPlayer: null, eventFetches: eventFetches.value };
@@ -246,6 +279,8 @@ async function syncResults(db) {
        away_score = ?,
        first_scorer_team = COALESCE(?, first_scorer_team),
        first_scorer_player = COALESCE(?, first_scorer_player),
+       first_scorer_player_team = COALESCE(?, first_scorer_player_team),
+       first_scorer_is_own_goal = COALESCE(?, first_scorer_is_own_goal),
        external_fixture_id = ?,
        is_finished = ?
      WHERE id = ?`
@@ -318,6 +353,8 @@ async function syncResults(db) {
         fixture.awayGoals,
         scorer.firstTeam,
         scorer.firstPlayer,
+        scorer.playerTeam,
+        scorer.isOwnGoal,
         fixture.externalId,
         0,
         match.id
@@ -340,6 +377,8 @@ async function syncResults(db) {
         fixture.awayGoals,
         scorer.firstTeam,
         scorer.firstPlayer,
+        scorer.playerTeam,
+        scorer.isOwnGoal,
         fixture.externalId,
         1,
         match.id

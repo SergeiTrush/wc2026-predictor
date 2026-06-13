@@ -48,6 +48,7 @@ const {
   startFifaScoreSuggestionsScheduler,
 } = require('./fifa-score-suggestions');
 const { resolveAndApplyKnockoutTeams } = require('./resolve-knockout-teams');
+const { enrichMatchForScoring, findPlayerSide, inferFirstScorerMeta } = require('./scoring-actual');
 const {
   GROUPS,
   GROUP_KEYS,
@@ -259,6 +260,7 @@ function manualLiveScoreFromMatch(match) {
     minute: null,
     status: 'inprogress',
     isLive: true,
+    manual: true,
   };
 }
 
@@ -300,44 +302,49 @@ function computeUnderdogBonus(pred, match, suggestionsMap) {
 function matchPointsForLeaderboard(pred, match, liveScore, underdogBonus = 0) {
   const opts = { underdogBonus };
   if (matchHasResult(match)) {
-    return { points: breakdownMatchPoints(pred, match, opts).total, provisional: false };
+    return { points: breakdownMatchPoints(pred, enrichMatchForScoring(match), opts).total, provisional: false };
   }
-  if (liveScoreIsFinished(liveScore)) {
-    const actual =
-      liveScoreAsResult(match, liveScore) ??
-      (matchHasStoredScore(match)
-        ? {
-            home_score: match.home_score,
-            away_score: match.away_score,
-            first_scorer_team: match.first_scorer_team ?? null,
-            first_scorer_player: match.first_scorer_player ?? null,
-            stage: match.stage,
-          }
-        : null);
+  const feed = liveScore ?? getLiveScoreForMatch(match.id);
+  if (feed && !liveScoreIsFinished(feed)) {
+    const display = liveScoreAsResult(match, feed);
+    if (display) {
+      return {
+        points: breakdownMatchPoints(
+          pred,
+          enrichMatchForScoring(match, {
+            home_score: display.home_score,
+            away_score: display.away_score,
+          }),
+          opts
+        ).total,
+        provisional: true,
+      };
+    }
+  }
+  if (liveScoreIsFinished(feed)) {
+    const display = liveScoreAsResult(match, feed);
+    const actual = display
+      ? enrichMatchForScoring(match, {
+          home_score: display.home_score,
+          away_score: display.away_score,
+        })
+      : matchHasStoredScore(match)
+        ? enrichMatchForScoring(match)
+        : null;
     if (actual) {
       return { points: breakdownMatchPoints(pred, actual, opts).total, provisional: false };
     }
   }
   if (matchHasLiveManualScore(match)) {
     return {
-      points: breakdownMatchPoints(pred, {
-        home_score: match.home_score,
-        away_score: match.away_score,
-        first_scorer_team: match.first_scorer_team ?? null,
-        first_scorer_player: match.first_scorer_player ?? null,
-        stage: match.stage,
-      }, opts).total,
+      points: breakdownMatchPoints(pred, enrichMatchForScoring(match), opts).total,
       provisional: true,
     };
   }
   if (!matchKickoffPassed(match)) {
     return { points: 0, provisional: false };
   }
-  const actual = liveScoreAsResult(match, liveScore);
-  if (!actual) {
-    return { points: 0, provisional: false };
-  }
-  return { points: breakdownMatchPoints(pred, actual, opts).total, provisional: true };
+  return { points: 0, provisional: false };
 }
 
 function matchesForLeaderboardScope(selectedMatchday) {
@@ -434,28 +441,36 @@ function friendPredictionsForMatch(leagueId, matchId, userId, match, liveScore =
   ).all(leagueId, matchId, userId);
 
   const hasResult = matchHasResult(match);
+  const feed = liveScore ?? getLiveScoreForMatch(match.id);
   const scoreSource = hasResult
-    ? match
-    : liveScoreIsFinished(liveScore)
-      ? liveScoreAsResult(match, liveScore) ??
-        (matchHasStoredScore(match)
-          ? {
-              home_score: match.home_score,
-              away_score: match.away_score,
-              first_scorer_team: match.first_scorer_team ?? null,
-              first_scorer_player: match.first_scorer_player ?? null,
-              stage: match.stage,
-            }
-          : null)
-      : matchHasLiveManualScore(match)
-        ? {
-            home_score: match.home_score,
-            away_score: match.away_score,
-            first_scorer_team: match.first_scorer_team ?? null,
-            first_scorer_player: match.first_scorer_player ?? null,
-            stage: match.stage,
-          }
-        : scoringActualFromLive(match, liveScore);
+    ? enrichMatchForScoring(match)
+    : feed && !liveScoreIsFinished(feed)
+      ? (() => {
+          const display = scoringActualFromLive(match, feed);
+          return display
+            ? enrichMatchForScoring(match, {
+                home_score: display.home_score,
+                away_score: display.away_score,
+              })
+            : matchHasLiveManualScore(match)
+              ? enrichMatchForScoring(match)
+              : null;
+        })()
+      : liveScoreIsFinished(feed)
+        ? (() => {
+            const display = scoringActualFromLive(match, feed);
+            return display
+              ? enrichMatchForScoring(match, {
+                  home_score: display.home_score,
+                  away_score: display.away_score,
+                })
+              : matchHasStoredScore(match)
+                ? enrichMatchForScoring(match)
+                : null;
+          })()
+        : matchHasLiveManualScore(match)
+          ? enrichMatchForScoring(match)
+          : null;
 
   return rows.map((row) => {
     const pred = {
@@ -930,17 +945,30 @@ app.get('/api/matches', authMiddleware, async (req, res) => {
         (p) => Number(p.user_id) !== Number(req.user.id)
       ).length;
       if (prediction && (hasResult || matchHasLiveManualScore(m) || liveScore)) {
-        const actual = hasResult
-          ? m
-          : matchHasLiveManualScore(m)
-            ? {
-                home_score: m.home_score,
-                away_score: m.away_score,
-                first_scorer_team: m.first_scorer_team ?? null,
-                first_scorer_player: m.first_scorer_player ?? null,
-                stage: m.stage,
-              }
-            : scoringActualFromLive(m, liveScore);
+        let actual;
+        if (hasResult) {
+          actual = enrichMatchForScoring(m);
+        } else if (liveScore && !liveScoreIsFinished(liveScore)) {
+          const display = scoringActualFromLive(m, liveScore);
+          actual = display
+            ? enrichMatchForScoring(m, {
+                home_score: display.home_score,
+                away_score: display.away_score,
+              })
+            : matchHasLiveManualScore(m)
+              ? enrichMatchForScoring(m)
+              : null;
+        } else if (matchHasLiveManualScore(m)) {
+          actual = enrichMatchForScoring(m);
+        } else {
+          const display = scoringActualFromLive(m, liveScore);
+          actual = display
+            ? enrichMatchForScoring(m, {
+                home_score: display.home_score,
+                away_score: display.away_score,
+              })
+            : null;
+        }
         if (actual) {
           const underdogBonus = computeUnderdogBonusFromActual(prediction, actual, m, scoreSuggestionsByKey);
           const raw = breakdownMatchPoints(prediction, actual, { underdogBonus });
@@ -956,8 +984,15 @@ app.get('/api/matches', authMiddleware, async (req, res) => {
       lid && isActiveLeagueMember(lid, req.user.id)
         ? friendPredictionsForMatch(lid, m.id, req.user.id, m, liveScore)
         : null;
+    const scorerMeta = inferFirstScorerMeta(m);
+    const firstScorerPlayerTeam =
+      scorerMeta.first_scorer_player_team ?? m.first_scorer_player_team ?? null;
+    const firstScorerIsOwnGoalFlag =
+      scorerMeta.first_scorer_is_own_goal ?? m.first_scorer_is_own_goal ?? null;
     return {
       ...m,
+      first_scorer_player_team: firstScorerPlayerTeam,
+      first_scorer_is_own_goal: firstScorerIsOwnGoalFlag,
       matchday: m.matchday || matchdayFromKickoff(m.kickoff),
       locked,
       lockReason,
@@ -971,6 +1006,7 @@ app.get('/api/matches', authMiddleware, async (req, res) => {
       hasLiveManualScore: matchHasLiveManualScore(m),
       pointsDetail,
       liveScore,
+      firstScorerIsOwnGoal: Number(firstScorerIsOwnGoalFlag) === 1,
       suggestedScores: getSuggestionsForMatch(m, scoreSuggestionsByKey),
     };
   });
@@ -1179,36 +1215,19 @@ app.put('/api/matches/:id/result', authMiddleware, (req, res) => {
   // Auto-infer first scorer team from squad when player is set but team is not.
   let resolvedFirstScorerTeam = firstScorerTeam || null;
   if (!resolvedFirstScorerTeam && firstScorerPlayer && firstScorerPlayer !== 'none') {
-    try {
-      const bulk = getLocalSquadsBulk();
-      if (bulk?.teams) {
-        const normName = (s) => (s || '').toLowerCase().normalize('NFD')
-          .replace(/\p{M}/gu, '').replace(/#\d+/g, '').trim();
-        const sqSurname = (s) => {
-          const parts = s.split(/[\s.\-]+/).filter(Boolean);
-          if (!parts.length) return '';
-          const last = parts[parts.length - 1];
-          return last.length <= 2 && parts.length >= 2 ? parts[parts.length - 2] : last;
-        };
-        const pn = normName(firstScorerPlayer);
-        const ps = sqSurname(pn);
-        for (const [side, teamName] of [['home', match.home_team], ['away', match.away_team]]) {
-          const found = (bulk.teams[teamName] || []).some((p) => {
-            const n = normName(p.name || p.surname || '');
-            if (!n) return false;
-            if (pn.includes(n) || n.includes(pn)) return true;
-            const ns = sqSurname(n);
-            return ns.length >= 3 && ns === ps;
-          });
-          if (found) { resolvedFirstScorerTeam = side; break; }
-        }
-      }
-    } catch { /* squad lookup is best-effort */ }
+    resolvedFirstScorerTeam = findPlayerSide(firstScorerPlayer, match.home_team, match.away_team);
   }
+
+  const scorerMeta = inferFirstScorerMeta({
+    ...match,
+    first_scorer_team: resolvedFirstScorerTeam,
+    first_scorer_player: firstScorerPlayer || null,
+  });
 
   q(
     `UPDATE matches SET home_score = ?, away_score = ?,
      first_scorer_team = ?, first_scorer_player = ?,
+     first_scorer_player_team = ?, first_scorer_is_own_goal = ?,
      final_home_score = ?, final_away_score = ?,
      is_finished = ?, admin_cleared = ? WHERE id = ?`
   ).run(
@@ -1216,6 +1235,8 @@ app.put('/api/matches/:id/result', authMiddleware, (req, res) => {
     awayScore,
     resolvedFirstScorerTeam,
     firstScorerPlayer || null,
+    scorerMeta.first_scorer_player_team,
+    firstScorerPlayer && firstScorerPlayer !== 'none' ? scorerMeta.first_scorer_is_own_goal : null,
     finalHome,
     finalAway,
     finished,
@@ -1225,7 +1246,14 @@ app.put('/api/matches/:id/result', authMiddleware, (req, res) => {
 
   resolveAndApplyKnockoutTeams(db);
   const saved = q('SELECT * FROM matches WHERE id = ?').get(matchId);
-  res.json({ match: { ...saved, is_finished: finished, isFinished: finished === 1 } });
+  res.json({
+    match: {
+      ...saved,
+      is_finished: finished,
+      isFinished: finished === 1,
+      firstScorerIsOwnGoal: Number(saved.first_scorer_is_own_goal) === 1,
+    },
+  });
 });
 
 app.delete('/api/matches/:id/result', authMiddleware, (req, res) => {
@@ -1239,6 +1267,7 @@ app.delete('/api/matches/:id/result', authMiddleware, (req, res) => {
   q(
     `UPDATE matches SET home_score = NULL, away_score = NULL,
      first_scorer_team = NULL, first_scorer_player = NULL,
+     first_scorer_player_team = NULL, first_scorer_is_own_goal = NULL,
      final_home_score = NULL, final_away_score = NULL,
      is_finished = 0, admin_cleared = 1 WHERE id = ?`
   ).run(matchId);

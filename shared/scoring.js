@@ -21,7 +21,9 @@ function normalizePlayer(name) {
     .trim()
     .toLowerCase()
     .normalize('NFD')
-    .replace(/\p{M}/gu, '');
+    .replace(/\p{M}/gu, '')
+    .replace(/#\d+/g, '')
+    .trim();
 }
 
 function playerSurname(name) {
@@ -43,10 +45,17 @@ function playersMatch(pred, actual) {
   return sa.length >= 3 && sa === sb;
 }
 
-function firstTeamMatches(predTeam, actualTeam) {
+function firstTeamMatches(predTeam, actualTeam, homeTeam, awayTeam) {
   if (!predTeam || !actualTeam) return false;
   if (predTeam === 'none') {
     return actualTeam === 'none';
+  }
+  if (homeTeam && awayTeam) {
+    const predSide = scorerSide(predTeam, homeTeam, awayTeam);
+    const actualSide = scorerSide(actualTeam, homeTeam, awayTeam);
+    if (predSide && actualSide && predSide !== 'none' && actualSide !== 'none') {
+      return predSide === actualSide;
+    }
   }
   return predTeam === actualTeam;
 }
@@ -57,6 +66,73 @@ function isNoScorerPrediction(firstPlayer) {
 
 function isNoGoalMatch(homeScore, awayScore) {
   return homeScore === 0 && awayScore === 0;
+}
+
+/** Canonical home/away from stored team key or country name. */
+function scorerSide(teamKey, homeTeam, awayTeam) {
+  if (!teamKey || teamKey === 'none') return teamKey;
+  if (teamKey === 'home' || teamKey === 'away') return teamKey;
+  if (homeTeam && teamKey === homeTeam) return 'home';
+  if (awayTeam && teamKey === awayTeam) return 'away';
+  return null;
+}
+
+/** First goal credited to team A but scored by a player from team B (own goal). */
+function isFirstScorerOwnGoal(actual) {
+  if (actual.first_scorer_is_own_goal === 1 || actual.firstScorerIsOwnGoal === true) return true;
+  if (actual.first_scorer_is_own_goal === 0 || actual.firstScorerIsOwnGoal === false) return false;
+
+  const homeTeam = actual.home_team;
+  const awayTeam = actual.away_team;
+  if (!homeTeam || !awayTeam) return false;
+
+  const scorerSideKey = scorerSide(actual.first_scorer_team, homeTeam, awayTeam);
+  const playerSideKey = scorerSide(actual.first_scorer_player_team, homeTeam, awayTeam);
+  if (
+    scorerSideKey &&
+    playerSideKey &&
+    scorerSideKey !== 'none' &&
+    playerSideKey !== 'none'
+  ) {
+    return scorerSideKey !== playerSideKey;
+  }
+  return false;
+}
+
+/** Merge match metadata needed for first-scorer / own-goal scoring rules. */
+function buildScoringActual(match, scoreOverrides = {}) {
+  if (!match) return scoreOverrides;
+  return {
+    home_score: scoreOverrides.home_score ?? match.home_score,
+    away_score: scoreOverrides.away_score ?? match.away_score,
+    first_scorer_team: match.first_scorer_team ?? null,
+    first_scorer_player: match.first_scorer_player ?? null,
+    first_scorer_player_team: match.first_scorer_player_team ?? null,
+    first_scorer_is_own_goal: match.first_scorer_is_own_goal ?? null,
+    home_team: match.home_team,
+    away_team: match.away_team,
+    stage: match.stage,
+  };
+}
+
+/** +8 for first player only when result credits the same team/country for both fields. */
+function firstScorerPlayerSameTeam(actual) {
+  const homeTeam = actual.home_team;
+  const awayTeam = actual.away_team;
+  if (!homeTeam || !awayTeam) return false;
+
+  const scorerSideKey = scorerSide(actual.first_scorer_team, homeTeam, awayTeam);
+  const playerSideKey = scorerSide(actual.first_scorer_player_team, homeTeam, awayTeam);
+  if (!scorerSideKey || !playerSideKey || scorerSideKey === 'none' || playerSideKey === 'none') {
+    return false;
+  }
+  return scorerSideKey === playerSideKey;
+}
+
+function firstScorerPlayerPointsEligible(actual) {
+  if (!actual.first_scorer_player || actual.first_scorer_player === 'none') return false;
+  if (isNoGoalMatch(actual.home_score, actual.away_score)) return false;
+  return firstScorerPlayerSameTeam(actual);
 }
 
 /**
@@ -85,7 +161,8 @@ function breakdownMatchPoints(pred, actual, { underdogBonus = 0 } = {}) {
   }
 
   const { home_pred, away_pred, first_team, first_player, booster } = pred;
-  const { home_score, away_score, first_scorer_team, first_scorer_player, stage } = actual;
+  const { home_score, away_score, first_scorer_team, first_scorer_player, stage, home_team, away_team } =
+    actual;
 
   let outcome = 0;
   let homeGoals = 0;
@@ -102,14 +179,19 @@ function breakdownMatchPoints(pred, actual, { underdogBonus = 0 } = {}) {
   let firstTeam = 0;
   if (first_team === 'none' && isNoGoalMatch(home_score, away_score)) {
     firstTeam = 2;
-  } else if (firstTeamMatches(first_team, first_scorer_team)) {
+  } else if (firstTeamMatches(first_team, first_scorer_team, home_team, away_team)) {
     firstTeam = 2;
   }
 
   let firstPlayer = 0;
   if (isNoScorerPrediction(first_player) && isNoGoalMatch(home_score, away_score)) {
     firstPlayer = 8;
-  } else if (first_player && first_scorer_player && playersMatch(first_player, first_scorer_player)) {
+  } else if (
+    first_player &&
+    first_scorer_player &&
+    playersMatch(first_player, first_scorer_player) &&
+    firstScorerPlayerPointsEligible(actual)
+  ) {
     firstPlayer = 8;
   }
 
@@ -173,6 +255,11 @@ module.exports = {
   normalizePlayer,
   playerSurname,
   playersMatch,
+  scorerSide,
+  isFirstScorerOwnGoal,
+  firstScorerPlayerSameTeam,
+  buildScoringActual,
+  firstScorerPlayerPointsEligible,
   breakdownMatchPoints,
   formatPointsBreakdown,
   scorelinePoints,

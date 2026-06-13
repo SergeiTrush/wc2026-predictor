@@ -1,3 +1,5 @@
+import { enrichScoringActual } from './scoring';
+
 const FLAGS = {
   Mexico: '🇲🇽',
   'South Africa': '🇿🇦',
@@ -125,6 +127,45 @@ export function matchHasLiveScore(match) {
   return matchHasLiveManualScore(match);
 }
 
+/** Active in-play feed (BZZoiro or manual DB fallback when no feed). */
+export function hasActiveLiveFeed(liveScore) {
+  if (!liveScore || liveScoreIsFinished(liveScore)) return false;
+  return liveScore.homeScore != null && liveScore.awayScore != null;
+}
+
+/** Score shown on the live bar — prefer live feed over stale DB when both exist. */
+export function liveBarScoreText(match) {
+  if (matchHasResult(match)) {
+    return `${match.home_score} : ${match.away_score}`;
+  }
+  const ls = match?.liveScore;
+  if (hasActiveLiveFeed(ls)) {
+    return `${ls.homeScore} : ${ls.awayScore}`;
+  }
+  if (matchHasLiveManualScore(match)) {
+    return `${match.home_score} : ${match.away_score}`;
+  }
+  return null;
+}
+
+/** Actual used for provisional points while match is in play. */
+export function provisionalScoringActual(match, squadPlayers = null) {
+  if (matchHasResult(match)) return enrichScoringActual(match, {}, squadPlayers);
+  const ls = match?.liveScore;
+  if (hasActiveLiveFeed(ls)) {
+    const live = scoringActualFromLive(match, ls);
+    if (live) {
+      return enrichScoringActual(
+        match,
+        { home_score: live.home_score, away_score: live.away_score },
+        squadPlayers
+      );
+    }
+  }
+  if (matchHasLiveManualScore(match)) return enrichScoringActual(match, {}, squadPlayers);
+  return null;
+}
+
 /** Knockout live score helpers — regulation time (90 min) vs current aggregate. */
 
 export function isLiveExtraTime(liveScore) {
@@ -166,6 +207,10 @@ export function scoringActualFromLive(match, liveScore) {
     away_score: display.away,
     first_scorer_team: match.first_scorer_team ?? null,
     first_scorer_player: match.first_scorer_player ?? null,
+    first_scorer_player_team: match.first_scorer_player_team ?? null,
+    first_scorer_is_own_goal: match.first_scorer_is_own_goal ?? null,
+    home_team: match.home_team,
+    away_team: match.away_team,
     stage: match.stage,
   };
 }

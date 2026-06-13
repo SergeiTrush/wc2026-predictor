@@ -13,7 +13,7 @@ import {
 } from '../matchdays';
 import FirstTeamSelect from '../components/FirstTeamSelect';
 import FirstPlayerSelect, { NO_FIRST_SCORER } from '../components/FirstPlayerSelect';
-import { resolveFirstTeamName, findSquadPlayer } from '../predictionExtras';
+import { findSquadPlayer } from '../predictionExtras';
 import { useConfirm } from '../context/ConfirmContext';
 
 function AdminMatchRow({ match, leagueId, onSaved }) {
@@ -193,36 +193,17 @@ function AdminMatchRow({ match, leagueId, onSaved }) {
       .catch(() => {});
   }, [squadPlayers, firstPlayer, firstTeam]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const selectedTeamName = useMemo(
-    () => resolveFirstTeamName(firstTeam, match.home_team, match.away_team),
-    [firstTeam, match.home_team, match.away_team]
-  );
-
-  const filteredSquadTeams = useMemo(() => {
-    if (!Array.isArray(squadTeams)) return squadTeams;
-    if (!selectedTeamName) return [];
-    return squadTeams.filter((entry) => entry.team === selectedTeamName);
-  }, [squadTeams, selectedTeamName]);
-
   const playerOptions = useMemo(() => {
     if (!Array.isArray(squadPlayers)) return [];
-    if (firstTeam === 'none' || !selectedTeamName) return [];
-    return squadPlayers.filter((p) => p.team === selectedTeamName);
-  }, [squadPlayers, selectedTeamName, firstTeam]);
+    if (firstTeam === 'none') return [];
+    return squadPlayers;
+  }, [squadPlayers, firstTeam]);
 
   const onFirstTeamChange = (next) => {
     setFirstTeam(next);
     if (next === 'none') {
       setFirstPlayer(NO_FIRST_SCORER);
-      return;
     }
-    const teamName = resolveFirstTeamName(next, match.home_team, match.away_team);
-    if (!teamName || !firstPlayer || firstPlayer === NO_FIRST_SCORER) return;
-    const stillValid = squadPlayers?.some((p) => {
-      const name = (p.name || p.surname || '').trim();
-      return name === firstPlayer && p.team === teamName;
-    });
-    if (!stillValid) setFirstPlayer('');
   };
 
   const playerPlaceholder = squadLoading
@@ -231,9 +212,9 @@ function AdminMatchRow({ match, leagueId, onSaved }) {
       ? 'Нет списка игроков'
       : Array.isArray(squadPlayers) && squadPlayers.length === 0
         ? 'Состав не найден'
-        : selectedTeamName
-          ? 'Игрок команды'
-          : 'Сначала выберите команду';
+        : firstTeam === 'none'
+          ? 'Без гола'
+          : '—';
 
   const save = async () => {
     const h = home === '' ? null : parseInt(home, 10);
@@ -422,13 +403,15 @@ function AdminMatchRow({ match, leagueId, onSaved }) {
                 pickerTitle="Первый гол (игрок)"
                 value={firstPlayer}
                 onChange={setFirstPlayer}
-                teams={filteredSquadTeams}
+                teams={squadTeams}
                 players={playerOptions}
                 loading={squadLoading}
-                disabled={!selectedTeamName && firstTeam !== 'none'}
+                disabled={firstTeam === 'none'}
                 placeholder={playerPlaceholder}
                 title={squadError || undefined}
-                teamHint={selectedTeamName}
+                homeTeam={match.home_team}
+                awayTeam={match.away_team}
+                scorerTeam={firstTeam}
                 onOpen={loadSquadPlayers}
               />
             </label>

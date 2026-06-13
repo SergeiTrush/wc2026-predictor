@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, isSessionExpiredError } from '../api';
 import { loadMatchSquads } from '../teamSquads';
-import { teamFlag, boosterLabel, matchHasResult, matchHasLiveScore, matchHasLiveManualScore, matchIsLive, liveBarDisplayScore, scoringActualFromLive, isLiveExtraTime } from '../utils';
+import { teamFlag, boosterLabel, matchHasResult, matchHasLiveScore, matchIsLive, isLiveExtraTime, liveBarScoreText, provisionalScoringActual } from '../utils';
 import { isKnockoutMatch } from '../matchdays';
-import { breakdownMatchPoints, formatPointsBreakdown } from '../scoring';
+import { breakdownMatchPoints, formatPointsBreakdown, enrichScoringActual } from '../scoring';
 import ModalOverlay from './ModalOverlay';
 import PointsTooltip from './PointsTooltip';
 import PointsBreakdownPanel from './PointsBreakdownPanel';
@@ -24,16 +24,9 @@ function resolvePredictionPoints(prediction, displayMatch) {
   if (!hasResult && !matchHasLiveScore(displayMatch)) return null;
 
   const actual = hasResult
-    ? displayMatch
-    : matchHasLiveManualScore(displayMatch)
-      ? {
-          home_score: displayMatch.home_score,
-          away_score: displayMatch.away_score,
-          first_scorer_team: displayMatch.first_scorer_team ?? null,
-          first_scorer_player: displayMatch.first_scorer_player ?? null,
-          stage: displayMatch.stage,
-        }
-      : scoringActualFromLive(displayMatch, liveScore);
+    ? enrichScoringActual(displayMatch)
+    : provisionalScoringActual(displayMatch);
+  if (!actual) return null;
 
   const suggestions = displayMatch.suggestedScores;
   let underdogBonus = 0;
@@ -136,15 +129,8 @@ export default function FriendsPredictionsModal({ leagueId, match, onClose }) {
   const hasResult = matchHasResult(displayMatch);
   const isLive = matchIsLive(displayMatch);
   const liveScore = displayMatch.liveScore;
-  const displayScore = liveScore ? liveBarDisplayScore(displayMatch, liveScore) : null;
   const showLiveScore = hasResult || matchHasLiveScore(displayMatch);
-  const liveScoreText = hasResult
-    ? `${displayMatch.home_score}:${displayMatch.away_score}`
-    : matchHasLiveManualScore(displayMatch)
-      ? `${displayMatch.home_score}:${displayMatch.away_score}`
-      : displayScore
-        ? `${displayScore.home}:${displayScore.away}`
-        : `${liveScore?.homeScore}:${liveScore?.awayScore}`;
+  const liveScoreText = liveBarScoreText(displayMatch)?.replace(/\s/g, '') ?? null;
 
   const title = displayMatch
     ? `${displayMatch.home_team} ${teamFlag(displayMatch.home_team)} — ${teamFlag(displayMatch.away_team)} ${displayMatch.away_team}`

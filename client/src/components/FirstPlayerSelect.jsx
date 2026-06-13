@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { teamFlag } from '../utils';
+import { findSquadPlayer, resolveFirstTeamName } from '../predictionExtras';
 import { computeFixedDropdownStyle } from '../dropdownPosition';
 import CenteredSelectMenu from './CenteredSelectMenu';
 import PlusIconButton from './PlusIconButton';
@@ -80,6 +81,10 @@ export default function FirstPlayerSelect({
   triggerVariant = 'default',
   /** Team name for flag when squad list is not loaded yet (e.g. saved admin result). */
   teamHint = null,
+  homeTeam = null,
+  awayTeam = null,
+  /** first_scorer_team / first_team side key or canonical team name. */
+  scorerTeam = null,
   pickerTitle = 'Какой игрок откроет счёт',
 }) {
   const [open, setOpen] = useState(false);
@@ -109,15 +114,26 @@ export default function FirstPlayerSelect({
       flatOptions.find((o) => o.legacySurname && o.legacySurname === value);
     if (found) return found;
     if (!value) return null;
-    const hintFlag = teamHint ? teamFlag(teamHint) : null;
+
+    const squadPlayer = findSquadPlayer(players, value);
+    let team = squadPlayer?.team || null;
+    if (!team && scorerTeam) {
+      team = resolveFirstTeamName(scorerTeam, homeTeam, awayTeam);
+    }
+    if (!team && teamHint && !String(teamHint).includes('·')) {
+      team = teamHint;
+    }
+
+    const displayName = squadPlayer ? formatPlayerDisplayName(squadPlayer) : value;
+    const flagEmoji = team ? teamFlag(team) : null;
     return {
       value,
-      label: value,
-      displayName: value,
-      flag: hintFlag,
-      team: teamHint,
+      label: displayName,
+      displayName,
+      flag: flagEmoji && flagEmoji !== '⚽' ? flagEmoji : null,
+      team,
     };
-  }, [value, flatOptions, teamHint]);
+  }, [value, flatOptions, teamHint, players, scorerTeam, homeTeam, awayTeam]);
   const triggerLabel = selected?.displayName || selected?.label || value || placeholder;
 
   const close = useCallback(

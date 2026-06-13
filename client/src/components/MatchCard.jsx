@@ -2,9 +2,9 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { api } from '../api';
 import { useConfirm } from '../context/ConfirmContext';
 import { loadMatchSquads } from '../teamSquads';
-import { teamFlag, formatMatchTime, boosterLabel, isMatchLiveScoreBarVisible, isMatchInPlayWindow, matchHasResult, matchHasLiveScore, matchHasLiveManualScore, matchIsLive, liveBarDisplayScore, scoringActualFromLive, isLiveExtraTime } from '../utils';
+import { teamFlag, formatMatchTime, boosterLabel, isMatchLiveScoreBarVisible, isMatchInPlayWindow, matchHasResult, matchHasLiveScore, matchIsLive, isLiveExtraTime, liveBarScoreText, provisionalScoringActual } from '../utils';
 import { isKnockoutMatch } from '../matchdays';
-import { breakdownMatchPoints, formatPointsBreakdown } from '../scoring';
+import { breakdownMatchPoints, formatPointsBreakdown, enrichScoringActual } from '../scoring';
 import PointsTooltip from './PointsTooltip';
 import FriendsPredictionsModal, { friendsLinkLabel } from './FriendsPredictionsModal';
 import FirstTeamSelect from './FirstTeamSelect';
@@ -39,7 +39,6 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
   const hasResult = matchHasResult(match);
   const isLive = matchIsLive(match);
   const liveScore = match.liveScore;
-  const displayScore = liveScore ? liveBarDisplayScore(match, liveScore) : null;
   const showLiveScore = hasResult || matchHasLiveScore(match);
   const locked = !!match.locked;
   const liveBarVisible = isMatchLiveScoreBarVisible(match) || isMatchInPlayWindow(match);
@@ -92,6 +91,21 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
     if (squadPlayers !== null || squadLoading) return;
     loadSquadPlayers();
   }, [firstPlayer, squadPlayers, squadLoading, loadSquadPlayers]);
+
+  useEffect(() => {
+    const needsScorerMeta =
+      (match.first_scorer_player && match.first_scorer_player !== 'none') ||
+      (match.first_scorer_team && match.first_scorer_team !== 'none');
+    if (!needsScorerMeta) return;
+    if (squadPlayers !== null || squadLoading) return;
+    loadSquadPlayers();
+  }, [
+    match.first_scorer_player,
+    match.first_scorer_team,
+    squadPlayers,
+    squadLoading,
+    loadSquadPlayers,
+  ]);
 
   const playerOptions = useMemo(() => {
     if (!Array.isArray(squadPlayers)) return [];
@@ -236,20 +250,11 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
   const pointsDetail = useMemo(() => {
     if (!pred) return null;
 
-    let actual = null;
-    if (hasResult) {
-      actual = match;
-    } else if (matchHasLiveScore(match)) {
-      actual = matchHasLiveManualScore(match)
-        ? {
-            home_score: match.home_score,
-            away_score: match.away_score,
-            first_scorer_team: match.first_scorer_team ?? null,
-            first_scorer_player: match.first_scorer_player ?? null,
-            stage: match.stage,
-          }
-        : scoringActualFromLive(match, liveScore);
-    }
+    const actual = hasResult
+      ? enrichScoringActual(match, {}, squadPlayers)
+      : matchHasLiveScore(match)
+        ? provisionalScoringActual(match, squadPlayers)
+        : null;
     if (!actual) return null;
 
     const suggestions = match.suggestedScores;
@@ -279,7 +284,7 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
       { underdogBonus }
     );
     return formatPointsBreakdown(raw);
-  }, [match, pred, hasResult, liveScore]);
+  }, [match, pred, hasResult, liveScore, squadPlayers]);
 
   const isProvisionalPoints = isLive && !!pointsDetail;
 
@@ -314,13 +319,7 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
               {isLive && isKnockoutMatch(match) && isLiveExtraTime(liveScore) ? ' · доп. время' : ''}
             </span>
             <span className={`live-score${isLive ? ' live-score--provisional' : ''}`}>
-              {hasResult
-                ? `${match.home_score} : ${match.away_score}`
-                : matchHasLiveManualScore(match)
-                  ? `${match.home_score} : ${match.away_score}`
-                  : displayScore
-                    ? `${displayScore.home} : ${displayScore.away}`
-                    : `${liveScore.homeScore} : ${liveScore.awayScore}`}
+              {liveBarScoreText(match) ?? '— : —'}
             </span>
           </div>
           {pointsDetail ? (
@@ -472,6 +471,9 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
               disabled={inputsLocked}
               triggerVariant="icon"
               title={squadError || undefined}
+              homeTeam={match.home_team}
+              awayTeam={match.away_team}
+              scorerTeam={firstTeam}
               onOpen={loadSquadPlayers}
             />
           </div>

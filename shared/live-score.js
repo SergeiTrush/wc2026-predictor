@@ -53,6 +53,10 @@ function scoringActualFromLive(match, liveScore) {
     away_score: display.away,
     first_scorer_team: match.first_scorer_team ?? null,
     first_scorer_player: match.first_scorer_player ?? null,
+    first_scorer_player_team: match.first_scorer_player_team ?? null,
+    first_scorer_is_own_goal: match.first_scorer_is_own_goal ?? null,
+    home_team: match.home_team,
+    away_team: match.away_team,
     stage: match.stage,
   };
 }

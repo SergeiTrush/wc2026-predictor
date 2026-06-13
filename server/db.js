@@ -264,6 +264,18 @@ function ensureAdminClearedColumn() {
 
 ensureAdminClearedColumn();
 
+function ensureFirstScorerMetaColumns() {
+  const cols = new Set(db.prepare('PRAGMA table_info(matches)').all().map((c) => c.name));
+  if (!cols.has('first_scorer_is_own_goal')) {
+    db.exec('ALTER TABLE matches ADD COLUMN first_scorer_is_own_goal INTEGER');
+  }
+  if (!cols.has('first_scorer_player_team')) {
+    db.exec('ALTER TABLE matches ADD COLUMN first_scorer_player_team TEXT');
+  }
+}
+
+ensureFirstScorerMetaColumns();
+
 function fixRelativeFirstScorerTeams() {
   // One-time migration: resolve 'home'/'away' in first_scorer_team to actual team names.
   // Old sync code saved relative identifiers; scoring requires actual team names.

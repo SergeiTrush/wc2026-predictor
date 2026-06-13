@@ -45,6 +45,15 @@ export function resolveFirstTeamName(value, homeTeam, awayTeam) {
   return null;
 }
 
+/** DB value (home/away or legacy country name) → FirstTeamSelect value. */
+export function canonicalFirstScorerTeam(value, homeTeam, awayTeam) {
+  if (!value || value === 'none') return value || '';
+  if (value === 'home' || value === 'away' || value === 'none') return value;
+  if (value === homeTeam) return 'home';
+  if (value === awayTeam) return 'away';
+  return value;
+}
+
 export function resolveFirstTeamDisplay(value, homeTeam, awayTeam) {
   if (value === 'home') {
     return { label: homeTeam, flag: teamFlag(homeTeam), empty: false };

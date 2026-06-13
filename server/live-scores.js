@@ -2,6 +2,7 @@ const { prepare } = require('./sqlite-helpers');
 const { mapApiTeamName } = require('./team-map');
 const { isEnabled, apiFetch } = require('./bzzoiro-client');
 const { findMatchForEvent } = require('./match-lookup');
+const { resolveFirstScorerForFixture } = require('./first-scorer-sync');
 
 const LIVE_STATUSES = new Set([
   'inprogress',
@@ -19,6 +20,9 @@ let cache = {
   byMatchId: new Map(),
   at: 0,
 };
+
+const liveEventFetchesRef = { value: 0 };
+const LIVE_MAX_INCIDENT_FETCHES = Number(process.env.LIVE_SCORES_MAX_INCIDENTS || 8);
 
 function normalizeLiveEvent(event) {
   const home = mapApiTeamName(event.home_team);
@@ -40,9 +44,58 @@ function normalizeLiveEvent(event) {
   };
 }
 
+const updateLiveMatchDb = (q) =>
+  q(
+    `UPDATE matches SET
+       home_score = ?,
+       away_score = ?,
+       first_scorer_team = COALESCE(?, first_scorer_team),
+       first_scorer_player = COALESCE(?, first_scorer_player),
+       first_scorer_player_team = COALESCE(?, first_scorer_player_team),
+       first_scorer_is_own_goal = COALESCE(?, first_scorer_is_own_goal),
+       external_fixture_id = COALESCE(?, external_fixture_id)
+     WHERE id = ? AND is_finished = 0 AND COALESCE(admin_cleared, 0) = 0`
+  );
+
+async function persistLiveMatchFromFeed(q, match, live) {
+  if (Number(match.is_finished) === 1 || Number(match.admin_cleared) === 1) return;
+
+  const fixture = {
+    externalId: live.externalId,
+    home: live.home,
+    away: live.away,
+    homeGoals: live.homeScore,
+    awayGoals: live.awayScore,
+    homeScore: live.homeScore,
+    awayScore: live.awayScore,
+  };
+
+  const errors = [];
+  const scorer = await resolveFirstScorerForFixture(match, fixture, {
+    maxEventFetches: LIVE_MAX_INCIDENT_FETCHES,
+    eventFetchesRef: liveEventFetchesRef,
+    errors,
+  });
+  if (errors.length) {
+    console.warn('Live first scorer:', errors[0]);
+  }
+
+  updateLiveMatchDb(q).run(
+    live.homeScore,
+    live.awayScore,
+    scorer.firstTeam,
+    scorer.firstPlayer,
+    scorer.playerTeam,
+    scorer.isOwnGoal,
+    live.externalId,
+    match.id
+  );
+}
+
 async function refreshLiveScores(db) {
   const q = (sql) => prepare(db, sql);
   const byMatchId = new Map();
+  liveEventFetchesRef.value = 0;
 
   if (!isEnabled()) {
     cache = { byMatchId, at: Date.now() };
@@ -79,6 +132,14 @@ async function refreshLiveScores(db) {
       match.away_score != null &&
       !LIVE_STATUSES.has(live.status);
     if (hasFinal) continue;
+
+    if (live.isLive && live.homeScore + live.awayScore >= 0) {
+      try {
+        await persistLiveMatchFromFeed(q, match, live);
+      } catch (err) {
+        console.warn(`Live DB persist match ${match.id}:`, err.message);
+      }
+    }
 
     byMatchId.set(match.id, {
       homeScore: live.homeScore,

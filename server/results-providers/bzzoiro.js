@@ -11,7 +11,7 @@ const {
   applyBzzoiroTeamPair,
   resolveAndApplyKnockoutTeams,
 } = require('../resolve-knockout-teams');
-const { getLocalSquadsBulk } = require('../squad-service');
+const { resolveFirstScorerForFixture } = require('../first-scorer-sync');
 
 const FINISHED = new Set(['finished']);
 const IN_PROGRESS = new Set([
@@ -23,10 +23,6 @@ const IN_PROGRESS = new Set([
   'extratime',
   'penalties',
 ]);
-
-function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms));
-}
 
 function setMeta(q, key, value) {
   q(
@@ -121,138 +117,12 @@ function mapEvent(event) {
   };
 }
 
-function normalizeForSquadMatch(name) {
-  return (name || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '')
-    .replace(/#\d+/g, '')
-    .trim();
-}
-
-function squadSurname(normalized) {
-  const parts = normalized.split(/[\s.\-]+/).filter(Boolean);
-  if (!parts.length) return '';
-  const last = parts[parts.length - 1];
-  return last.length <= 2 && parts.length >= 2 ? parts[parts.length - 2] : last;
-}
-
-function inferTeamFromSquads(playerName, homeTeamName, awayTeamName) {
-  if (!playerName) return null;
-  const bulk = getLocalSquadsBulk();
-  if (!bulk?.teams) return null;
-  const pNorm = normalizeForSquadMatch(playerName);
-  if (!pNorm) return null;
-  const pSurname = squadSurname(pNorm);
-  for (const [side, teamName] of [['home', homeTeamName], ['away', awayTeamName]]) {
-    const players = bulk.teams[teamName] || [];
-    const found = players.some((p) => {
-      const n = normalizeForSquadMatch(p.name || p.surname || '');
-      if (!n) return false;
-      if (pNorm.includes(n) || n.includes(pNorm)) return true;
-      const ns = squadSurname(n);
-      return ns.length >= 3 && ns === pSurname;
-    });
-    if (found) return side; // 'home' or 'away' — matches FirstTeamSelect option values
-  }
-  return null;
-}
-
-const CANONICAL_TEAMS = new Set(['home', 'away', 'none']);
-
-function isOwnGoalIncident(incident) {
-  const gt = String(incident?.goal_type || '').toLowerCase().replace(/[\s_-]+/g, '');
-  return gt === 'owngoal';
-}
-
-function parseFirstScorer(incidents, homeTeamName, awayTeamName) {
-  if (!Array.isArray(incidents)) {
-    return { team: null, player: null, playerTeam: null, isOwnGoal: null };
-  }
-
-  const goals = incidents
-    .filter((i) => i.type === 'goal')
-    .map((i) => ({
-      minute: (i.minute ?? 999) + (i.added_time ?? 0) / 100,
-      isHome: i.is_home,
-      player: i.player || null,
-      isOwnGoal: isOwnGoalIncident(i),
-    }))
-    .sort((a, b) => a.minute - b.minute);
-
-  if (!goals.length) return { team: null, player: null, playerTeam: null, isOwnGoal: null };
-
-  const first = goals[0];
-  let firstTeam = null;
-  if (first.isHome === true) firstTeam = 'home';
-  else if (first.isHome === false) firstTeam = 'away';
-
-  let playerTeam = null;
-  if (first.player) {
-    playerTeam = inferTeamFromSquads(first.player, homeTeamName, awayTeamName);
-  }
-
-  if (!firstTeam && first.player) {
-    if (first.isOwnGoal && playerTeam) {
-      firstTeam = playerTeam === 'home' ? 'away' : 'home';
-    } else {
-      firstTeam = playerTeam;
-    }
-  }
-
-  const isOwnGoal =
-    first.isOwnGoal ||
-    (firstTeam && playerTeam && firstTeam !== playerTeam && playerTeam !== null);
-
-  return {
-    team: firstTeam,
-    player: first.player,
-    playerTeam,
-    isOwnGoal: isOwnGoal ? 1 : 0,
-  };
-}
-
-async function fetchIncidents(eventId) {
-  const data = await apiFetch(`/events/${eventId}/incidents/`);
-  return data.incidents || [];
-}
-
 async function maybeFetchFirstScorer(cfg, eventFetches, match, fixture, errors) {
-  const teamIsCanonical = CANONICAL_TEAMS.has(match.first_scorer_team);
-
-  // Both stored in canonical form — nothing to do.
-  if (teamIsCanonical && match.first_scorer_player != null) {
-    return { firstTeam: null, firstPlayer: null, eventFetches: eventFetches.value };
-  }
-
-  // Player stored but team missing or stored as a raw team name → infer canonical 'home'/'away'.
-  if (match.first_scorer_player != null && !teamIsCanonical) {
-    const inferred = inferTeamFromSquads(match.first_scorer_player, fixture.home, fixture.away);
-    if (inferred) {
-      return { firstTeam: inferred, firstPlayer: null, eventFetches: eventFetches.value };
-    }
-  }
-
-  if (eventFetches.value >= cfg.maxEventFetches || !fixture.externalId) {
-    return { firstTeam: null, firstPlayer: null, eventFetches: eventFetches.value };
-  }
-
-  try {
-    await sleep(120);
-    const incidents = await fetchIncidents(fixture.externalId);
-    eventFetches.value += 1;
-    const scorer = parseFirstScorer(incidents, fixture.home, fixture.away);
-    return {
-      firstTeam: scorer.team,
-      firstPlayer: scorer.player,
-      playerTeam: scorer.playerTeam,
-      isOwnGoal: scorer.isOwnGoal,
-      eventFetches: eventFetches.value,
-    };
-  } catch (err) {
-    errors.push(`incidents ${fixture.externalId}: ${err.message}`);
-    return { firstTeam: null, firstPlayer: null, eventFetches: eventFetches.value };
-  }
+  return resolveFirstScorerForFixture(match, fixture, {
+    maxEventFetches: cfg.maxEventFetches,
+    eventFetchesRef: eventFetches,
+    errors,
+  });
 }
 
 async function syncResults(db) {

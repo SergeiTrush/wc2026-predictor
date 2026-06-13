@@ -276,25 +276,26 @@ function ensureFirstScorerMetaColumns() {
 
 ensureFirstScorerMetaColumns();
 
-function fixRelativeFirstScorerTeams() {
-  // One-time migration: resolve 'home'/'away' in first_scorer_team to actual team names.
-  // Old sync code saved relative identifiers; scoring requires actual team names.
+function fixFirstScorerTeamKeys() {
+  // Store home/away/none (FirstTeamSelect + Bzzoiro sync), not country names.
   const stale = db.prepare(
     `SELECT id, home_team, away_team, first_scorer_team FROM matches
-     WHERE first_scorer_team IN ('home', 'away')`
+     WHERE first_scorer_team IS NOT NULL
+       AND first_scorer_team NOT IN ('home', 'away', 'none')`
   ).all();
   if (!stale.length) return;
   const upd = db.prepare('UPDATE matches SET first_scorer_team = ? WHERE id = ?');
   const run = db.transaction(() => {
     for (const m of stale) {
-      const name = m.first_scorer_team === 'home' ? m.home_team : m.away_team;
-      if (name) upd.run(name, m.id);
+      const team = m.first_scorer_team;
+      if (team === m.home_team) upd.run('home', m.id);
+      else if (team === m.away_team) upd.run('away', m.id);
     }
   });
   run();
 }
 
-fixRelativeFirstScorerTeams();
+fixFirstScorerTeamKeys();
 
 function predictionsSchemaOk() {
   const cols = db.prepare('PRAGMA table_info(predictions)').all();

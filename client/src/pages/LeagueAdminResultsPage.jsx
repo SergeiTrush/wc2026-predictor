@@ -13,7 +13,7 @@ import {
 } from '../matchdays';
 import FirstTeamSelect from '../components/FirstTeamSelect';
 import FirstPlayerSelect, { NO_FIRST_SCORER } from '../components/FirstPlayerSelect';
-import { findSquadPlayer } from '../predictionExtras';
+import { findSquadPlayer, canonicalFirstScorerTeam } from '../predictionExtras';
 import { useConfirm } from '../context/ConfirmContext';
 
 function AdminMatchRow({ match, leagueId, onSaved }) {
@@ -38,7 +38,9 @@ function AdminMatchRow({ match, leagueId, onSaved }) {
         ? String(match.final_away_score)
         : ''
   );
-  const [firstTeam, setFirstTeam] = useState(match.first_scorer_team || '');
+  const [firstTeam, setFirstTeam] = useState(
+    () => canonicalFirstScorerTeam(match.first_scorer_team || '', match.home_team, match.away_team)
+  );
   const [firstPlayer, setFirstPlayer] = useState(match.first_scorer_player || '');
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
@@ -89,7 +91,9 @@ function AdminMatchRow({ match, leagueId, onSaved }) {
     } else if (!keepFinalOnMissing) {
       setFinalAway('');
     }
-    setFirstTeam(saved.first_scorer_team || '');
+    setFirstTeam(
+      canonicalFirstScorerTeam(saved.first_scorer_team || '', match.home_team, match.away_team)
+    );
     setFirstPlayer(saved.first_scorer_player || '');
     setMatchFinished(matchIsFinished(saved));
   };
@@ -108,7 +112,9 @@ function AdminMatchRow({ match, leagueId, onSaved }) {
     } else {
       setFinalAway(match.final_away_score != null ? String(match.final_away_score) : '');
     }
-    setFirstTeam(match.first_scorer_team || '');
+    setFirstTeam(
+      canonicalFirstScorerTeam(match.first_scorer_team || '', match.home_team, match.away_team)
+    );
     setFirstPlayer(match.first_scorer_player || '');
     setMatchFinished(matchIsFinished(match));
   }, [
@@ -159,11 +165,12 @@ function AdminMatchRow({ match, leagueId, onSaved }) {
 
   useEffect(() => {
     const needsSquad =
+      matchStarted ||
       (match.first_scorer_player && match.first_scorer_player !== 'none') ||
       (match.first_scorer_team && match.first_scorer_team !== 'none');
     if (!needsSquad) return;
     loadSquadPlayers();
-  }, [match.id, match.first_scorer_player, match.first_scorer_team, loadSquadPlayers]);
+  }, [match.id, match.first_scorer_player, match.first_scorer_team, matchStarted, loadSquadPlayers]);
 
   // When player is known but team is missing, infer team from squads and auto-save.
   useEffect(() => {
@@ -606,9 +613,7 @@ export default function LeagueAdminResultsPage() {
         .catch(() => {});
     };
 
-    // Always poll so we catch matches crossing kickoff while the page is open
-    // and so the server auto-init (0:0) is applied and reflected in the UI.
-    const timer = setInterval(poll, 60000);
+    const timer = setInterval(poll, 15000);
     return () => clearInterval(timer);
   }, [id]);
 

@@ -32,6 +32,8 @@ const {
   matchdayFromKickoff,
   breakdownMatchPoints,
   formatPointsBreakdown,
+  leaderboardTiebreakCounts,
+  compareLeaderboardRows,
 } = require('../shared/scoring');
 const { scoringActualFromLive, liveScoreIsFinished } = require('../shared/live-score');
 const {
@@ -299,24 +301,19 @@ function computeUnderdogBonus(pred, match, suggestionsMap) {
   return computeUnderdogBonusFromActual(pred, match, suggestionsMap);
 }
 
-function matchPointsForLeaderboard(pred, match, liveScore, underdogBonus = 0) {
-  const opts = { underdogBonus };
+function resolveLeaderboardMatchActual(match, liveScore) {
   if (matchHasResult(match)) {
-    return { points: breakdownMatchPoints(pred, enrichMatchForScoring(match), opts).total, provisional: false };
+    return { actual: enrichMatchForScoring(match), provisional: false };
   }
   const feed = liveScore ?? getLiveScoreForMatch(match.id);
   if (feed && !liveScoreIsFinished(feed)) {
     const display = liveScoreAsResult(match, feed);
     if (display) {
       return {
-        points: breakdownMatchPoints(
-          pred,
-          enrichMatchForScoring(match, {
-            home_score: display.home_score,
-            away_score: display.away_score,
-          }),
-          opts
-        ).total,
+        actual: enrichMatchForScoring(match, {
+          home_score: display.home_score,
+          away_score: display.away_score,
+        }),
         provisional: true,
       };
     }
@@ -331,20 +328,28 @@ function matchPointsForLeaderboard(pred, match, liveScore, underdogBonus = 0) {
       : matchHasStoredScore(match)
         ? enrichMatchForScoring(match)
         : null;
-    if (actual) {
-      return { points: breakdownMatchPoints(pred, actual, opts).total, provisional: false };
-    }
+    if (actual) return { actual, provisional: false };
   }
   if (matchHasLiveManualScore(match)) {
-    return {
-      points: breakdownMatchPoints(pred, enrichMatchForScoring(match), opts).total,
-      provisional: true,
-    };
+    return { actual: enrichMatchForScoring(match), provisional: true };
   }
-  if (!matchKickoffPassed(match)) {
-    return { points: 0, provisional: false };
+  return null;
+}
+
+function matchPointsForLeaderboard(pred, match, liveScore, underdogBonus = 0) {
+  const opts = { underdogBonus };
+  const resolved = resolveLeaderboardMatchActual(match, liveScore);
+  if (!resolved) {
+    if (!matchKickoffPassed(match)) {
+      return { points: 0, provisional: false, tiebreak: null };
+    }
+    return { points: 0, provisional: false, tiebreak: null };
   }
-  return { points: 0, provisional: false };
+  return {
+    points: breakdownMatchPoints(pred, resolved.actual, opts).total,
+    provisional: resolved.provisional,
+    tiebreak: leaderboardTiebreakCounts(pred, resolved.actual),
+  };
 }
 
 function matchesForLeaderboardScope(selectedMatchday) {
@@ -788,16 +793,24 @@ app.get('/api/leagues/:id/leaderboard', authMiddleware, async (req, res) => {
     let total = 0;
     let provisionalPoints = 0;
     let scoredMatches = 0;
+    let correctResults = 0;
+    let correctFirstTeam = 0;
+    let correctFirstPlayer = 0;
     for (const match of scorableMatches) {
       const pred = getPred.get(leagueId, member.id, match.id);
       if (!pred) continue;
       const liveScore = getLiveScoreForMatch(match.id);
       const actualForBonus = matchHasResult(match) ? match : scoringActualFromLive(match, liveScore) ?? (matchHasLiveManualScore(match) ? match : null);
       const bonus = computeUnderdogBonusFromActual(pred, actualForBonus, match, suggestionsMap);
-      const { points, provisional } = matchPointsForLeaderboard(pred, match, liveScore, bonus);
+      const { points, provisional, tiebreak } = matchPointsForLeaderboard(pred, match, liveScore, bonus);
       total += points;
       if (provisional) provisionalPoints += points;
       scoredMatches += 1;
+      if (tiebreak) {
+        correctResults += tiebreak.correctResults;
+        correctFirstTeam += tiebreak.correctFirstTeam;
+        correctFirstPlayer += tiebreak.correctFirstPlayer;
+      }
     }
     const brRow = q('SELECT picks FROM bracket_picks WHERE league_id = ? AND user_id = ?').get(
       leagueId,
@@ -823,10 +836,13 @@ app.get('/api/leagues/:id/leaderboard', authMiddleware, async (req, res) => {
       scoredMatches,
       totalMatches: scorableMatches.length,
       bracketComplete,
+      correctResults,
+      correctFirstTeam,
+      correctFirstPlayer,
     };
   });
 
-  leaderboard.sort((a, b) => b.points - a.points);
+  leaderboard.sort(compareLeaderboardRows);
   res.json({ leaderboard });
 });
 

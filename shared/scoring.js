@@ -226,6 +226,36 @@ function totalMatchPoints(pred, actual) {
   return breakdownMatchPoints(pred, actual).total;
 }
 
+function isPredictionResultCorrect(pred, actual) {
+  if (!actual || actual.home_score == null || actual.away_score == null) return false;
+  const { home_pred, away_pred } = pred;
+  if (home_pred == null || away_pred == null) return false;
+  return home_pred === actual.home_score && away_pred === actual.away_score;
+}
+
+/** Per-match tiebreak signals for leaderboard ordering (0 or 1 each). */
+function leaderboardTiebreakCounts(pred, actual) {
+  if (!actual || actual.home_score == null || actual.away_score == null) {
+    return { correctResults: 0, correctFirstTeam: 0, correctFirstPlayer: 0 };
+  }
+  const breakdown = breakdownMatchPoints(pred, actual);
+  return {
+    correctResults: isPredictionResultCorrect(pred, actual) ? 1 : 0,
+    correctFirstTeam: breakdown.firstTeam > 0 ? 1 : 0,
+    correctFirstPlayer: breakdown.firstPlayer > 0 ? 1 : 0,
+  };
+}
+
+function compareLeaderboardRows(a, b) {
+  return (
+    b.points - a.points ||
+    b.correctResults - a.correctResults ||
+    b.correctFirstTeam - a.correctFirstTeam ||
+    b.correctFirstPlayer - a.correctFirstPlayer ||
+    String(a.name).localeCompare(String(b.name))
+  );
+}
+
 /** Human-readable lines for UI tooltip. */
 function formatPointsBreakdown(b) {
   if (!b) return { lines: [], total: 0 };
@@ -265,4 +295,7 @@ module.exports = {
   scorelinePoints,
   totalMatchPoints,
   matchPoints: scorelinePoints,
+  isPredictionResultCorrect,
+  leaderboardTiebreakCounts,
+  compareLeaderboardRows,
 };

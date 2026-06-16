@@ -187,10 +187,12 @@ export default function LeaguePage() {
   }, [filter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filteredMatches = useMemo(() => {
-    if (filter === 'schedule') return matches.filter((m) => new Date(m.kickoff).getTime() > Date.now());
-    if (filter === 'finished') return matches.filter((m) => matchIsFinished(m));
-    if (filter === 'live') return matches.filter((m) => new Date(m.kickoff).getTime() <= Date.now() && !matchIsFinished(m));
-    return matches;
+    let list = matches;
+    if (filter === 'schedule') list = matches.filter((m) => new Date(m.kickoff).getTime() > Date.now());
+    else if (filter === 'finished') list = matches.filter((m) => matchIsFinished(m));
+    else if (filter === 'live') list = matches.filter((m) => new Date(m.kickoff).getTime() <= Date.now() && !matchIsFinished(m));
+    const byKickoff = (a, b) => String(a.kickoff).localeCompare(String(b.kickoff));
+    return [...list].sort(filter === 'finished' ? (a, b) => byKickoff(b, a) : byKickoff);
   }, [matches, filter]);
 
   const scheduleCount = matches.filter((m) => new Date(m.kickoff).getTime() > Date.now()).length;

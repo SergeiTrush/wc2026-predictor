@@ -591,7 +591,8 @@ export default function LeagueAdminResultsPage() {
     } else if (filter === 'live') {
       list = list.filter((m) => new Date(m.kickoff).getTime() <= Date.now() && !matchIsFinished(m));
     }
-    return list.sort((a, b) => a.kickoff.localeCompare(b.kickoff));
+    const byKickoff = (a, b) => a.kickoff.localeCompare(b.kickoff);
+    return list.sort(filter === 'finished' ? (a, b) => byKickoff(b, a) : byKickoff);
   }, [dayMatches, filter]);
 
   const finishedCount = dayMatches.filter((m) => matchIsFinished(m)).length;

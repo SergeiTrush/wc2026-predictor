@@ -45,22 +45,28 @@ function findPlayerSide(playerName, homeTeam, awayTeam) {
 function inferFirstScorerMeta(match) {
   const homeTeam = match.home_team;
   const awayTeam = match.away_team;
-  let playerTeam = match.first_scorer_player_team || null;
-  if (!playerTeam && match.first_scorer_player) {
-    playerTeam = findPlayerSide(match.first_scorer_player, homeTeam, awayTeam);
+  const player = match.first_scorer_player;
+
+  let playerTeam = null;
+  if (player && player !== 'none') {
+    playerTeam = findPlayerSide(player, homeTeam, awayTeam);
+    if (!playerTeam) {
+      playerTeam = match.first_scorer_player_team || null;
+    }
   }
 
-  let isOwnGoal = match.first_scorer_is_own_goal;
-  if (isOwnGoal == null && playerTeam && match.first_scorer_team) {
+  let isOwnGoal = null;
+  if (playerTeam && match.first_scorer_team) {
     const scorerSideKey = scorerSide(match.first_scorer_team, homeTeam, awayTeam);
     isOwnGoal =
       scorerSideKey &&
-      playerTeam &&
-      scorerSideKey !== 'none' &&
       playerTeam !== 'none' &&
+      scorerSideKey !== 'none' &&
       scorerSideKey !== playerTeam
         ? 1
         : 0;
+  } else if (match.first_scorer_is_own_goal != null) {
+    isOwnGoal = match.first_scorer_is_own_goal;
   }
 
   return { first_scorer_player_team: playerTeam, first_scorer_is_own_goal: isOwnGoal };

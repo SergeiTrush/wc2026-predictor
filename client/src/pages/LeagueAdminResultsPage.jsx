@@ -555,9 +555,9 @@ export default function LeagueAdminResultsPage() {
       if (prev && matchdays.some((d) => d.day === prev.day)) {
         return matchdays.find((d) => d.day === prev.day);
       }
-      return pickDefaultMatchday(matchdays);
+      return pickDefaultMatchday(matchdays, matches);
     });
-  }, [matchdays]);
+  }, [matchdays, matches]);
 
   const dayMatches = useMemo(() => {
     if (!selectedDay?.day) return matches;

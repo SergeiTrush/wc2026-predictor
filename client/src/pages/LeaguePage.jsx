@@ -66,7 +66,7 @@ export default function LeaguePage() {
           if (prev && days.some((d) => d.day === prev.day)) {
             return days.find((d) => d.day === prev.day);
           }
-          return pickDefaultMatchday(days);
+          return pickDefaultMatchday(days, list);
         });
       } catch (e) {
         if (e.name === 'AbortError') return;

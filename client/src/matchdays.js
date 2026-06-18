@@ -53,8 +53,25 @@ export function filterMatchesByDay(matches, day) {
   return matches.filter((m) => matchdayKey(m) === day);
 }
 
-export function pickDefaultMatchday(days) {
+export function isMatchScheduled(match, now = Date.now()) {
+  if (!match.kickoff) return false;
+  return new Date(match.kickoff).getTime() > now;
+}
+
+export function matchdayHasScheduledMatches(matches, day, now = Date.now()) {
+  return filterMatchesByDay(matches, day).some((m) => isMatchScheduled(m, now));
+}
+
+/** First matchday with upcoming matches; otherwise the last matchday (all finished). */
+export function pickDefaultMatchday(days, matches = []) {
   if (!days.length) return null;
+
+  if (matches.length > 0) {
+    const withScheduled = days.find((d) => matchdayHasScheduledMatches(matches, d.day));
+    if (withScheduled) return withScheduled;
+    return days[days.length - 1];
+  }
+
   const now = new Date().toISOString().slice(0, 10);
   for (const d of days) {
     const meta = MATCHDAY_META[d.day];

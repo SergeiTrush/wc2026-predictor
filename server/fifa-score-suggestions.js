@@ -12,13 +12,6 @@ const GROUP_MATCH_STATS_MAX = 72;
 const FIFA_KNOCKOUT_R32_START = 73;
 const FIFA_KNOCKOUT_R32_COUNT = 16;
 
-/** Typical 90-minute knockout scores when FIFA has no quick-picks (1/8 and later). */
-const KNOCKOUT_FALLBACK_SUGGESTIONS = [
-  { home: 1, away: 0, score: '1-0', prob: 0.32 },
-  { home: 2, away: 1, score: '2-1', prob: 0.28 },
-  { home: 1, away: 1, score: '1-1', prob: 0.22 },
-];
-
 const THIRD_PLACE_FALLBACK_SUGGESTIONS = [
   { home: 2, away: 1, score: '2-1', prob: 0.3 },
   { home: 2, away: 2, score: '2-2', prob: 0.25 },
@@ -48,14 +41,7 @@ function sortScheduleEntries(entries) {
 function knockoutFallbackForStage(stage) {
   if (!stage || stage === 'group' || stage === 'round_of_32') return null;
   if (stage === 'third_place') return THIRD_PLACE_FALLBACK_SUGGESTIONS;
-  if (
-    stage === 'round_of_16' ||
-    stage === 'quarter_final' ||
-    stage === 'semi_final' ||
-    stage === 'final'
-  ) {
-    return KNOCKOUT_FALLBACK_SUGGESTIONS;
-  }
+  // FIFA quick-picks exist only for group matches and round of 32; later rounds have no data.
   return null;
 }
 

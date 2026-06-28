@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-28T10:18:46.309Z",
+  "generatedAt": "2026-06-28T10:29:29.713Z",
   "byKey": {
     "Mexico|South Africa|2026-06-11": [
       {
@@ -1492,7 +1492,7 @@
         "home": 2,
         "away": 2,
         "score": "2-2",
-        "prob": 0.21
+        "prob": 0.22
       },
       {
         "home": 1,
@@ -1589,15 +1589,15 @@
         "prob": 0.42
       },
       {
-        "home": 2,
-        "away": 0,
-        "score": "2-0",
-        "prob": 0.18
-      },
-      {
         "home": 4,
         "away": 0,
         "score": "4-0",
+        "prob": 0.18
+      },
+      {
+        "home": 2,
+        "away": 0,
+        "score": "2-0",
         "prob": 0.18
       }
     ],

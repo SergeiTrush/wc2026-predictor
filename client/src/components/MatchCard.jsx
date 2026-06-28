@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { api } from '../api';
 import { useConfirm } from '../context/ConfirmContext';
 import { loadMatchSquads } from '../teamSquads';
@@ -10,21 +10,16 @@ import FriendsPredictionsModal, { friendsLinkLabel } from './FriendsPredictionsM
 import FirstTeamSelect from './FirstTeamSelect';
 import FirstPlayerSelect, { NO_FIRST_SCORER } from './FirstPlayerSelect';
 import PlusIconButton from './PlusIconButton';
-import { resolveFirstPlayerDisplay } from '../predictionExtras';
-
-function firstTeamSelection(value, homeTeam, awayTeam) {
-  if (value === 'home') return { label: homeTeam, flag: teamFlag(homeTeam) };
-  if (value === 'away') return { label: awayTeam, flag: teamFlag(awayTeam) };
-  if (value === 'none') return { label: 'Никто / 0:0', flag: null };
-  return null;
-}
+import { resolveFirstPlayerDisplay, canonicalFirstScorerTeam, resolveFirstTeamDisplay } from '../predictionExtras';
 
 export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, boosterLocked }) {
   const { alert: showAlert } = useConfirm();
   const pred = match.prediction;
   const [home, setHome] = useState(pred?.home_pred?.toString() ?? '');
   const [away, setAway] = useState(pred?.away_pred?.toString() ?? '');
-  const [firstTeam, setFirstTeam] = useState(pred?.first_team ?? '');
+  const [firstTeam, setFirstTeam] = useState(
+    () => canonicalFirstScorerTeam(pred?.first_team || '', match.home_team, match.away_team)
+  );
   const [firstPlayer, setFirstPlayer] = useState(pred?.first_player ?? '');
   const [saving, setSaving] = useState(false);
   const [boosterSaving, setBoosterSaving] = useState(false);
@@ -54,10 +49,17 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
     if (pred) {
       setHome(pred.home_pred?.toString() ?? '');
       setAway(pred.away_pred?.toString() ?? '');
-      setFirstTeam(pred.first_team || '');
+      setFirstTeam(canonicalFirstScorerTeam(pred.first_team || '', match.home_team, match.away_team));
       setFirstPlayer(pred.first_player || '');
     }
-  }, [pred?.home_pred, pred?.away_pred, pred?.first_team, pred?.first_player]);
+  }, [
+    pred?.home_pred,
+    pred?.away_pred,
+    pred?.first_team,
+    pred?.first_player,
+    match.home_team,
+    match.away_team,
+  ]);
 
   useEffect(() => {
     setSquadPlayers(null);
@@ -118,6 +120,11 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
       ? 'Прогнозы закрыты — матч уже начался'
       : 'Прогнозы закрыты';
 
+  const resolvedFirstTeam = useMemo(
+    () => canonicalFirstScorerTeam(firstTeam, match.home_team, match.away_team),
+    [firstTeam, match.home_team, match.away_team]
+  );
+
   const save = async (overrides = {}) => {
     if (inputsLocked) return;
     const h = overrides.homeScore ?? (home === '' ? null : parseInt(home, 10));
@@ -133,7 +140,9 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
         leagueId: leagueId ? Number(leagueId) : undefined,
         homeScore: h,
         awayScore: a,
-        firstTeam: overrides.firstTeam ?? (firstTeam || null),
+        firstTeam:
+          overrides.firstTeam ??
+          (resolvedFirstTeam || null),
         firstPlayer: overrides.firstPlayer ?? (firstPlayer || null),
       };
       if (overrides.booster !== undefined) {
@@ -170,7 +179,7 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
         leagueId: Number(leagueId),
         homeScore: h,
         awayScore: a,
-        firstTeam: firstTeam || null,
+        firstTeam: resolvedFirstTeam || null,
         firstPlayer: firstPlayer || null,
       });
       await api.setBooster({
@@ -234,9 +243,42 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
               : `${friends} ${friends === 1 ? 'друг сделал' : friends < 5 ? 'друга сделали' : 'друзей сделали'} прогноз на этот матч`;
 
   const canSave = !inputsLocked && home !== '' && away !== '';
+  const prevCanSaveRef = useRef(canSave);
+
+  useEffect(() => {
+    const becameCanSave = canSave && !prevCanSaveRef.current;
+    prevCanSaveRef.current = canSave;
+    if (!becameCanSave || inputsLocked || saving) return;
+
+    const persistedTeam = canonicalFirstScorerTeam(
+      pred?.first_team || '',
+      match.home_team,
+      match.away_team
+    );
+    const extras = {};
+    if (resolvedFirstTeam && resolvedFirstTeam !== persistedTeam) {
+      extras.firstTeam = resolvedFirstTeam;
+    }
+    if (firstPlayer && firstPlayer !== (pred?.first_player || '')) {
+      extras.firstPlayer = firstPlayer;
+    }
+    if (Object.keys(extras).length > 0) {
+      save(extras);
+    }
+  }, [
+    canSave,
+    resolvedFirstTeam,
+    firstPlayer,
+    pred?.first_team,
+    pred?.first_player,
+    inputsLocked,
+    saving,
+    match.home_team,
+    match.away_team,
+  ]);
 
   const scoreIsSet = hasLocalScore;
-  const missingFirstTeam = scoreIsSet && !firstTeam;
+  const missingFirstTeam = scoreIsSet && !resolvedFirstTeam;
   const missingFirstPlayer = scoreIsSet && !firstPlayer;
 
   const playerPlaceholder = squadLoading
@@ -288,7 +330,10 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
 
   const isProvisionalPoints = isLive && !!pointsDetail;
 
-  const selectedFirstTeam = firstTeamSelection(firstTeam, match.home_team, match.away_team);
+  const selectedFirstTeam = useMemo(() => {
+    const pick = resolveFirstTeamDisplay(firstTeam, match.home_team, match.away_team);
+    return pick.empty ? null : pick;
+  }, [firstTeam, match.home_team, match.away_team]);
   const selectedFirstPlayer = useMemo(() => {
     const pick = resolveFirstPlayerDisplay(firstPlayer, squadPlayers ?? []);
     return pick.empty ? null : pick;
@@ -424,7 +469,7 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
               </span>
             ) : null}
             <FirstTeamSelect
-              value={firstTeam}
+              value={resolvedFirstTeam}
               onChange={(next) => {
                 setFirstTeam(next);
                 if (canSave) save({ firstTeam: next || null });
@@ -473,7 +518,7 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
               title={squadError || undefined}
               homeTeam={match.home_team}
               awayTeam={match.away_team}
-              scorerTeam={firstTeam}
+              scorerTeam={resolvedFirstTeam}
               onOpen={loadSquadPlayers}
             />
           </div>

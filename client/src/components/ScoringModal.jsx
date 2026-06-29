@@ -15,6 +15,9 @@ const EXAMPLE_ACTUAL = {
   away_score: 1,
   first_scorer_team: 'home',
   first_scorer_player: 'Lozano',
+  first_scorer_player_team: 'home',
+  home_team: 'Mexico',
+  away_team: 'Poland',
   stage: 'group',
 };
 

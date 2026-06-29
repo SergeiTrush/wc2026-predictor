@@ -3,6 +3,12 @@ const { mapApiTeamName } = require('./team-map');
 const { isEnabled, apiFetch } = require('./bzzoiro-client');
 const { findMatchForEvent } = require('./match-lookup');
 const { resolveFirstScorerForFixture } = require('./first-scorer-sync');
+const {
+  isKnockoutMatch,
+  isLiveExtraTime,
+  resolveKnockoutPersistScores,
+  attachRegulationToLiveCache,
+} = require('../shared/live-score');
 
 const LIVE_STATUSES = new Set([
   'inprogress',
@@ -49,6 +55,8 @@ const updateLiveMatchDb = (q) =>
     `UPDATE matches SET
        home_score = ?,
        away_score = ?,
+       final_home_score = ?,
+       final_away_score = ?,
        first_scorer_team = COALESCE(?, first_scorer_team),
        first_scorer_player = COALESCE(?, first_scorer_player),
        first_scorer_player_team = COALESCE(?, first_scorer_player_team),
@@ -80,9 +88,19 @@ async function persistLiveMatchFromFeed(q, match, live) {
     console.warn('Live first scorer:', errors[0]);
   }
 
-  updateLiveMatchDb(q).run(
+  const inExtraTime = isKnockoutMatch(match) && isLiveExtraTime(live);
+  const scores = resolveKnockoutPersistScores(
+    match,
     live.homeScore,
     live.awayScore,
+    inExtraTime
+  );
+
+  updateLiveMatchDb(q).run(
+    scores.homeScore,
+    scores.awayScore,
+    scores.finalHomeScore,
+    scores.finalAwayScore,
     scorer.firstTeam,
     scorer.firstPlayer,
     scorer.playerTeam,
@@ -119,9 +137,21 @@ async function refreshLiveScores(db) {
 
     if (FINISHED_STATUSES.has(live.status)) {
       if (Number(match.is_finished) !== 1) {
+        const scores = resolveKnockoutPersistScores(
+          match,
+          live.homeScore,
+          live.awayScore,
+          false
+        );
         q(
-          `UPDATE matches SET home_score = ?, away_score = ?, is_finished = 1 WHERE id = ?`
-        ).run(live.homeScore, live.awayScore, match.id);
+          `UPDATE matches SET home_score = ?, away_score = ?, final_home_score = ?, final_away_score = ?, is_finished = 1 WHERE id = ?`
+        ).run(
+          scores.homeScore,
+          scores.awayScore,
+          scores.finalHomeScore,
+          scores.finalAwayScore,
+          match.id
+        );
       }
       continue;
     }
@@ -141,13 +171,29 @@ async function refreshLiveScores(db) {
       }
     }
 
-    byMatchId.set(match.id, {
-      homeScore: live.homeScore,
-      awayScore: live.awayScore,
-      minute: live.minute,
-      status: live.status,
-      isLive: live.isLive,
-    });
+    const inExtraTime = isKnockoutMatch(match) && isLiveExtraTime(live);
+    const persistScores = resolveKnockoutPersistScores(
+      match,
+      live.homeScore,
+      live.awayScore,
+      inExtraTime
+    );
+    const matchForCache = {
+      ...match,
+      home_score: persistScores.homeScore,
+      away_score: persistScores.awayScore,
+    };
+
+    byMatchId.set(
+      match.id,
+      attachRegulationToLiveCache(matchForCache, {
+        homeScore: live.homeScore,
+        awayScore: live.awayScore,
+        minute: live.minute,
+        status: live.status,
+        isLive: live.isLive,
+      })
+    );
   }
 
   cache = { byMatchId, at: Date.now() };

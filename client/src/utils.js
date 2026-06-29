@@ -183,17 +183,25 @@ export function regulationScoresFromLive(liveScore) {
   return null;
 }
 
+function storedRegulationScores(match) {
+  if (!match) return null;
+  if (match.home_score != null && match.away_score != null) {
+    return { home: Number(match.home_score), away: Number(match.away_score) };
+  }
+  return null;
+}
+
 /** Current aggregate on the live bar (includes extra-time goals). */
 export function liveBarDisplayScore(match, liveScore) {
   if (!liveScore || liveScore.homeScore == null || liveScore.awayScore == null) return null;
   return { home: liveScore.homeScore, away: liveScore.awayScore };
 }
 
-/** 90-minute score for fantasy points during knockout extra time. */
+/** 90-minute score for fantasy points (knockout ET / penalties use frozen regulation). */
 export function regulationScoreForPoints(match, liveScore) {
   if (!liveScore) return null;
   if (isKnockoutMatch(match) && isLiveExtraTime(liveScore)) {
-    const reg = regulationScoresFromLive(liveScore);
+    const reg = regulationScoresFromLive(liveScore) ?? storedRegulationScores(match);
     if (reg) return reg;
   }
   return liveBarDisplayScore(match, liveScore);

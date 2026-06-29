@@ -12,6 +12,7 @@ const {
   resolveAndApplyKnockoutTeams,
 } = require('../resolve-knockout-teams');
 const { resolveFirstScorerForFixture } = require('../first-scorer-sync');
+const { isKnockoutMatch, isLiveExtraTime, resolveKnockoutPersistScores } = require('../../shared/live-score');
 
 const FINISHED = new Set(['finished']);
 const IN_PROGRESS = new Set([
@@ -147,6 +148,8 @@ async function syncResults(db) {
     `UPDATE matches SET
        home_score = ?,
        away_score = ?,
+       final_home_score = ?,
+       final_away_score = ?,
        first_scorer_team = COALESCE(?, first_scorer_team),
        first_scorer_player = COALESCE(?, first_scorer_player),
        first_scorer_player_team = COALESCE(?, first_scorer_player_team),
@@ -218,9 +221,19 @@ async function syncResults(db) {
       const scorer = await maybeFetchFirstScorer(cfg, eventFetchesRef, match, fixture, errors);
       eventFetches = eventFetchesRef.value;
 
-      updateMatchScores.run(
+      const inExtraTime = isKnockoutMatch(match) && isLiveExtraTime({ status: fixture.status });
+      const scores = resolveKnockoutPersistScores(
+        match,
         fixture.homeGoals,
         fixture.awayGoals,
+        inExtraTime
+      );
+
+      updateMatchScores.run(
+        scores.homeScore,
+        scores.awayScore,
+        scores.finalHomeScore,
+        scores.finalAwayScore,
         scorer.firstTeam,
         scorer.firstPlayer,
         scorer.playerTeam,
@@ -242,9 +255,18 @@ async function syncResults(db) {
       const scorer = await maybeFetchFirstScorer(cfg, eventFetchesRef, match, fixture, errors);
       eventFetches = eventFetchesRef.value;
 
-      updateMatchScores.run(
+      const scores = resolveKnockoutPersistScores(
+        match,
         fixture.homeGoals,
         fixture.awayGoals,
+        false
+      );
+
+      updateMatchScores.run(
+        scores.homeScore,
+        scores.awayScore,
+        scores.finalHomeScore,
+        scores.finalAwayScore,
         scorer.firstTeam,
         scorer.firstPlayer,
         scorer.playerTeam,

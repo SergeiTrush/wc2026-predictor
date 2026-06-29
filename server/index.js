@@ -35,7 +35,7 @@ const {
   leaderboardTiebreakCounts,
   compareLeaderboardRows,
 } = require('../shared/scoring');
-const { scoringActualFromLive, liveScoreIsFinished } = require('../shared/live-score');
+const { scoringActualFromLive, liveScoreIsFinished, isKnockoutExtraTime } = require('../shared/live-score');
 const {
   syncResultsFromApi,
   getSyncStatus,
@@ -314,7 +314,7 @@ function resolveLeaderboardMatchActual(match, liveScore) {
           home_score: display.home_score,
           away_score: display.away_score,
         }),
-        provisional: true,
+        provisional: !isKnockoutExtraTime(match, feed),
       };
     }
   }
@@ -492,7 +492,7 @@ function friendPredictionsForMatch(leagueId, matchId, userId, match, liveScore =
       const raw = breakdownMatchPoints(pred, scoreSource);
       points = raw.total;
       pointsDetail = formatPointsBreakdown(raw);
-      provisional = !hasResult && !liveScoreIsFinished(liveScore);
+      provisional = !hasResult && !liveScoreIsFinished(liveScore) && !isKnockoutExtraTime(match, liveScore);
     }
     return {
       userId: row.user_id,

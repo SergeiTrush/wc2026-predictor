@@ -3,7 +3,7 @@ import { api } from '../api';
 import { useConfirm } from '../context/ConfirmContext';
 import { loadMatchSquads } from '../teamSquads';
 import { teamFlag, formatMatchTime, boosterLabel, isMatchLiveScoreBarVisible, isMatchInPlayWindow, matchHasResult, matchHasLiveScore, matchIsLive, isLiveExtraTime, liveBarScoreText, provisionalScoringActual } from '../utils';
-import { isKnockoutMatch } from '../matchdays';
+import { isKnockoutMatch, isKnockoutExtraTime } from '../matchdays';
 import { breakdownMatchPoints, formatPointsBreakdown, enrichScoringActual } from '../scoring';
 import PointsTooltip from './PointsTooltip';
 import FriendsPredictionsModal, { friendsLinkLabel } from './FriendsPredictionsModal';
@@ -287,6 +287,7 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
   }, [match, pred, hasResult, liveScore, squadPlayers]);
 
   const isProvisionalPoints = isLive && !!pointsDetail;
+  const showProvisionalTilde = isProvisionalPoints && !isKnockoutExtraTime(match, liveScore);
 
   const selectedFirstTeam = firstTeamSelection(firstTeam, match.home_team, match.away_team);
   const selectedFirstPlayer = useMemo(() => {
@@ -323,7 +324,11 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
             </span>
           </div>
           {pointsDetail ? (
-            <PointsTooltip pointsDetail={pointsDetail} provisional={isProvisionalPoints} />
+            <PointsTooltip
+              pointsDetail={pointsDetail}
+              provisional={isProvisionalPoints}
+              showTilde={showProvisionalTilde}
+            />
           ) : showLiveScore ? (
             <span className="points-no-pred">Нет прогноза</span>
           ) : null}

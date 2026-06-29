@@ -5,6 +5,7 @@ import { openPointsTooltip, closePointsTooltip } from '../pointsTooltipRegistry'
 export default function PointsTooltip({
   pointsDetail,
   provisional = false,
+  showTilde,
   variant = 'dropdown',
   wrapRef: wrapRefProp = null,
   detachPanel = false,
@@ -45,11 +46,12 @@ export default function PointsTooltip({
   if (!pointsDetail) return null;
 
   const { total } = pointsDetail;
+  const tilde = showTilde ?? provisional;
 
   const controls = (
     <div className="points-tooltip-controls">
       <span className="points-badge">
-        {provisional ? '~' : ''}+{total} оч.
+        {tilde ? '~' : ''}+{total} оч.
       </span>
       <button
         type="button"

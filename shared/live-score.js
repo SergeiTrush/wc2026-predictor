@@ -66,10 +66,15 @@ function liveDisplayScore(match, liveScore) {
   return regulationScoreForPoints(match, liveScore);
 }
 
+function isKnockoutExtraTime(match, liveScore) {
+  return isKnockoutMatch(match) && isLiveExtraTime(liveScore);
+}
+
 module.exports = {
   liveScoreIsFinished,
   isKnockoutMatch,
   isLiveExtraTime,
+  isKnockoutExtraTime,
   regulationScoresFromLive,
   liveBarDisplayScore,
   regulationScoreForPoints,

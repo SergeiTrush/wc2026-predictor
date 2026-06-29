@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api, isSessionExpiredError } from '../api';
 import { loadMatchSquads } from '../teamSquads';
 import { teamFlag, boosterLabel, matchHasResult, matchHasLiveScore, matchIsLive, isLiveExtraTime, liveBarScoreText, provisionalScoringActual } from '../utils';
-import { isKnockoutMatch } from '../matchdays';
+import { isKnockoutMatch, isKnockoutExtraTime } from '../matchdays';
 import { breakdownMatchPoints, formatPointsBreakdown, enrichScoringActual } from '../scoring';
 import ModalOverlay from './ModalOverlay';
 import PointsTooltip from './PointsTooltip';
@@ -55,9 +55,13 @@ function resolvePredictionPoints(prediction, displayMatch) {
     { underdogBonus }
   );
 
+  const provisional = !hasResult;
+  const showTilde = provisional && !isKnockoutExtraTime(displayMatch, displayMatch.liveScore);
+
   return {
     pointsDetail: formatPointsBreakdown(raw),
-    provisional: !hasResult,
+    provisional,
+    showTilde,
   };
 }
 
@@ -221,6 +225,7 @@ function FriendPredictionRow({ prediction: p, points, mult, displayMatch, squadP
           <PointsTooltip
             pointsDetail={points.pointsDetail}
             provisional={points.provisional}
+            showTilde={points.showTilde}
             variant="inline"
             detachPanel
             wrapRef={rowRef}

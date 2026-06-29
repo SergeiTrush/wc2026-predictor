@@ -1,4 +1,4 @@
-import { formatDayMonth } from './utils';
+import { formatDayMonth, isLiveExtraTime } from './utils';
 import { MATCHDAY_ORDER, MATCHDAY_META } from './generated-matchday-meta.js';
 
 export function matchdayKey(match) {
@@ -103,6 +103,10 @@ export function isKnockoutMatch(match) {
     const meta = MATCHDAY_META[d];
     return meta && kick >= meta.start && kick <= meta.end;
   });
+}
+
+export function isKnockoutExtraTime(match, liveScore) {
+  return isKnockoutMatch(match) && isLiveExtraTime(liveScore);
 }
 
 /** Regulation-time scoring rule (shown in «Как начисляются очки»). */

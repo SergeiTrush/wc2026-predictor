@@ -81,11 +81,12 @@ export function formatDateTime(iso) {
 }
 
 export function matchIsFinished(match) {
+  if (match?.hasResult === true) return true;
+  if (match?.isFinished === true || match?.isFinished === 1 || match?.isFinished === '1') {
+    return true;
+  }
   if (match?.is_finished != null) {
     return Number(match.is_finished) === 1;
-  }
-  if (match?.isFinished != null) {
-    return match.isFinished === true || match.isFinished === 1 || match.isFinished === '1';
   }
   return false;
 }
@@ -95,9 +96,6 @@ export function matchHasStoredScore(match) {
 }
 
 export function matchHasResult(match) {
-  if (match?.is_finished != null || match?.isFinished != null) {
-    return matchIsFinished(match) && matchHasStoredScore(match);
-  }
   if (match?.hasResult != null) return !!match.hasResult;
   return matchIsFinished(match) && matchHasStoredScore(match);
 }
@@ -115,6 +113,13 @@ export function matchIsLive(match) {
   if (matchHasLiveManualScore(match)) return true;
   const ls = match?.liveScore;
   return !!(ls?.isLive && ls?.homeScore != null && ls?.awayScore != null);
+}
+
+/** Started match that is still in play — uses /api/matches isLive + hasResult. */
+export function isMatchOnLiveTab(match) {
+  if (matchIsFinished(match)) return false;
+  if (new Date(match.kickoff).getTime() > Date.now()) return false;
+  return matchIsLive(match);
 }
 
 export function matchHasLiveManualScore(match) {

@@ -9,7 +9,7 @@ import {
   matchdayKey,
 } from '../matchdays';
 import MatchCard from '../components/MatchCard';
-import { isMatchLiveScoreBarVisible, isMatchInPlayWindow, matchHasResult, matchIsFinished } from '../utils';
+import { isMatchLiveScoreBarVisible, isMatchInPlayWindow, matchHasResult, matchIsFinished, isMatchOnLiveTab } from '../utils';
 import { redirectIfLeagueForbidden } from '../leagueAccess';
 
 export default function LeaguePage() {
@@ -171,7 +171,7 @@ export default function LeaguePage() {
 
   useEffect(() => {
     if (autoFilterRef.current || !matches.length) return;
-    const hasLive = matches.some((m) => new Date(m.kickoff).getTime() <= Date.now() && !matchIsFinished(m));
+    const hasLive = matches.some(isMatchOnLiveTab);
     const hasSchedule = matches.some((m) => new Date(m.kickoff).getTime() > Date.now());
     setFilter(hasLive ? 'live' : hasSchedule ? 'schedule' : 'finished');
     autoFilterRef.current = true;
@@ -190,14 +190,14 @@ export default function LeaguePage() {
     let list = matches;
     if (filter === 'schedule') list = matches.filter((m) => new Date(m.kickoff).getTime() > Date.now());
     else if (filter === 'finished') list = matches.filter((m) => matchIsFinished(m));
-    else if (filter === 'live') list = matches.filter((m) => new Date(m.kickoff).getTime() <= Date.now() && !matchIsFinished(m));
+    else if (filter === 'live') list = matches.filter(isMatchOnLiveTab);
     const byKickoff = (a, b) => String(a.kickoff).localeCompare(String(b.kickoff));
     return [...list].sort(filter === 'finished' ? (a, b) => byKickoff(b, a) : byKickoff);
   }, [matches, filter]);
 
   const scheduleCount = matches.filter((m) => new Date(m.kickoff).getTime() > Date.now()).length;
   const finishedCount = matches.filter((m) => matchIsFinished(m)).length;
-  const liveCount = matches.filter((m) => new Date(m.kickoff).getTime() <= Date.now() && !matchIsFinished(m)).length;
+  const liveCount = matches.filter(isMatchOnLiveTab).length;
   const filterCount = filter === 'schedule' ? scheduleCount : filter === 'live' ? liveCount : finishedCount;
   const filterLabel = filter === 'schedule' ? 'запланировано' : filter === 'live' ? 'live' : 'завершено';
 

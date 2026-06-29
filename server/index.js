@@ -74,6 +74,20 @@ const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'wc2026-dev-secret-change-in-production';
 const INVITE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
+let lastResultsSyncOnMatchesAt = 0;
+const RESULTS_SYNC_ON_MATCHES_MS = Number(process.env.RESULTS_SYNC_ON_MATCHES_MS || 60000);
+
+async function refreshResultsIfStale() {
+  if (!resultsSyncEnabled()) return;
+  if (Date.now() - lastResultsSyncOnMatchesAt < RESULTS_SYNC_ON_MATCHES_MS) return;
+  try {
+    await syncResultsFromApi(db);
+    lastResultsSyncOnMatchesAt = Date.now();
+  } catch (err) {
+    console.warn('Results sync on /api/matches:', err.message);
+  }
+}
+
 function inviteCode() {
   let code = '';
   for (let i = 0; i < 6; i += 1) {
@@ -251,7 +265,7 @@ function matchIsInPlay(match, liveScore = undefined) {
   if (liveScoreIsFinished(feed)) return false;
   const ls = liveScore !== undefined ? liveScore : feed;
   if (ls?.isLive) return true;
-  return matchHasLiveManualScore(match);
+  return false;
 }
 
 function manualLiveScoreFromMatch(match) {
@@ -936,6 +950,7 @@ app.get('/api/matches', authMiddleware, async (req, res) => {
   initStartedMatchScores();
 
   await refreshIfStale(db);
+  await refreshResultsIfStale();
 
   const matches = q(query).all(...params);
   const scoreSuggestionsByKey = await getSuggestionsMap();
@@ -953,8 +968,10 @@ app.get('/api/matches', authMiddleware, async (req, res) => {
         : null;
     let friendsPredicted = 0;
     let pointsDetail = null;
-    const hasResult = matchHasResult(m);
     const liveScore = resolveLiveScoreForMatch(m);
+    const inPlay = matchIsInPlay(m, liveScore);
+    const finished = matchIsFinished(m);
+    const hasResult = finished && matchHasStoredScore(m);
     if (lid && isActiveLeagueMember(lid, req.user.id)) {
       const leaguePreds = leaguePredictionsForMatch(lid, m.id);
       friendsPredicted = leaguePreds.filter(
@@ -1016,8 +1033,8 @@ app.get('/api/matches', authMiddleware, async (req, res) => {
       friendsPredicted,
       friendPredictions,
       hasResult,
-      isFinished: matchIsFinished(m),
-      isLive: matchIsInPlay(m, liveScore),
+      isFinished: finished,
+      isLive: inPlay,
       hasLiveScore: !!liveScore && !liveScoreIsFinished(liveScore),
       hasLiveManualScore: matchHasLiveManualScore(m),
       pointsDetail,

@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
+  isLiveExtraTime,
   regulationScoreForPoints,
   resolveKnockoutPersistScores,
   scoringActualFromLive,
@@ -13,6 +14,22 @@ const germanyParaguay = {
   home_score: 1,
   away_score: 1,
 };
+
+test('isLiveExtraTime is false during second-half stoppage time (minute > 90)', () => {
+  assert.equal(isLiveExtraTime({ status: '2nd_half', minute: 98 }), false);
+  assert.equal(isLiveExtraTime({ status: 'inprogress', minute: 95 }), false);
+});
+
+test('isLiveExtraTime is true only when status is extra time or penalties', () => {
+  assert.equal(isLiveExtraTime({ status: 'extra_time', minute: 105 }), true);
+  assert.equal(isLiveExtraTime({ status: 'penalties', minute: 120 }), true);
+});
+
+test('regulationScoreForPoints uses live score during stoppage time', () => {
+  const live = { homeScore: 1, awayScore: 2, status: '2nd_half', minute: 98 };
+  const reg = regulationScoreForPoints(germanyParaguay, live);
+  assert.deepEqual(reg, { home: 1, away: 2 });
+});
 
 test('regulationScoreForPoints uses stored 90-min score during knockout ET', () => {
   const live = {

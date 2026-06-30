@@ -16,9 +16,8 @@ function isKnockoutMatch(match) {
 
 function isLiveExtraTime(liveScore) {
   if (!liveScore) return false;
-  const status = liveScore.status;
-  if (status === 'extra_time' || status === 'extratime' || status === 'penalties') return true;
-  return liveScore.minute != null && liveScore.minute > 90;
+  const status = String(liveScore.status || '').toLowerCase();
+  return status === 'extra_time' || status === 'extratime' || status === 'penalties';
 }
 
 function regulationScoresFromLive(liveScore) {

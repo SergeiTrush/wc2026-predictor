@@ -154,8 +154,26 @@ function inferPlayerSide(playerName, homeTeam, awayTeam, squadPlayers) {
   return null;
 }
 
+/** Repair mistaken ET split where regulation wasn't a draw but final aggregate differs. */
+function repairMisSplitRegulationScores(match) {
+  if (match?.home_score == null || match?.away_score == null) return null;
+  const home = Number(match.home_score);
+  const away = Number(match.away_score);
+  const fh = match.final_home_score != null ? Number(match.final_home_score) : null;
+  const fa = match.final_away_score != null ? Number(match.final_away_score) : null;
+  if (fh == null || fa == null || Number.isNaN(fh) || Number.isNaN(fa)) return { home, away };
+  if (home === away) return { home, away };
+  if (home !== fh || away !== fa) return { home: fh, away: fa };
+  return { home, away };
+}
+
 /** Repair stale 0:0 regulation scores using final score metadata (client fallback). */
 function applyClientRegulationRepair(match, scoreOverrides = {}) {
+  const misSplit = repairMisSplitRegulationScores(match);
+  if (misSplit && (misSplit.home !== Number(match.home_score) || misSplit.away !== Number(match.away_score))) {
+    return { home_score: misSplit.home, away_score: misSplit.away };
+  }
+
   const home = toScore(scoreOverrides.home_score ?? match.home_score);
   const away = toScore(scoreOverrides.away_score ?? match.away_score);
   if (home !== 0 || away !== 0) {

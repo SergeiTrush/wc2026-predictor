@@ -1,5 +1,5 @@
 const { buildScoringActual, scorerSide, toScore } = require('../shared/scoring');
-const { scoringActualFromLive, liveScoreIsFinished, isLiveExtraTime } = require('../shared/live-score');
+const { scoringActualFromLive, liveScoreIsFinished, isLiveExtraTime, repairMisSplitRegulationScores } = require('../shared/live-score');
 const { getLocalSquadsBulk } = require('./squad-service');
 const {
   resolveFirstScorerForFixture,
@@ -152,6 +152,11 @@ function applyRegulationScoresToMatch(match, regulation) {
 
 /** Repair stale 0:0 regulation scores synchronously (no API) before scoring. */
 function applySyncRegulationRepair(match) {
+  const misSplit = repairMisSplitRegulationScores(match);
+  if (misSplit && (misSplit.home !== Number(match.home_score) || misSplit.away !== Number(match.away_score))) {
+    return applyRegulationScoresToMatch(match, misSplit);
+  }
+
   if (!storedRegulationLooksStale(match)) return match;
 
   const fromIncidents = regulationScoreFromCachedIncidents(match);

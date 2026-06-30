@@ -141,7 +141,8 @@ export function hasActiveLiveFeed(liveScore) {
 /** Score shown on the live bar — prefer live feed over stale DB when both exist. */
 export function liveBarScoreText(match) {
   if (matchHasResult(match)) {
-    return `${match.home_score} : ${match.away_score}`;
+    const actual = enrichScoringActual(match);
+    return `${actual.home_score} : ${actual.away_score}`;
   }
   const ls = match?.liveScore;
   if (hasActiveLiveFeed(ls)) {

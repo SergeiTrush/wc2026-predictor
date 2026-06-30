@@ -36,6 +36,20 @@ function storedRegulationScores(match) {
   return null;
 }
 
+/** Repair mistaken ET split where regulation wasn't a draw but final aggregate differs. */
+function repairMisSplitRegulationScores(match) {
+  const stored = storedRegulationScores(match);
+  if (!stored) return null;
+  const fh = match.final_home_score != null ? Number(match.final_home_score) : null;
+  const fa = match.final_away_score != null ? Number(match.final_away_score) : null;
+  if (fh == null || fa == null || Number.isNaN(fh) || Number.isNaN(fa)) return stored;
+  if (stored.home === stored.away) return stored;
+  if (stored.home !== fh || stored.away !== fa) {
+    return { home: fh, away: fa };
+  }
+  return stored;
+}
+
 /** Current aggregate on the live bar (includes extra-time goals). */
 function liveBarDisplayScore(match, liveScore) {
   if (!liveScore || liveScore.homeScore == null || liveScore.awayScore == null) return null;
@@ -57,6 +71,15 @@ function regulationScoreForPoints(match, liveScore) {
  * Knockout matches in extra time / penalties keep home_score frozen at regulation.
  */
 function resolveKnockoutPersistScores(match, aggregateHome, aggregateAway, inExtraTime) {
+  if (!isKnockoutMatch(match)) {
+    return {
+      homeScore: aggregateHome,
+      awayScore: aggregateAway,
+      finalHomeScore: null,
+      finalAwayScore: null,
+    };
+  }
+
   const stored = storedRegulationScores(match);
   if (inExtraTime && stored) {
     return {
@@ -80,7 +103,13 @@ function resolveKnockoutPersistScores(match, aggregateHome, aggregateAway, inExt
       finalAwayScore: null,
     };
   }
-  if (stored && (stored.home !== aggregateHome || stored.away !== aggregateAway)) {
+  // Knockout ended after ET: regulation was a draw, final aggregate differs.
+  if (
+    stored &&
+    !inExtraTime &&
+    stored.home === stored.away &&
+    (stored.home !== aggregateHome || stored.away !== aggregateAway)
+  ) {
     return {
       homeScore: stored.home,
       awayScore: stored.away,
@@ -147,6 +176,7 @@ module.exports = {
   isLiveExtraTime,
   isKnockoutExtraTime,
   storedRegulationScores,
+  repairMisSplitRegulationScores,
   regulationScoresFromLive,
   liveBarDisplayScore,
   regulationScoreForPoints,

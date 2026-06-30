@@ -4,6 +4,7 @@ const {
   isLiveExtraTime,
   regulationScoreForPoints,
   resolveKnockoutPersistScores,
+  repairMisSplitRegulationScores,
   scoringActualFromLive,
 } = require('./live-score');
 
@@ -14,6 +15,26 @@ const germanyParaguay = {
   home_score: 1,
   away_score: 1,
 };
+
+test('repairMisSplitRegulationScores fixes mistaken ET split', () => {
+  const repaired = repairMisSplitRegulationScores({
+    home_score: 1,
+    away_score: 0,
+    final_home_score: 3,
+    final_away_score: 0,
+  });
+  assert.deepEqual(repaired, { home: 3, away: 0 });
+});
+
+test('repairMisSplitRegulationScores keeps genuine knockout ET regulation draw', () => {
+  const repaired = repairMisSplitRegulationScores({
+    home_score: 1,
+    away_score: 1,
+    final_home_score: 2,
+    final_away_score: 1,
+  });
+  assert.deepEqual(repaired, { home: 1, away: 1 });
+});
 
 test('isLiveExtraTime is false during second-half stoppage time (minute > 90)', () => {
   assert.equal(isLiveExtraTime({ status: '2nd_half', minute: 98 }), false);
@@ -78,6 +99,28 @@ test('resolveKnockoutPersistScores uses aggregate when knockout ends in 90 minut
   const scores = resolveKnockoutPersistScores(match, 2, 0, false);
   assert.deepEqual(scores, {
     homeScore: 2,
+    awayScore: 0,
+    finalHomeScore: null,
+    finalAwayScore: null,
+  });
+});
+
+test('resolveKnockoutPersistScores updates live regulation score (not ET split)', () => {
+  const match = { stage: 'round_of_32', home_score: 1, away_score: 0 };
+  const scores = resolveKnockoutPersistScores(match, 3, 0, false);
+  assert.deepEqual(scores, {
+    homeScore: 3,
+    awayScore: 0,
+    finalHomeScore: null,
+    finalAwayScore: null,
+  });
+});
+
+test('resolveKnockoutPersistScores uses aggregate for group stage live updates', () => {
+  const match = { stage: 'group', home_score: 1, away_score: 0 };
+  const scores = resolveKnockoutPersistScores(match, 3, 0, false);
+  assert.deepEqual(scores, {
+    homeScore: 3,
     awayScore: 0,
     finalHomeScore: null,
     finalAwayScore: null,

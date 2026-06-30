@@ -107,8 +107,8 @@ function scoringActualFromLive(match, liveScore) {
   const display = regulationScoreForPoints(match, liveScore);
   if (!display) return null;
   return {
-    home_score: display.home,
-    away_score: display.away,
+    home_score: Number(display.home),
+    away_score: Number(display.away),
     first_scorer_team: match.first_scorer_team ?? null,
     first_scorer_player: match.first_scorer_player ?? null,
     first_scorer_player_team: match.first_scorer_player_team ?? null,

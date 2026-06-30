@@ -34,6 +34,7 @@ const {
   formatPointsBreakdown,
   leaderboardTiebreakCounts,
   compareLeaderboardRows,
+  toScore,
 } = require('../shared/scoring');
 const { scoringActualFromLive, liveScoreIsFinished, isKnockoutExtraTime } = require('../shared/live-score');
 const {
@@ -303,10 +304,14 @@ function liveScoreAsResult(match, liveScore) {
 function computeUnderdogBonusFromActual(pred, actual, match, suggestionsMap) {
   if (!actual || actual.home_score == null || actual.away_score == null) return 0;
   if (pred.home_pred == null || pred.away_pred == null) return 0;
-  if (pred.home_pred !== actual.home_score || pred.away_pred !== actual.away_score) return 0;
+  if (toScore(pred.home_pred) !== toScore(actual.home_score) || toScore(pred.away_pred) !== toScore(actual.away_score)) {
+    return 0;
+  }
   const suggestions = getSuggestionsForMatch(match, suggestionsMap);
   if (!suggestions || suggestions.length === 0) return 0;
-  const isPopular = suggestions.some((s) => s.home === pred.home_pred && s.away === pred.away_pred);
+  const predHome = toScore(pred.home_pred);
+  const predAway = toScore(pred.away_pred);
+  const isPopular = suggestions.some((s) => s.home === predHome && s.away === predAway);
   return isPopular ? 0 : 5;
 }
 

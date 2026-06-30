@@ -1,5 +1,6 @@
 const { getLocalSquadsBulk } = require('./squad-service');
 const { apiFetch } = require('./bzzoiro-client');
+const { storedRegulationScores } = require('../shared/live-score');
 
 const CANONICAL_TEAMS = new Set(['home', 'away', 'none']);
 
@@ -8,6 +9,10 @@ const INCIDENT_CACHE_MS = 90_000;
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+function isKnockoutMatch(match) {
+  return Boolean(match?.stage && match.stage !== 'group');
 }
 
 function normalizeForSquadMatch(name) {
@@ -64,15 +69,24 @@ function isOwnGoalIncident(incident) {
   return gt === 'owngoal';
 }
 
-function parseFirstScorer(incidents, homeTeamName, awayTeamName) {
+function goalEffectiveMinute(incident) {
+  return (incident.minute ?? 999) + (incident.added_time ?? 0) / 100;
+}
+
+function isRegulationGoal(incident) {
+  return goalEffectiveMinute(incident) <= 90;
+}
+
+function parseFirstScorer(incidents, homeTeamName, awayTeamName, { regulationOnly = false } = {}) {
   if (!Array.isArray(incidents)) {
     return { team: null, player: null, playerTeam: null, isOwnGoal: null };
   }
 
   const goals = incidents
     .filter((i) => i.type === 'goal')
+    .filter((i) => !regulationOnly || isRegulationGoal(i))
     .map((i) => ({
-      minute: (i.minute ?? 999) + (i.added_time ?? 0) / 100,
+      minute: goalEffectiveMinute(i),
       isHome: i.is_home,
       player: i.player || null,
       isOwnGoal: isOwnGoalIncident(i),
@@ -111,6 +125,20 @@ function parseFirstScorer(incidents, homeTeamName, awayTeamName) {
   };
 }
 
+/** Goal count used to decide whether a first scorer exists (90-min for knockout ET). */
+function regulationGoalTotals(match, fixture) {
+  const homeGoals = fixture.homeGoals ?? fixture.homeScore;
+  const awayGoals = fixture.awayGoals ?? fixture.awayScore;
+  if (!isKnockoutMatch(match)) {
+    return { home: Number(homeGoals), away: Number(awayGoals) };
+  }
+  if (fixture.inExtraTime) {
+    const stored = storedRegulationScores(match);
+    if (stored) return stored;
+  }
+  return { home: Number(homeGoals), away: Number(awayGoals) };
+}
+
 function firstScorerNeedsApiFetch(match, homeGoals, awayGoals) {
   if (homeGoals == null || awayGoals == null) return false;
   if (Number(homeGoals) + Number(awayGoals) === 0) return false;
@@ -128,15 +156,26 @@ function firstScorerNeedsApiFetch(match, homeGoals, awayGoals) {
   return false;
 }
 
-async function fetchIncidents(eventId) {
+function getCachedIncidents(eventId) {
   const cached = incidentCache.get(eventId);
   if (cached && Date.now() - cached.at < INCIDENT_CACHE_MS) {
     return cached.incidents;
   }
+  return null;
+}
+
+async function fetchIncidents(eventId) {
+  const cached = getCachedIncidents(eventId);
+  if (cached) return cached;
   const data = await apiFetch(`/events/${eventId}/incidents/`);
   const incidents = data.incidents || [];
   incidentCache.set(eventId, { incidents, at: Date.now() });
   return incidents;
+}
+
+function scorerFromIncidents(incidents, match, homeTeam, awayTeam) {
+  const regulationOnly = isKnockoutMatch(match);
+  return parseFirstScorer(incidents, homeTeam, awayTeam, { regulationOnly });
 }
 
 /**
@@ -148,10 +187,10 @@ async function resolveFirstScorerForFixture(match, fixture, { maxEventFetches, e
   const awayTeam = fixture.away;
   const normalizedTeam = normalizeFirstScorerTeam(match.first_scorer_team, homeTeam, awayTeam);
 
-  const homeGoals = fixture.homeGoals ?? fixture.homeScore;
-  const awayGoals = fixture.awayGoals ?? fixture.awayScore;
+  const regTotals = regulationGoalTotals(match, fixture);
+  const matchForFetch = { ...match, first_scorer_team: normalizedTeam };
 
-  if (!firstScorerNeedsApiFetch({ ...match, first_scorer_team: normalizedTeam }, homeGoals, awayGoals)) {
+  if (!firstScorerNeedsApiFetch(matchForFetch, regTotals.home, regTotals.away)) {
     return {
       firstTeam: null,
       firstPlayer: null,
@@ -166,7 +205,7 @@ async function resolveFirstScorerForFixture(match, fixture, { maxEventFetches, e
     if (inferred) {
       return {
         firstTeam: inferred,
-        firstPlayer: null,
+        firstPlayer: match.first_scorer_player,
         playerTeam: inferred,
         isOwnGoal: null,
         fetched: false,
@@ -178,15 +217,21 @@ async function resolveFirstScorerForFixture(match, fixture, { maxEventFetches, e
     return { firstTeam: null, firstPlayer: null, playerTeam: null, isOwnGoal: null, fetched: false };
   }
 
-  if (maxEventFetches != null && eventFetchesRef && eventFetchesRef.value >= maxEventFetches) {
+  const cachedIncidents = getCachedIncidents(fixture.externalId);
+  const atFetchCap =
+    maxEventFetches != null && eventFetchesRef && eventFetchesRef.value >= maxEventFetches;
+
+  if (atFetchCap && !cachedIncidents) {
     return { firstTeam: null, firstPlayer: null, playerTeam: null, isOwnGoal: null, fetched: false };
   }
 
   try {
-    await sleep(120);
-    const incidents = await fetchIncidents(fixture.externalId);
-    if (eventFetchesRef) eventFetchesRef.value += 1;
-    const scorer = parseFirstScorer(incidents, homeTeam, awayTeam);
+    if (!cachedIncidents) {
+      await sleep(120);
+    }
+    const incidents = cachedIncidents || (await fetchIncidents(fixture.externalId));
+    if (!cachedIncidents && eventFetchesRef) eventFetchesRef.value += 1;
+    const scorer = scorerFromIncidents(incidents, match, homeTeam, awayTeam);
     return {
       firstTeam: scorer.team,
       firstPlayer: scorer.player,
@@ -205,6 +250,7 @@ module.exports = {
   normalizeFirstScorerTeam,
   inferTeamFromSquads,
   parseFirstScorer,
+  regulationGoalTotals,
   firstScorerNeedsApiFetch,
   fetchIncidents,
   resolveFirstScorerForFixture,

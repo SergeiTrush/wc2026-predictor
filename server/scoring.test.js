@@ -33,6 +33,24 @@ test('exact score 2-1 without extras = 10 points', () => {
   assert.equal(b.total, 10);
 });
 
+test('home and away goal points when prediction and actual use mixed types', () => {
+  const b = breakdownMatchPoints(
+    { home_pred: 2, away_pred: 0, booster: 0 },
+    {
+      home_score: '2',
+      away_score: '0',
+      first_scorer_team: 'home',
+      first_scorer_player: null,
+      stage: 'round_of_16',
+    }
+  );
+  assert.equal(b.homeGoals, 2);
+  assert.equal(b.awayGoals, 2);
+  assert.equal(b.outcome, 3);
+  assert.equal(b.goalDifference, 3);
+  assert.equal(b.scoreSubtotal, 10);
+});
+
 test('exact score + first team + player = 20, x2 booster = 40', () => {
   const b = breakdownMatchPoints(
     {

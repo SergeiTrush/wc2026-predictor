@@ -12,8 +12,15 @@ function matchdayFromKickoff(kickoff) {
   return kickoff.slice(0, 10);
 }
 
+/** Coerce DB/API score values to integers for consistent comparisons. */
+function toScore(value) {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
 function outcomeSign(home, away) {
-  return Math.sign(home - away);
+  return Math.sign(toScore(home) - toScore(away));
 }
 
 function normalizePlayer(name) {
@@ -65,7 +72,7 @@ function isNoScorerPrediction(firstPlayer) {
 }
 
 function isNoGoalMatch(homeScore, awayScore) {
-  return homeScore === 0 && awayScore === 0;
+  return toScore(homeScore) === 0 && toScore(awayScore) === 0;
 }
 
 /** Canonical home/away from stored team key or country name. */
@@ -103,8 +110,8 @@ function isFirstScorerOwnGoal(actual) {
 function buildScoringActual(match, scoreOverrides = {}) {
   if (!match) return scoreOverrides;
   return {
-    home_score: scoreOverrides.home_score ?? match.home_score,
-    away_score: scoreOverrides.away_score ?? match.away_score,
+    home_score: toScore(scoreOverrides.home_score ?? match.home_score),
+    away_score: toScore(scoreOverrides.away_score ?? match.away_score),
     first_scorer_team: match.first_scorer_team ?? null,
     first_scorer_player: match.first_scorer_player ?? null,
     first_scorer_player_team: match.first_scorer_player_team ?? null,
@@ -119,13 +126,17 @@ function buildScoringActual(match, scoreOverrides = {}) {
 function firstScorerPlayerSameTeam(actual) {
   const homeTeam = actual.home_team;
   const awayTeam = actual.away_team;
-  if (!homeTeam || !awayTeam) return false;
 
   const scorerSideKey = scorerSide(actual.first_scorer_team, homeTeam, awayTeam);
-  const playerSideKey = scorerSide(actual.first_scorer_player_team, homeTeam, awayTeam);
-  if (!scorerSideKey || !playerSideKey || scorerSideKey === 'none' || playerSideKey === 'none') {
-    return false;
+  if (!scorerSideKey || scorerSideKey === 'none') return false;
+
+  let playerSideKey = scorerSide(actual.first_scorer_player_team, homeTeam, awayTeam);
+  if ((!playerSideKey || playerSideKey === 'none') && actual.first_scorer_player) {
+    if (isFirstScorerOwnGoal(actual)) return false;
+    // Squad/API often omit player_team; credited scorer side is enough when not an own goal.
+    playerSideKey = scorerSideKey;
   }
+  if (!playerSideKey || playerSideKey === 'none') return false;
   return scorerSideKey === playerSideKey;
 }
 
@@ -164,27 +175,32 @@ function breakdownMatchPoints(pred, actual, { underdogBonus = 0 } = {}) {
   const { home_score, away_score, first_scorer_team, first_scorer_player, stage, home_team, away_team } =
     actual;
 
+  const predHome = toScore(home_pred);
+  const predAway = toScore(away_pred);
+  const actualHome = toScore(home_score);
+  const actualAway = toScore(away_score);
+
   let outcome = 0;
   let homeGoals = 0;
   let awayGoals = 0;
   let goalDifference = 0;
 
-  if (outcomeSign(home_pred, away_pred) === outcomeSign(home_score, away_score)) {
+  if (outcomeSign(predHome, predAway) === outcomeSign(actualHome, actualAway)) {
     outcome = 3;
   }
-  if (home_pred === home_score) homeGoals = 2;
-  if (away_pred === away_score) awayGoals = 2;
-  if (home_pred - away_pred === home_score - away_score) goalDifference = 3;
+  if (predHome === actualHome) homeGoals = 2;
+  if (predAway === actualAway) awayGoals = 2;
+  if (predHome - predAway === actualHome - actualAway) goalDifference = 3;
 
   let firstTeam = 0;
-  if (first_team === 'none' && isNoGoalMatch(home_score, away_score)) {
+  if (first_team === 'none' && isNoGoalMatch(actualHome, actualAway)) {
     firstTeam = 2;
   } else if (firstTeamMatches(first_team, first_scorer_team, home_team, away_team)) {
     firstTeam = 2;
   }
 
   let firstPlayer = 0;
-  if (isNoScorerPrediction(first_player) && isNoGoalMatch(home_score, away_score)) {
+  if (isNoScorerPrediction(first_player) && isNoGoalMatch(actualHome, actualAway)) {
     firstPlayer = 8;
   } else if (
     first_player &&
@@ -230,7 +246,7 @@ function isPredictionResultCorrect(pred, actual) {
   if (!actual || actual.home_score == null || actual.away_score == null) return false;
   const { home_pred, away_pred } = pred;
   if (home_pred == null || away_pred == null) return false;
-  return home_pred === actual.home_score && away_pred === actual.away_score;
+  return toScore(home_pred) === toScore(actual.home_score) && toScore(away_pred) === toScore(actual.away_score);
 }
 
 /** Per-match tiebreak signals for leaderboard ordering (0 or 1 each). */
@@ -282,6 +298,7 @@ function formatPointsBreakdown(b) {
 module.exports = {
   boosterMultiplier,
   matchdayFromKickoff,
+  toScore,
   normalizePlayer,
   playerSurname,
   playersMatch,

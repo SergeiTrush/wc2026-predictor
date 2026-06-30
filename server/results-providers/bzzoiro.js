@@ -126,6 +126,14 @@ async function maybeFetchFirstScorer(cfg, eventFetches, match, fixture, errors) 
   });
 }
 
+function runMatchScoreUpdate(updateStmt, updateExplicitStmt, scorer, args) {
+  if (scorer.fetched) {
+    updateExplicitStmt.run(...args);
+  } else {
+    updateStmt.run(...args);
+  }
+}
+
 async function syncResults(db) {
   const q = (sql) => prepare(db, sql);
   const cfg = getConfig();
@@ -154,6 +162,21 @@ async function syncResults(db) {
        first_scorer_player = COALESCE(?, first_scorer_player),
        first_scorer_player_team = COALESCE(?, first_scorer_player_team),
        first_scorer_is_own_goal = COALESCE(?, first_scorer_is_own_goal),
+       external_fixture_id = ?,
+       is_finished = ?
+     WHERE id = ?`
+  );
+
+  const updateMatchScoresWithScorer = q(
+    `UPDATE matches SET
+       home_score = ?,
+       away_score = ?,
+       final_home_score = ?,
+       final_away_score = ?,
+       first_scorer_team = ?,
+       first_scorer_player = ?,
+       first_scorer_player_team = ?,
+       first_scorer_is_own_goal = ?,
        external_fixture_id = ?,
        is_finished = ?
      WHERE id = ?`
@@ -218,10 +241,16 @@ async function syncResults(db) {
         continue;
       }
 
-      const scorer = await maybeFetchFirstScorer(cfg, eventFetchesRef, match, fixture, errors);
+      const inExtraTime = isKnockoutMatch(match) && isLiveExtraTime({ status: fixture.status });
+      const scorer = await maybeFetchFirstScorer(
+        cfg,
+        eventFetchesRef,
+        match,
+        { ...fixture, inExtraTime },
+        errors
+      );
       eventFetches = eventFetchesRef.value;
 
-      const inExtraTime = isKnockoutMatch(match) && isLiveExtraTime({ status: fixture.status });
       const scores = resolveKnockoutPersistScores(
         match,
         fixture.homeGoals,
@@ -229,18 +258,23 @@ async function syncResults(db) {
         inExtraTime
       );
 
-      updateMatchScores.run(
-        scores.homeScore,
-        scores.awayScore,
-        scores.finalHomeScore,
-        scores.finalAwayScore,
-        scorer.firstTeam,
-        scorer.firstPlayer,
-        scorer.playerTeam,
-        scorer.isOwnGoal,
-        fixture.externalId,
-        0,
-        match.id
+      runMatchScoreUpdate(
+        updateMatchScores,
+        updateMatchScoresWithScorer,
+        scorer,
+        [
+          scores.homeScore,
+          scores.awayScore,
+          scores.finalHomeScore,
+          scores.finalAwayScore,
+          scorer.firstTeam,
+          scorer.firstPlayer,
+          scorer.playerTeam,
+          scorer.isOwnGoal,
+          fixture.externalId,
+          0,
+          match.id,
+        ]
       );
       liveUpdated += 1;
       continue;
@@ -262,18 +296,23 @@ async function syncResults(db) {
         false
       );
 
-      updateMatchScores.run(
-        scores.homeScore,
-        scores.awayScore,
-        scores.finalHomeScore,
-        scores.finalAwayScore,
-        scorer.firstTeam,
-        scorer.firstPlayer,
-        scorer.playerTeam,
-        scorer.isOwnGoal,
-        fixture.externalId,
-        1,
-        match.id
+      runMatchScoreUpdate(
+        updateMatchScores,
+        updateMatchScoresWithScorer,
+        scorer,
+        [
+          scores.homeScore,
+          scores.awayScore,
+          scores.finalHomeScore,
+          scores.finalAwayScore,
+          scorer.firstTeam,
+          scorer.firstPlayer,
+          scorer.playerTeam,
+          scorer.isOwnGoal,
+          fixture.externalId,
+          1,
+          match.id,
+        ]
       );
       updated += 1;
       continue;

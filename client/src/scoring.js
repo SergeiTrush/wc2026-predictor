@@ -8,7 +8,13 @@ function boosterMultiplier(stage) {
 }
 
 function outcomeSign(home, away) {
-  return Math.sign(home - away);
+  return Math.sign(toScore(home) - toScore(away));
+}
+
+function toScore(value) {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
 }
 
 function normalizePlayer(name) {
@@ -60,7 +66,7 @@ function isNoScorerPrediction(firstPlayer) {
 }
 
 function isNoGoalMatch(homeScore, awayScore) {
-  return homeScore === 0 && awayScore === 0;
+  return toScore(homeScore) === 0 && toScore(awayScore) === 0;
 }
 
 function scorerSide(teamKey, homeTeam, awayTeam) {
@@ -95,8 +101,8 @@ function isFirstScorerOwnGoal(actual) {
 export function buildScoringActual(match, scoreOverrides = {}) {
   if (!match) return scoreOverrides;
   return {
-    home_score: scoreOverrides.home_score ?? match.home_score,
-    away_score: scoreOverrides.away_score ?? match.away_score,
+    home_score: toScore(scoreOverrides.home_score ?? match.home_score),
+    away_score: toScore(scoreOverrides.away_score ?? match.away_score),
     first_scorer_team: match.first_scorer_team ?? null,
     first_scorer_player: match.first_scorer_player ?? null,
     first_scorer_player_team: match.first_scorer_player_team ?? null,
@@ -110,13 +116,16 @@ export function buildScoringActual(match, scoreOverrides = {}) {
 function firstScorerPlayerSameTeam(actual) {
   const homeTeam = actual.home_team;
   const awayTeam = actual.away_team;
-  if (!homeTeam || !awayTeam) return false;
 
   const scorerSideKey = scorerSide(actual.first_scorer_team, homeTeam, awayTeam);
-  const playerSideKey = scorerSide(actual.first_scorer_player_team, homeTeam, awayTeam);
-  if (!scorerSideKey || !playerSideKey || scorerSideKey === 'none' || playerSideKey === 'none') {
-    return false;
+  if (!scorerSideKey || scorerSideKey === 'none') return false;
+
+  let playerSideKey = scorerSide(actual.first_scorer_player_team, homeTeam, awayTeam);
+  if ((!playerSideKey || playerSideKey === 'none') && actual.first_scorer_player) {
+    if (isFirstScorerOwnGoal(actual)) return false;
+    playerSideKey = scorerSideKey;
   }
+  if (!playerSideKey || playerSideKey === 'none') return false;
   return scorerSideKey === playerSideKey;
 }
 
@@ -141,6 +150,12 @@ export function enrichScoringActual(match, scoreOverrides = {}, squadPlayers = n
   let playerTeam = base.first_scorer_player_team || null;
   if (!playerTeam && base.first_scorer_player) {
     playerTeam = inferPlayerSide(base.first_scorer_player, base.home_team, base.away_team, squadPlayers);
+  }
+  if (!playerTeam && base.first_scorer_player && base.first_scorer_team && base.first_scorer_is_own_goal !== 1) {
+    const scorerSideKey = scorerSide(base.first_scorer_team, base.home_team, base.away_team);
+    if (scorerSideKey && scorerSideKey !== 'none') {
+      playerTeam = scorerSideKey;
+    }
   }
 
   let isOwnGoal = base.first_scorer_is_own_goal;
@@ -186,27 +201,32 @@ export function breakdownMatchPoints(pred, actual, { underdogBonus = 0 } = {}) {
   const { home_score, away_score, first_scorer_team, first_scorer_player, stage, home_team, away_team } =
     actual;
 
+  const predHome = toScore(home_pred);
+  const predAway = toScore(away_pred);
+  const actualHome = toScore(home_score);
+  const actualAway = toScore(away_score);
+
   let outcome = 0;
   let homeGoals = 0;
   let awayGoals = 0;
   let goalDifference = 0;
 
-  if (outcomeSign(home_pred, away_pred) === outcomeSign(home_score, away_score)) {
+  if (outcomeSign(predHome, predAway) === outcomeSign(actualHome, actualAway)) {
     outcome = 3;
   }
-  if (home_pred === home_score) homeGoals = 2;
-  if (away_pred === away_score) awayGoals = 2;
-  if (home_pred - away_pred === home_score - away_score) goalDifference = 3;
+  if (predHome === actualHome) homeGoals = 2;
+  if (predAway === actualAway) awayGoals = 2;
+  if (predHome - predAway === actualHome - actualAway) goalDifference = 3;
 
   let firstTeam = 0;
-  if (first_team === 'none' && isNoGoalMatch(home_score, away_score)) {
+  if (first_team === 'none' && isNoGoalMatch(actualHome, actualAway)) {
     firstTeam = 2;
   } else if (firstTeamMatches(first_team, first_scorer_team, home_team, away_team)) {
     firstTeam = 2;
   }
 
   let firstPlayer = 0;
-  if (isNoScorerPrediction(first_player) && isNoGoalMatch(home_score, away_score)) {
+  if (isNoScorerPrediction(first_player) && isNoGoalMatch(actualHome, actualAway)) {
     firstPlayer = 8;
   } else if (
     first_player &&

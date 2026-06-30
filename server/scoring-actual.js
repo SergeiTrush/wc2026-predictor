@@ -53,6 +53,12 @@ function inferFirstScorerMeta(match) {
     if (!playerTeam) {
       playerTeam = match.first_scorer_player_team || null;
     }
+    if (!playerTeam && match.first_scorer_team && match.first_scorer_is_own_goal !== 1) {
+      const scorerSideKey = scorerSide(match.first_scorer_team, homeTeam, awayTeam);
+      if (scorerSideKey && scorerSideKey !== 'none') {
+        playerTeam = scorerSideKey;
+      }
+    }
   }
 
   let isOwnGoal = null;

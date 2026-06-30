@@ -15,6 +15,27 @@ function isKnockoutMatch(match) {
   return Boolean(match?.stage && match.stage !== 'group');
 }
 
+function regulationScoreFromIncidents(incidents, { regulationOnly = true } = {}) {
+  if (!Array.isArray(incidents)) return null;
+  let home = 0;
+  let away = 0;
+  for (const incident of incidents) {
+    if (incident.type !== 'goal') continue;
+    if (regulationOnly && !isRegulationGoal(incident)) continue;
+    if (incident.is_home === true) home += 1;
+    else if (incident.is_home === false) away += 1;
+  }
+  return { home, away };
+}
+
+function regulationScoreFromCachedIncidents(match) {
+  const eventId = match.external_fixture_id;
+  if (!eventId) return null;
+  const incidents = getCachedIncidents(eventId);
+  if (!incidents?.length) return null;
+  return regulationScoreFromIncidents(incidents, { regulationOnly: isKnockoutMatch(match) });
+}
+
 function normalizeForSquadMatch(name) {
   return (name || '')
     .toLowerCase()
@@ -245,6 +266,15 @@ async function resolveFirstScorerForFixture(match, fixture, { maxEventFetches, e
   }
 }
 
+/** Sync read from incident cache (no API call). */
+function resolveScorerFromCachedIncidents(match) {
+  const eventId = match.external_fixture_id;
+  if (!eventId) return null;
+  const incidents = getCachedIncidents(eventId);
+  if (!incidents?.length) return null;
+  return scorerFromIncidents(incidents, match, match.home_team, match.away_team);
+}
+
 module.exports = {
   CANONICAL_TEAMS,
   normalizeFirstScorerTeam,
@@ -252,6 +282,10 @@ module.exports = {
   parseFirstScorer,
   regulationGoalTotals,
   firstScorerNeedsApiFetch,
+  getCachedIncidents,
   fetchIncidents,
+  regulationScoreFromIncidents,
+  regulationScoreFromCachedIncidents,
+  resolveScorerFromCachedIncidents,
   resolveFirstScorerForFixture,
 };

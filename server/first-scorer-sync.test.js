@@ -19,6 +19,12 @@ test('parseFirstScorer includes extra-time goals when regulationOnly is false', 
   assert.equal(scorer.player, 'Cody Gakpo');
 });
 
+test('regulationScoreFromIncidents counts only 90-minute goals for knockout', () => {
+  const { regulationScoreFromIncidents } = require('./first-scorer-sync');
+  const score = regulationScoreFromIncidents(incidents, { regulationOnly: true });
+  assert.deepEqual(score, { home: 1, away: 1 });
+});
+
 test('regulationGoalTotals uses stored 90-min score during knockout ET', () => {
   const totals = regulationGoalTotals(
     { stage: 'round_of_16', home_score: 1, away_score: 1 },

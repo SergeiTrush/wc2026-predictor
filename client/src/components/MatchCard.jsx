@@ -250,6 +250,10 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
   const pointsDetail = useMemo(() => {
     if (!pred) return null;
 
+    if (match.pointsDetail && (hasResult || matchHasLiveScore(match))) {
+      return match.pointsDetail;
+    }
+
     const actual = hasResult
       ? enrichScoringActual(match, {}, squadPlayers)
       : matchHasLiveScore(match)
@@ -284,7 +288,7 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
       { underdogBonus }
     );
     return formatPointsBreakdown(raw);
-  }, [match, pred, hasResult, liveScore, squadPlayers]);
+  }, [match, pred, hasResult, liveScore, squadPlayers, match.pointsDetail]);
 
   const isProvisionalPoints = isLive && !!pointsDetail;
   const showProvisionalTilde = isProvisionalPoints && !isKnockoutExtraTime(match, liveScore);

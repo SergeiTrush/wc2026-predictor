@@ -67,6 +67,20 @@ function resolveKnockoutPersistScores(match, aggregateHome, aggregateAway, inExt
       finalAwayScore: aggregateAway,
     };
   }
+  if (
+    stored &&
+    stored.home === 0 &&
+    stored.away === 0 &&
+    Number(aggregateHome) + Number(aggregateAway) > 0 &&
+    !inExtraTime
+  ) {
+    return {
+      homeScore: aggregateHome,
+      awayScore: aggregateAway,
+      finalHomeScore: null,
+      finalAwayScore: null,
+    };
+  }
   if (stored && (stored.home !== aggregateHome || stored.away !== aggregateAway)) {
     return {
       homeScore: stored.home,

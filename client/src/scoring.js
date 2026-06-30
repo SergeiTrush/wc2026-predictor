@@ -7,14 +7,14 @@ function boosterMultiplier(stage) {
   return 2;
 }
 
-function outcomeSign(home, away) {
-  return Math.sign(toScore(home) - toScore(away));
-}
-
 function toScore(value) {
   if (value == null || value === '') return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+function outcomeSign(home, away) {
+  return Math.sign(toScore(home) - toScore(away));
 }
 
 function normalizePlayer(name) {
@@ -131,8 +131,18 @@ function firstScorerPlayerSameTeam(actual) {
 
 function firstScorerPlayerPointsEligible(actual) {
   if (!actual.first_scorer_player || actual.first_scorer_player === 'none') return false;
-  if (isNoGoalMatch(actual.home_score, actual.away_score)) return false;
+  if (isNoGoalMatch(toScore(actual.home_score), toScore(actual.away_score))) return false;
   return firstScorerPlayerSameTeam(actual);
+}
+
+function normalizePredictionForScoring(pred) {
+  if (!pred) return pred;
+  return {
+    ...pred,
+    home_pred: toScore(pred.home_pred),
+    away_pred: toScore(pred.away_pred),
+    booster: pred.booster ? 1 : 0,
+  };
 }
 
 function inferPlayerSide(playerName, homeTeam, awayTeam, squadPlayers) {
@@ -197,7 +207,8 @@ export function breakdownMatchPoints(pred, actual, { underdogBonus = 0 } = {}) {
     return empty;
   }
 
-  const { home_pred, away_pred, first_team, first_player, booster } = pred;
+  const normalizedPred = normalizePredictionForScoring(pred);
+  const { home_pred, away_pred, first_team, first_player, booster } = normalizedPred;
   const { home_score, away_score, first_scorer_team, first_scorer_player, stage, home_team, away_team } =
     actual;
 

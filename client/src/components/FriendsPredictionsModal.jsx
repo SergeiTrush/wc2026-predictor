@@ -18,14 +18,24 @@ function friendsLinkLabel(count) {
   return `Посмотреть прогнозы твоих ${count} ${word}`;
 }
 
-function resolvePredictionPoints(prediction, displayMatch) {
+function resolvePredictionPoints(prediction, displayMatch, squadPlayers = null) {
+  if (prediction.pointsDetail && (matchHasResult(displayMatch) || matchHasLiveScore(displayMatch))) {
+    return {
+      pointsDetail: prediction.pointsDetail,
+      provisional: !!prediction.provisional,
+      showTilde:
+        !!prediction.provisional &&
+        !isKnockoutExtraTime(displayMatch, displayMatch.liveScore),
+    };
+  }
+
   const hasResult = matchHasResult(displayMatch);
   const liveScore = displayMatch.liveScore;
   if (!hasResult && !matchHasLiveScore(displayMatch)) return null;
 
   const actual = hasResult
-    ? enrichScoringActual(displayMatch)
-    : provisionalScoringActual(displayMatch);
+    ? enrichScoringActual(displayMatch, {}, squadPlayers)
+    : provisionalScoringActual(displayMatch, squadPlayers);
   if (!actual) return null;
 
   const suggestions = displayMatch.suggestedScores;
@@ -178,7 +188,7 @@ export default function FriendsPredictionsModal({ leagueId, match, onClose }) {
                 <FriendPredictionRow
                   key="self"
                   prediction={{ ...ownPrediction, name: 'Ты' }}
-                  points={resolvePredictionPoints(ownPrediction, displayMatch)}
+                  points={resolvePredictionPoints(ownPrediction, displayMatch, squadPlayers)}
                   mult={mult}
                   displayMatch={displayMatch}
                   squadPlayers={squadPlayers}
@@ -186,7 +196,7 @@ export default function FriendsPredictionsModal({ leagueId, match, onClose }) {
                 />
               )}
               {predictions.map((p) => {
-                const points = resolvePredictionPoints(p, displayMatch);
+                const points = resolvePredictionPoints(p, displayMatch, squadPlayers);
 
                 return (
                   <FriendPredictionRow

@@ -284,6 +284,30 @@ function compareLeaderboardRows(a, b) {
   );
 }
 
+/**
+ * +5 when prediction exactly matches actual and that score is not in FIFA quick-picks.
+ * @param {Array<{home: number, away: number}>|null|undefined} suggestions
+ */
+function computeUnderdogBonus(pred, actual, suggestions) {
+  if (!actual || actual.home_score == null || actual.away_score == null) return 0;
+  if (pred.home_pred == null || pred.away_pred == null) return 0;
+
+  const predHome = toScore(pred.home_pred);
+  const predAway = toScore(pred.away_pred);
+  const actualHome = toScore(actual.home_score);
+  const actualAway = toScore(actual.away_score);
+  if (predHome == null || predAway == null || actualHome == null || actualAway == null) {
+    return 0;
+  }
+  if (predHome !== actualHome || predAway !== actualAway) return 0;
+  if (!suggestions?.length) return 0;
+
+  const isPopular = suggestions.some(
+    (s) => toScore(s.home) === predHome && toScore(s.away) === predAway
+  );
+  return isPopular ? 0 : 5;
+}
+
 /** Human-readable lines for UI tooltip. */
 function formatPointsBreakdown(b) {
   if (!b) return { lines: [], total: 0 };
@@ -321,6 +345,7 @@ module.exports = {
   buildScoringActual,
   firstScorerPlayerPointsEligible,
   breakdownMatchPoints,
+  computeUnderdogBonus,
   formatPointsBreakdown,
   scorelinePoints,
   totalMatchPoints,

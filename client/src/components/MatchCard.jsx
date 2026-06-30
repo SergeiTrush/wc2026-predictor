@@ -4,7 +4,7 @@ import { useConfirm } from '../context/ConfirmContext';
 import { loadMatchSquads } from '../teamSquads';
 import { teamFlag, formatMatchTime, boosterLabel, isMatchLiveScoreBarVisible, isMatchInPlayWindow, matchHasResult, matchHasLiveScore, matchIsLive, isLiveExtraTime, liveBarScoreText, provisionalScoringActual } from '../utils';
 import { isKnockoutMatch, isKnockoutExtraTime } from '../matchdays';
-import { breakdownMatchPoints, formatPointsBreakdown, enrichScoringActual } from '../scoring';
+import { breakdownMatchPoints, formatPointsBreakdown, enrichScoringActual, computeUnderdogBonus } from '../scoring';
 import PointsTooltip from './PointsTooltip';
 import FriendsPredictionsModal, { friendsLinkLabel } from './FriendsPredictionsModal';
 import FirstTeamSelect from './FirstTeamSelect';
@@ -249,32 +249,18 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
 
   const pointsDetail = useMemo(() => {
     if (!pred) return null;
-
-    if (match.pointsDetail && (hasResult || matchHasLiveScore(match))) {
-      return match.pointsDetail;
-    }
+    if (!(hasResult || matchHasLiveScore(match))) return null;
 
     const actual = hasResult
       ? enrichScoringActual(match, {}, squadPlayers)
-      : matchHasLiveScore(match)
-        ? provisionalScoringActual(match, squadPlayers)
-        : null;
+      : provisionalScoringActual(match, squadPlayers);
     if (!actual) return null;
 
-    const suggestions = match.suggestedScores;
-    let underdogBonus = 0;
-    if (
-      actual.home_score != null &&
-      actual.away_score != null &&
-      pred.home_pred === actual.home_score &&
-      pred.away_pred === actual.away_score &&
-      suggestions?.length
-    ) {
-      const isPopular = suggestions.some(
-        (s) => s.home === pred.home_pred && s.away === pred.away_pred
-      );
-      if (!isPopular) underdogBonus = 5;
-    }
+    const underdogBonus = computeUnderdogBonus(
+      { home_pred: pred.home_pred, away_pred: pred.away_pred },
+      actual,
+      match.suggestedScores
+    );
 
     const raw = breakdownMatchPoints(
       {
@@ -288,7 +274,21 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
       { underdogBonus }
     );
     return formatPointsBreakdown(raw);
-  }, [match, pred, hasResult, liveScore, squadPlayers, match.pointsDetail]);
+  }, [
+    match,
+    pred,
+    hasResult,
+    liveScore,
+    squadPlayers,
+    match.suggestedScores,
+    match.home_score,
+    match.away_score,
+    match.final_home_score,
+    match.final_away_score,
+    match.first_scorer_player,
+    match.first_scorer_team,
+    match.first_scorer_player_team,
+  ]);
 
   const isProvisionalPoints = isLive && !!pointsDetail;
   const showProvisionalTilde = isProvisionalPoints && !isKnockoutExtraTime(match, liveScore);

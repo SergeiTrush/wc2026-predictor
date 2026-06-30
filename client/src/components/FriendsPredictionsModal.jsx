@@ -3,7 +3,7 @@ import { api, isSessionExpiredError } from '../api';
 import { loadMatchSquads } from '../teamSquads';
 import { teamFlag, boosterLabel, matchHasResult, matchHasLiveScore, matchIsLive, isLiveExtraTime, liveBarScoreText, provisionalScoringActual } from '../utils';
 import { isKnockoutMatch, isKnockoutExtraTime } from '../matchdays';
-import { breakdownMatchPoints, formatPointsBreakdown, enrichScoringActual } from '../scoring';
+import { breakdownMatchPoints, formatPointsBreakdown, enrichScoringActual, computeUnderdogBonus } from '../scoring';
 import ModalOverlay from './ModalOverlay';
 import PointsTooltip from './PointsTooltip';
 import PointsBreakdownPanel from './PointsBreakdownPanel';
@@ -19,16 +19,6 @@ function friendsLinkLabel(count) {
 }
 
 function resolvePredictionPoints(prediction, displayMatch, squadPlayers = null) {
-  if (prediction.pointsDetail && (matchHasResult(displayMatch) || matchHasLiveScore(displayMatch))) {
-    return {
-      pointsDetail: prediction.pointsDetail,
-      provisional: !!prediction.provisional,
-      showTilde:
-        !!prediction.provisional &&
-        !isKnockoutExtraTime(displayMatch, displayMatch.liveScore),
-    };
-  }
-
   const hasResult = matchHasResult(displayMatch);
   const liveScore = displayMatch.liveScore;
   if (!hasResult && !matchHasLiveScore(displayMatch)) return null;
@@ -39,19 +29,7 @@ function resolvePredictionPoints(prediction, displayMatch, squadPlayers = null) 
   if (!actual) return null;
 
   const suggestions = displayMatch.suggestedScores;
-  let underdogBonus = 0;
-  if (
-    actual?.home_score != null &&
-    actual?.away_score != null &&
-    prediction.home_pred === actual.home_score &&
-    prediction.away_pred === actual.away_score &&
-    suggestions?.length
-  ) {
-    const isPopular = suggestions.some(
-      (s) => s.home === prediction.home_pred && s.away === prediction.away_pred
-    );
-    if (!isPopular) underdogBonus = 5;
-  }
+  const underdogBonus = computeUnderdogBonus(prediction, actual, suggestions);
 
   const raw = breakdownMatchPoints(
     {

@@ -82,3 +82,44 @@ test('repairMatchRegulationScores fixes stale 0:0 when final score exists', asyn
   assert.equal(repaired.home_score, 1);
   assert.equal(repaired.away_score, 1);
 });
+
+test('sync regulation repair enables underdog bonus for stale 0:0 scores', () => {
+  const { enrichMatchForScoring } = require('./scoring-actual');
+  const { breakdownMatchPoints, computeUnderdogBonus } = require('../shared/scoring');
+  const { getSuggestionsForMatch } = require('./fifa-score-suggestions');
+  const fs = require('fs');
+  const byKey =
+    JSON.parse(fs.readFileSync(require('path').join(__dirname, 'data/fifa-score-suggestions.json'), 'utf8'))
+      .byKey ||
+    JSON.parse(fs.readFileSync(require('path').join(__dirname, 'data/fifa-score-suggestions.json'), 'utf8'));
+
+  const match = {
+    id: 75,
+    stage: 'round_of_32',
+    home_team: 'Netherlands',
+    away_team: 'Morocco',
+    match_label: 'R32 M3',
+    bracket_slot_id: 'R32-M3',
+    home_score: 0,
+    away_score: 0,
+    final_home_score: 1,
+    final_away_score: 1,
+    first_scorer_team: 'home',
+    first_scorer_player: 'C. Gakpo',
+    first_scorer_player_team: 'home',
+    first_scorer_is_own_goal: 0,
+  };
+
+  const actual = enrichMatchForScoring(match);
+  assert.equal(actual.home_score, 1);
+  assert.equal(actual.away_score, 1);
+
+  const pred = { home_pred: 1, away_pred: 1, first_team: 'home', first_player: 'Gakpo', booster: 0 };
+  const suggestions = getSuggestionsForMatch(match, byKey);
+  const underdogBonus = computeUnderdogBonus(pred, actual, suggestions);
+  const breakdown = breakdownMatchPoints(pred, actual, { underdogBonus });
+
+  assert.equal(underdogBonus, 5);
+  assert.equal(breakdown.underdog, 5);
+  assert.equal(breakdown.total, 25);
+});

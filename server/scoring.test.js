@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { breakdownMatchPoints, boosterMultiplier } = require('../shared/scoring');
+const { breakdownMatchPoints, boosterMultiplier, computeUnderdogBonus } = require('../shared/scoring');
 
 const baseActual = {
   home_score: 2,
@@ -135,4 +135,48 @@ test('final with booster uses 3x on match subtotal', () => {
   assert.equal(b.boosterMultiplier, 3);
   assert.equal(b.scoreSubtotal, 10);
   assert.equal(b.afterBooster, 30);
+});
+
+test('underdog bonus when exact score is not in FIFA quick-picks', () => {
+  const suggestions = [
+    { home: 2, away: 0, score: '2-0' },
+    { home: 2, away: 1, score: '2-1' },
+    { home: 3, away: 1, score: '3-1' },
+  ];
+  const pred = { home_pred: 1, away_pred: 1 };
+  const actual = { home_score: 1, away_score: 1 };
+  assert.equal(computeUnderdogBonus(pred, actual, suggestions), 5);
+  assert.equal(computeUnderdogBonus({ home_pred: 2, away_pred: 0 }, actual, suggestions), 0);
+  assert.equal(computeUnderdogBonus(pred, { home_score: 0, away_score: 0 }, suggestions), 0);
+});
+
+test('underdog bonus with string prediction scores', () => {
+  const suggestions = [{ home: 2, away: 0, score: '2-0' }];
+  assert.equal(
+    computeUnderdogBonus(
+      { home_pred: '1', away_pred: '1' },
+      { home_score: 1, away_score: 1 },
+      suggestions
+    ),
+    5
+  );
+  assert.equal(
+    computeUnderdogBonus(
+      { home_pred: '2', away_pred: '0' },
+      { home_score: 2, away_score: 0 },
+      suggestions
+    ),
+    0
+  );
+});
+
+test('underdog bonus is included in breakdown total and booster', () => {
+  const b = breakdownMatchPoints(
+    { home_pred: 1, away_pred: 1, booster: 1 },
+    { home_score: 1, away_score: 1, stage: 'round_of_32' },
+    { underdogBonus: 5 }
+  );
+  assert.equal(b.underdog, 5);
+  assert.equal(b.afterBooster, 30);
+  assert.equal(b.total, 30);
 });

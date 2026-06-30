@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-28T10:29:29.713Z",
+  "generatedAt": "2026-06-29T23:38:28.118Z",
   "byKey": {
     "Mexico|South Africa|2026-06-11": [
       {
@@ -1446,7 +1446,7 @@
         "home": 1,
         "away": 2,
         "score": "1-2",
-        "prob": 0.41
+        "prob": 0.4
       },
       {
         "home": 0,
@@ -1466,19 +1466,19 @@
         "home": 2,
         "away": 1,
         "score": "2-1",
-        "prob": 0.35
+        "prob": 0.36
       },
       {
         "home": 3,
         "away": 1,
         "score": "3-1",
-        "prob": 0.25
+        "prob": 0.24
       },
       {
         "home": 2,
         "away": 0,
         "score": "2-0",
-        "prob": 0.09
+        "prob": 0.08
       }
     ],
     "slot:R32-M2": [
@@ -1486,13 +1486,13 @@
         "home": 2,
         "away": 1,
         "score": "2-1",
-        "prob": 0.33
+        "prob": 0.32
       },
       {
         "home": 2,
         "away": 2,
         "score": "2-2",
-        "prob": 0.22
+        "prob": 0.21
       },
       {
         "home": 1,
@@ -1512,7 +1512,7 @@
         "home": 2,
         "away": 1,
         "score": "2-1",
-        "prob": 0.23
+        "prob": 0.22
       },
       {
         "home": 3,
@@ -1532,13 +1532,13 @@
         "home": 1,
         "away": 3,
         "score": "1-3",
-        "prob": 0.27
+        "prob": 0.26
       },
       {
         "home": 0,
         "away": 2,
         "score": "0-2",
-        "prob": 0.11
+        "prob": 0.12
       }
     ],
     "slot:R32-M5": [
@@ -1546,7 +1546,7 @@
         "home": 3,
         "away": 0,
         "score": "3-0",
-        "prob": 0.31
+        "prob": 0.32
       },
       {
         "home": 2,
@@ -1586,19 +1586,19 @@
         "home": 3,
         "away": 0,
         "score": "3-0",
-        "prob": 0.42
+        "prob": 0.4
       },
       {
         "home": 4,
         "away": 0,
         "score": "4-0",
-        "prob": 0.18
+        "prob": 0.19
       },
       {
         "home": 2,
         "away": 0,
         "score": "2-0",
-        "prob": 0.18
+        "prob": 0.16
       }
     ],
     "slot:R32-M10": [
@@ -1606,19 +1606,19 @@
         "home": 1,
         "away": 2,
         "score": "1-2",
-        "prob": 0.35
-      },
-      {
-        "home": 1,
-        "away": 1,
-        "score": "1-1",
-        "prob": 0.17
+        "prob": 0.33
       },
       {
         "home": 0,
         "away": 1,
         "score": "0-1",
-        "prob": 0.17
+        "prob": 0.19
+      },
+      {
+        "home": 1,
+        "away": 1,
+        "score": "1-1",
+        "prob": 0.16
       }
     ],
     "slot:R32-M9": [
@@ -1626,19 +1626,19 @@
         "home": 2,
         "away": 1,
         "score": "2-1",
-        "prob": 0.37
+        "prob": 0.36
       },
       {
         "home": 2,
         "away": 0,
         "score": "2-0",
-        "prob": 0.18
+        "prob": 0.17
       },
       {
         "home": 1,
         "away": 0,
         "score": "1-0",
-        "prob": 0.15
+        "prob": 0.16
       }
     ],
     "slot:R32-M12": [
@@ -1646,7 +1646,7 @@
         "home": 2,
         "away": 0,
         "score": "2-0",
-        "prob": 0.37
+        "prob": 0.36
       },
       {
         "home": 3,
@@ -1666,13 +1666,13 @@
         "home": 2,
         "away": 1,
         "score": "2-1",
-        "prob": 0.31
+        "prob": 0.3
       },
       {
         "home": 1,
         "away": 2,
         "score": "1-2",
-        "prob": 0.25
+        "prob": 0.26
       },
       {
         "home": 1,
@@ -1686,7 +1686,7 @@
         "home": 2,
         "away": 1,
         "score": "2-1",
-        "prob": 0.41
+        "prob": 0.4
       },
       {
         "home": 1,
@@ -1706,13 +1706,13 @@
         "home": 2,
         "away": 1,
         "score": "2-1",
-        "prob": 0.39
+        "prob": 0.37
       },
       {
         "home": 2,
         "away": 0,
         "score": "2-0",
-        "prob": 0.21
+        "prob": 0.22
       },
       {
         "home": 1,
@@ -1738,7 +1738,7 @@
         "home": 3,
         "away": 0,
         "score": "3-0",
-        "prob": 0.19
+        "prob": 0.2
       }
     ],
     "slot:R32-M15": [
@@ -1746,7 +1746,7 @@
         "home": 2,
         "away": 1,
         "score": "2-1",
-        "prob": 0.37
+        "prob": 0.36
       },
       {
         "home": 2,
@@ -1758,7 +1758,7 @@
         "home": 1,
         "away": 1,
         "score": "1-1",
-        "prob": 0.11
+        "prob": 0.12
       }
     ]
   }

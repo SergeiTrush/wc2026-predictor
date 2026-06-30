@@ -35,6 +35,7 @@ const {
   leaderboardTiebreakCounts,
   compareLeaderboardRows,
   toScore,
+  computeUnderdogBonus,
 } = require('../shared/scoring');
 const { scoringActualFromLive, liveScoreIsFinished, isKnockoutExtraTime } = require('../shared/live-score');
 const {
@@ -310,22 +311,15 @@ function liveScoreAsResult(match, liveScore) {
 
 /** Final DB result, or provisional score from live feed when kickoff has passed. */
 function computeUnderdogBonusFromActual(pred, actual, match, suggestionsMap) {
-  if (!actual || actual.home_score == null || actual.away_score == null) return 0;
-  if (pred.home_pred == null || pred.away_pred == null) return 0;
-  if (toScore(pred.home_pred) !== toScore(actual.home_score) || toScore(pred.away_pred) !== toScore(actual.away_score)) {
-    return 0;
-  }
   const suggestions = getSuggestionsForMatch(match, suggestionsMap);
-  if (!suggestions || suggestions.length === 0) return 0;
-  const predHome = toScore(pred.home_pred);
-  const predAway = toScore(pred.away_pred);
-  const isPopular = suggestions.some((s) => s.home === predHome && s.away === predAway);
-  return isPopular ? 0 : 5;
+  return computeUnderdogBonus(pred, actual, suggestions);
 }
 
-function computeUnderdogBonus(pred, match, suggestionsMap) {
-  if (!matchHasResult(match)) return 0;
-  return computeUnderdogBonusFromActual(pred, match, suggestionsMap);
+function underdogBonusForLeaderboard(pred, match, liveScore, suggestionsMap) {
+  const resolved = resolveLeaderboardMatchActual(match, liveScore);
+  if (!resolved) return 0;
+  const suggestions = getSuggestionsForMatch(match, suggestionsMap);
+  return computeUnderdogBonus(pred, resolved.actual, suggestions);
 }
 
 function resolveLeaderboardMatchActual(match, liveScore) {
@@ -507,7 +501,7 @@ function leaguePredictionsForMatch(leagueId, matchId) {
   ).all(leagueId, matchId, ...ids);
 }
 
-function friendPredictionsForMatch(leagueId, matchId, userId, match, liveScore = null) {
+function friendPredictionsForMatch(leagueId, matchId, userId, match, liveScore = null, suggestionsMap = null) {
   if (!isMatchLiveScoreBarVisible(match)) return null;
 
   const rows = q(
@@ -540,7 +534,9 @@ function friendPredictionsForMatch(leagueId, matchId, userId, match, liveScore =
     let pointsDetail = null;
     let provisional = false;
     if (scoreSource) {
-      const raw = breakdownMatchPoints(pred, scoreSource);
+      const suggestions = suggestionsMap ? getSuggestionsForMatch(match, suggestionsMap) : null;
+      const underdogBonus = suggestions ? computeUnderdogBonus(pred, scoreSource, suggestions) : 0;
+      const raw = breakdownMatchPoints(pred, scoreSource, { underdogBonus });
       points = raw.total;
       pointsDetail = formatPointsBreakdown(raw);
       provisional = resolved?.provisional ?? false;
@@ -853,8 +849,7 @@ app.get('/api/leagues/:id/leaderboard', authMiddleware, async (req, res) => {
       const pred = getPred.get(leagueId, member.id, match.id);
       if (!pred) continue;
       const liveScore = getLiveScoreForMatch(match.id);
-      const actualForBonus = matchHasResult(match) ? match : scoringActualFromLive(match, liveScore) ?? (matchHasLiveManualScore(match) ? match : null);
-      const bonus = computeUnderdogBonusFromActual(pred, actualForBonus, match, suggestionsMap);
+      const bonus = underdogBonusForLeaderboard(pred, match, liveScore, suggestionsMap);
       const { points, provisional, tiebreak } = matchPointsForLeaderboard(pred, match, liveScore, bonus);
       total += points;
       if (provisional) provisionalPoints += points;
@@ -942,8 +937,7 @@ app.get('/api/leagues/:id/users/:userId/matchday-points', authMiddleware, async 
       const pred = getPred.get(leagueId, userId, match.id);
       if (!pred) continue;
       const liveScore = getLiveScoreForMatch(match.id);
-      const actualForBonus = matchHasResult(match) ? match : scoringActualFromLive(match, liveScore) ?? (matchHasLiveManualScore(match) ? match : null);
-      const bonus = computeUnderdogBonusFromActual(pred, actualForBonus, match, suggestionsMap);
+      const bonus = underdogBonusForLeaderboard(pred, match, liveScore, suggestionsMap);
       const result = matchPointsForLeaderboard(pred, match, liveScore, bonus);
       points += result.points;
       if (result.provisional) provisionalPoints += result.points;
@@ -1037,7 +1031,7 @@ app.get('/api/matches', authMiddleware, async (req, res) => {
     const lockReason = locked ? baseLock.lockReason || (liveScore ? 'started' : null) : null;
     const friendPredictions =
       lid && isActiveLeagueMember(lid, req.user.id)
-        ? friendPredictionsForMatch(lid, m.id, req.user.id, m, liveScore)
+        ? friendPredictionsForMatch(lid, m.id, req.user.id, m, liveScore, scoreSuggestionsByKey)
         : null;
     const scorerMeta = inferFirstScorerMeta(m);
     const firstScorerPlayerTeam =
@@ -1088,7 +1082,8 @@ async function sendFriendPredictions(req, res, leagueId, matchId) {
   await ensureMatchScorersHydrated([match]);
   const hasResult = matchHasResult(match);
   const liveScore = resolveLiveScoreForMatch(match);
-  const predictions = friendPredictionsForMatch(lid, mid, req.user.id, match, liveScore);
+  const suggestionsMap = await getSuggestionsMap();
+  const predictions = friendPredictionsForMatch(lid, mid, req.user.id, match, liveScore, suggestionsMap);
   res.json({
     predictions,
     match: {

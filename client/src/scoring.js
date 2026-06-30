@@ -154,9 +154,37 @@ function inferPlayerSide(playerName, homeTeam, awayTeam, squadPlayers) {
   return null;
 }
 
+/** Repair stale 0:0 regulation scores using final score metadata (client fallback). */
+function applyClientRegulationRepair(match, scoreOverrides = {}) {
+  const home = toScore(scoreOverrides.home_score ?? match.home_score);
+  const away = toScore(scoreOverrides.away_score ?? match.away_score);
+  if (home !== 0 || away !== 0) {
+    return {
+      home_score: home,
+      away_score: away,
+    };
+  }
+
+  const finalTotal =
+    (toScore(match.final_home_score) ?? 0) + (toScore(match.final_away_score) ?? 0);
+  const hasScorer = match.first_scorer_player && match.first_scorer_player !== 'none';
+  if (finalTotal <= 0 && !hasScorer) {
+    return { home_score: home, away_score: away };
+  }
+
+  const fh = toScore(match.final_home_score);
+  const fa = toScore(match.final_away_score);
+  if (fh != null && fa != null && fh + fa > 0) {
+    return { home_score: fh, away_score: fa };
+  }
+
+  return { home_score: home, away_score: away };
+}
+
 /** Resolve first-scorer team metadata for live/provisional client scoring. */
 export function enrichScoringActual(match, scoreOverrides = {}, squadPlayers = null) {
-  const base = buildScoringActual(match, scoreOverrides);
+  const repairedScores = applyClientRegulationRepair(match, scoreOverrides);
+  const base = buildScoringActual(match, { ...scoreOverrides, ...repairedScores });
   let playerTeam = base.first_scorer_player_team || null;
   if (!playerTeam && base.first_scorer_player) {
     playerTeam = inferPlayerSide(base.first_scorer_player, base.home_team, base.away_team, squadPlayers);
@@ -266,6 +294,26 @@ export function breakdownMatchPoints(pred, actual, { underdogBonus = 0 } = {}) {
     underdog,
     total: afterBooster,
   };
+}
+
+export function computeUnderdogBonus(pred, actual, suggestions) {
+  if (!actual || actual.home_score == null || actual.away_score == null) return 0;
+  if (pred.home_pred == null || pred.away_pred == null) return 0;
+
+  const predHome = toScore(pred.home_pred);
+  const predAway = toScore(pred.away_pred);
+  const actualHome = toScore(actual.home_score);
+  const actualAway = toScore(actual.away_score);
+  if (predHome == null || predAway == null || actualHome == null || actualAway == null) {
+    return 0;
+  }
+  if (predHome !== actualHome || predAway !== actualAway) return 0;
+  if (!suggestions?.length) return 0;
+
+  const isPopular = suggestions.some(
+    (s) => toScore(s.home) === predHome && toScore(s.away) === predAway
+  );
+  return isPopular ? 0 : 5;
 }
 
 export function formatPointsBreakdown(b) {

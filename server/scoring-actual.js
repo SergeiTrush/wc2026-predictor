@@ -150,6 +150,24 @@ function applyRegulationScoresToMatch(match, regulation) {
   };
 }
 
+/** Repair stale 0:0 regulation scores synchronously (no API) before scoring. */
+function applySyncRegulationRepair(match) {
+  if (!storedRegulationLooksStale(match)) return match;
+
+  const fromIncidents = regulationScoreFromCachedIncidents(match);
+  if (fromIncidents && fromIncidents.home + fromIncidents.away > 0) {
+    return applyRegulationScoresToMatch(match, fromIncidents);
+  }
+
+  const fh = toScore(match.final_home_score);
+  const fa = toScore(match.final_away_score);
+  if (fh != null && fa != null && fh + fa > 0) {
+    return applyRegulationScoresToMatch(match, { home: fh, away: fa });
+  }
+
+  return match;
+}
+
 async function repairMatchRegulationScores(match, liveScore = null) {
   if (!storedRegulationLooksStale(match)) return match;
   const regulation = await resolveRegulationScores(match, liveScore);
@@ -198,7 +216,8 @@ function hydrateScorerFromCache(match) {
 }
 
 function enrichMatchForScoring(match, scoreOverrides = {}) {
-  const hydrated = hydrateScorerFromCache(match);
+  const repaired = applySyncRegulationRepair(match);
+  const hydrated = hydrateScorerFromCache(repaired);
   const meta = inferFirstScorerMeta(hydrated);
   return buildScoringActual(
     {

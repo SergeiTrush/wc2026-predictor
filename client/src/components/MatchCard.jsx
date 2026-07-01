@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { api } from '../api';
 import { useConfirm } from '../context/ConfirmContext';
 import { loadMatchSquads } from '../teamSquads';
-import { teamFlag, formatMatchTime, boosterLabel, isMatchLiveScoreBarVisible, isMatchInPlayWindow, matchHasResult, matchHasLiveScore, matchIsLive, isLiveExtraTime, liveBarScoreText, provisionalScoringActual } from '../utils';
+import { teamFlag, formatMatchTime, boosterLabel, isMatchLiveScoreBarVisible, isMatchInPlayWindow, matchHasResult, matchHasLiveScore, matchIsLive, isKnockoutRegulationFrozen, liveBarScoreText, provisionalScoringActual } from '../utils';
 import { isKnockoutMatch, isKnockoutExtraTime } from '../matchdays';
 import { breakdownMatchPoints, formatPointsBreakdown, enrichScoringActual, computeUnderdogBonus } from '../scoring';
 import PointsTooltip from './PointsTooltip';
@@ -321,7 +321,7 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
             <span className={`live-tag ${isLive ? 'live-tag--pulse' : ''}`}>
               {hasResult ? 'Счёт матча' : isLive ? 'LIVE' : 'Счёт'}
               {isLive && liveScore?.minute != null ? ` ${liveScore.minute}'` : ''}
-              {isLive && isKnockoutMatch(match) && isLiveExtraTime(liveScore) ? ' · доп. время' : ''}
+              {isLive && isKnockoutMatch(match) && isKnockoutRegulationFrozen(match, liveScore) ? ' · доп. время' : ''}
             </span>
             <span className={`live-score${isLive ? ' live-score--provisional' : ''}`}>
               {liveBarScoreText(match) ?? '— : —'}

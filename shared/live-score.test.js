@@ -2,11 +2,20 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   isLiveExtraTime,
+  isKnockoutRegulationFrozen,
   regulationScoreForPoints,
   resolveKnockoutPersistScores,
   repairMisSplitRegulationScores,
   scoringActualFromLive,
 } = require('./live-score');
+
+const belgiumSenegal = {
+  stage: 'round_of_32',
+  home_team: 'Belgium',
+  away_team: 'Senegal',
+  home_score: 2,
+  away_score: 2,
+};
 
 const germanyParaguay = {
   stage: 'round_of_32',
@@ -54,6 +63,33 @@ test('isLiveExtraTime is false during second-half stoppage time (minute > 90)', 
 test('isLiveExtraTime is true only when status is extra time or penalties', () => {
   assert.equal(isLiveExtraTime({ status: 'extra_time', minute: 105 }), true);
   assert.equal(isLiveExtraTime({ status: 'penalties', minute: 120 }), true);
+});
+
+test('isKnockoutRegulationFrozen when API status lags but aggregate moved past regulation draw', () => {
+  const live = { homeScore: 3, awayScore: 2, status: '2nd_half', minute: 126 };
+  assert.equal(isKnockoutRegulationFrozen(belgiumSenegal, live), true);
+});
+
+test('isKnockoutRegulationFrozen is false during second-half stoppage time', () => {
+  const live = { homeScore: 2, awayScore: 2, status: '2nd_half', minute: 98 };
+  assert.equal(isKnockoutRegulationFrozen(belgiumSenegal, live), false);
+});
+
+test('regulationScoreForPoints freezes at 2-2 when Belgium scores in ET (API status 2nd_half)', () => {
+  const live = { homeScore: 3, awayScore: 2, status: '2nd_half', minute: 126 };
+  const reg = regulationScoreForPoints(belgiumSenegal, live);
+  assert.deepEqual(reg, { home: 2, away: 2 });
+});
+
+test('scoringActualFromLive ignores ET winner for knockout points when API status lags', () => {
+  const actual = scoringActualFromLive(belgiumSenegal, {
+    homeScore: 3,
+    awayScore: 2,
+    status: '2nd_half',
+    minute: 126,
+  });
+  assert.equal(actual.home_score, 2);
+  assert.equal(actual.away_score, 2);
 });
 
 test('regulationScoreForPoints uses live score during stoppage time', () => {

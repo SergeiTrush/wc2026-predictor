@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, isSessionExpiredError } from '../api';
 import { loadMatchSquads } from '../teamSquads';
-import { teamFlag, boosterLabel, matchHasResult, matchHasLiveScore, matchIsLive, isLiveExtraTime, liveBarScoreText, provisionalScoringActual } from '../utils';
+import { teamFlag, boosterLabel, matchHasResult, matchHasLiveScore, matchIsLive, isKnockoutRegulationFrozen, liveBarScoreText, provisionalScoringActual } from '../utils';
 import { isKnockoutMatch, isKnockoutExtraTime } from '../matchdays';
 import { breakdownMatchPoints, formatPointsBreakdown, enrichScoringActual, computeUnderdogBonus } from '../scoring';
 import ModalOverlay from './ModalOverlay';
@@ -146,7 +146,7 @@ export default function FriendsPredictionsModal({ leagueId, match, onClose }) {
               {': '}
               {liveScoreText}
               {isLive && liveScore?.minute != null ? ` (${liveScore.minute}'` : ''}
-              {isLive && isKnockoutMatch(displayMatch) && isLiveExtraTime(liveScore) ? ', доп. время' : ''}
+              {isLive && isKnockoutMatch(displayMatch) && isKnockoutRegulationFrozen(displayMatch, liveScore) ? ', доп. время' : ''}
               {isLive && liveScore?.minute != null ? ')' : ''}
             </p>
           )}

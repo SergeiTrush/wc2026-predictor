@@ -180,6 +180,41 @@ export function isLiveExtraTime(liveScore) {
   return status === 'extra_time' || status === 'extratime' || status === 'penalties';
 }
 
+/** Stoppage time rarely exceeds ~100'; cumulative minute past that implies ET. */
+const KNOCKOUT_ET_MINUTE_THRESHOLD = 101;
+
+function knockoutHasFinalSplit(match) {
+  if (match?.final_home_score == null || match?.final_away_score == null) return false;
+  const stored = storedRegulationScores(match);
+  if (!stored) return false;
+  const fh = Number(match.final_home_score);
+  const fa = Number(match.final_away_score);
+  return fh !== stored.home || fa !== stored.away;
+}
+
+function knockoutAggregateAheadOfRegulationDraw(match, liveScore) {
+  const minute = liveScore?.minute != null ? Number(liveScore.minute) : null;
+  if (minute != null && minute < KNOCKOUT_ET_MINUTE_THRESHOLD) return false;
+  const stored = storedRegulationScores(match);
+  const agg = liveBarDisplayScore(match, liveScore);
+  if (!stored || !agg) return false;
+  return (
+    stored.home === stored.away &&
+    (Number(agg.home) !== stored.home || Number(agg.away) !== stored.away)
+  );
+}
+
+/** Knockout match where fantasy points must use frozen 90-minute score, not ET aggregate. */
+export function isKnockoutRegulationFrozen(match, liveScore) {
+  if (!isKnockoutMatch(match) || !liveScore) return false;
+  if (isLiveExtraTime(liveScore)) return true;
+  if (knockoutHasFinalSplit(match)) return true;
+  if (knockoutAggregateAheadOfRegulationDraw(match, liveScore)) return true;
+  const minute = liveScore.minute;
+  if (minute != null && Number(minute) >= KNOCKOUT_ET_MINUTE_THRESHOLD) return true;
+  return false;
+}
+
 export function regulationScoresFromLive(liveScore) {
   if (!liveScore) return null;
   if (liveScore.regulationHomeScore != null && liveScore.regulationAwayScore != null) {
@@ -205,7 +240,7 @@ export function liveBarDisplayScore(match, liveScore) {
 /** 90-minute score for fantasy points (knockout ET / penalties use frozen regulation). */
 export function regulationScoreForPoints(match, liveScore) {
   if (!liveScore) return null;
-  if (isKnockoutMatch(match) && isLiveExtraTime(liveScore)) {
+  if (isKnockoutRegulationFrozen(match, liveScore)) {
     const reg = regulationScoresFromLive(liveScore) ?? storedRegulationScores(match);
     if (reg) return reg;
   }
@@ -250,7 +285,7 @@ export function adminMatchScores(match) {
   if (ls?.homeScore != null && ls?.awayScore != null) {
     const reg = regulationScoreForPoints(match, ls);
     const current = liveBarDisplayScore(match, ls);
-    if (reg && current && isKnockoutMatch(match) && isLiveExtraTime(ls)) {
+    if (reg && current && isKnockoutRegulationFrozen(match, ls)) {
       return {
         home: reg.home,
         away: reg.away,

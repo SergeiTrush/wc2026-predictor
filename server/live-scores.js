@@ -4,8 +4,7 @@ const { isEnabled, apiFetch } = require('./bzzoiro-client');
 const { findMatchForEvent } = require('./match-lookup');
 const { resolveFirstScorerForFixture } = require('./first-scorer-sync');
 const {
-  isKnockoutMatch,
-  isLiveExtraTime,
+  isKnockoutRegulationFrozen,
   resolveKnockoutPersistScores,
   attachRegulationToLiveCache,
 } = require('../shared/live-score');
@@ -83,7 +82,7 @@ const updateLiveMatchDbWithScorer = (q) =>
 async function persistLiveMatchFromFeed(q, match, live) {
   if (Number(match.is_finished) === 1 || Number(match.admin_cleared) === 1) return;
 
-  const inExtraTime = isKnockoutMatch(match) && isLiveExtraTime(live);
+  const inExtraTime = isKnockoutRegulationFrozen(match, live);
   const fixture = {
     externalId: live.externalId,
     home: live.home,
@@ -193,7 +192,7 @@ async function refreshLiveScores(db) {
       }
     }
 
-    const inExtraTime = isKnockoutMatch(match) && isLiveExtraTime(live);
+    const inExtraTime = isKnockoutRegulationFrozen(match, live);
     const persistScores = resolveKnockoutPersistScores(
       match,
       live.homeScore,

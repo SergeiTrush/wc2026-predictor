@@ -1,5 +1,5 @@
 const { buildScoringActual, scorerSide, toScore } = require('../shared/scoring');
-const { scoringActualFromLive, liveScoreIsFinished, isLiveExtraTime, repairMisSplitRegulationScores } = require('../shared/live-score');
+const { scoringActualFromLive, liveScoreIsFinished, isKnockoutRegulationFrozen, repairMisSplitRegulationScores } = require('../shared/live-score');
 const { getLocalSquadsBulk } = require('./squad-service');
 const {
   resolveFirstScorerForFixture,
@@ -122,7 +122,7 @@ async function resolveRegulationScores(match, liveScore = null) {
     }
   }
 
-  if (liveScore && !isLiveExtraTime(liveScore)) {
+  if (liveScore && !isKnockoutRegulationFrozen(match, liveScore)) {
     const agg = {
       home: toScore(liveScore.homeScore),
       away: toScore(liveScore.awayScore),
@@ -241,7 +241,7 @@ async function hydrateMatchScorerFromApi(match, liveScore = null) {
   if (!needsScorerHydration(hydrated) && !storedRegulationLooksStale(hydrated)) return hydrated;
   if (!match.external_fixture_id) return hydrated;
 
-  const inExtraTime = liveScore && isLiveExtraTime(liveScore);
+  const inExtraTime = liveScore && isKnockoutRegulationFrozen(match, liveScore);
   const fixture = {
     externalId: match.external_fixture_id,
     home: match.home_team,

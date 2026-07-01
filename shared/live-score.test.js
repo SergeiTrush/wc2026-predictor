@@ -16,6 +16,16 @@ const germanyParaguay = {
   away_score: 1,
 };
 
+test('repairMisSplitRegulationScores fixes mistaken 0-0 split from final score', () => {
+  const repaired = repairMisSplitRegulationScores({
+    home_score: 0,
+    away_score: 0,
+    final_home_score: 2,
+    final_away_score: 0,
+  });
+  assert.deepEqual(repaired, { home: 2, away: 0 });
+});
+
 test('repairMisSplitRegulationScores fixes mistaken ET split', () => {
   const repaired = repairMisSplitRegulationScores({
     home_score: 1,

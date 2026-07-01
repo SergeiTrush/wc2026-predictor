@@ -43,7 +43,8 @@ function repairMisSplitRegulationScores(match) {
   const fh = match.final_home_score != null ? Number(match.final_home_score) : null;
   const fa = match.final_away_score != null ? Number(match.final_away_score) : null;
   if (fh == null || fa == null || Number.isNaN(fh) || Number.isNaN(fa)) return stored;
-  if (stored.home === stored.away) return stored;
+  // Genuine knockout ET regulation draw (e.g. 1-1 → 2-1), not a mistaken 0-0 split.
+  if (stored.home === stored.away && stored.home > 0) return stored;
   if (stored.home !== fh || stored.away !== fa) {
     return { home: fh, away: fa };
   }

@@ -97,7 +97,9 @@ function storedRegulationLooksStale(match) {
   if (home !== 0 || away !== 0) return false;
   const finalTotal =
     (toScore(match.final_home_score) ?? 0) + (toScore(match.final_away_score) ?? 0);
-  const hasScorer = match.first_scorer_player && match.first_scorer_player !== 'none';
+  const hasScorer =
+    (match.first_scorer_player && match.first_scorer_player !== 'none') ||
+    (match.first_scorer_team && match.first_scorer_team !== 'none');
   return finalTotal > 0 || Boolean(hasScorer);
 }
 

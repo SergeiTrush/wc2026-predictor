@@ -75,6 +75,16 @@ function isNoGoalMatch(homeScore, awayScore) {
   return toScore(homeScore) === 0 && toScore(awayScore) === 0;
 }
 
+/** True when the result shows goals even if stored scores are stale 0:0. */
+function goalsWereScored(actual, actualHome, actualAway) {
+  if (!isNoGoalMatch(actualHome, actualAway)) return true;
+  const team = actual?.first_scorer_team;
+  if (team && team !== 'none') return true;
+  const player = actual?.first_scorer_player;
+  if (player && player !== 'none') return true;
+  return false;
+}
+
 /** Canonical home/away from stored team key or country name. */
 function scorerSide(teamKey, homeTeam, awayTeam) {
   if (!teamKey || teamKey === 'none') return teamKey;
@@ -212,9 +222,10 @@ function breakdownMatchPoints(pred, actual, { underdogBonus = 0 } = {}) {
   }
 
   let firstPlayer = 0;
-  if (isNoScorerPrediction(first_player) && isNoGoalMatch(actualHome, actualAway)) {
+  if (isNoScorerPrediction(first_player) && !goalsWereScored(actual, actualHome, actualAway)) {
     firstPlayer = 8;
   } else if (
+    !isNoScorerPrediction(first_player) &&
     first_player &&
     first_scorer_player &&
     playersMatch(first_player, first_scorer_player) &&

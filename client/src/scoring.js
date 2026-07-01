@@ -69,6 +69,15 @@ function isNoGoalMatch(homeScore, awayScore) {
   return toScore(homeScore) === 0 && toScore(awayScore) === 0;
 }
 
+function goalsWereScored(actual, actualHome, actualAway) {
+  if (!isNoGoalMatch(actualHome, actualAway)) return true;
+  const team = actual?.first_scorer_team;
+  if (team && team !== 'none') return true;
+  const player = actual?.first_scorer_player;
+  if (player && player !== 'none') return true;
+  return false;
+}
+
 function scorerSide(teamKey, homeTeam, awayTeam) {
   if (!teamKey || teamKey === 'none') return teamKey;
   if (teamKey === 'home' || teamKey === 'away') return teamKey;
@@ -162,7 +171,7 @@ function repairMisSplitRegulationScores(match) {
   const fh = match.final_home_score != null ? Number(match.final_home_score) : null;
   const fa = match.final_away_score != null ? Number(match.final_away_score) : null;
   if (fh == null || fa == null || Number.isNaN(fh) || Number.isNaN(fa)) return { home, away };
-  if (home === away) return { home, away };
+  if (home === away && home > 0) return { home, away };
   if (home !== fh || away !== fa) return { home: fh, away: fa };
   return { home, away };
 }
@@ -185,7 +194,9 @@ function applyClientRegulationRepair(match, scoreOverrides = {}) {
 
   const finalTotal =
     (toScore(match.final_home_score) ?? 0) + (toScore(match.final_away_score) ?? 0);
-  const hasScorer = match.first_scorer_player && match.first_scorer_player !== 'none';
+  const hasScorer =
+    (match.first_scorer_player && match.first_scorer_player !== 'none') ||
+    (match.first_scorer_team && match.first_scorer_team !== 'none');
   if (finalTotal <= 0 && !hasScorer) {
     return { home_score: home, away_score: away };
   }
@@ -283,9 +294,10 @@ export function breakdownMatchPoints(pred, actual, { underdogBonus = 0 } = {}) {
   }
 
   let firstPlayer = 0;
-  if (isNoScorerPrediction(first_player) && isNoGoalMatch(actualHome, actualAway)) {
+  if (isNoScorerPrediction(first_player) && !goalsWereScored(actual, actualHome, actualAway)) {
     firstPlayer = 8;
   } else if (
+    !isNoScorerPrediction(first_player) &&
     first_player &&
     first_scorer_player &&
     playersMatch(first_player, first_scorer_player) &&

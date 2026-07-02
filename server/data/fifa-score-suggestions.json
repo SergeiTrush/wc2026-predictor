@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-29T23:38:28.118Z",
+  "generatedAt": "2026-07-02T13:13:37.613Z",
   "byKey": {
     "Mexico|South Africa|2026-06-11": [
       {
@@ -1512,7 +1512,7 @@
         "home": 2,
         "away": 1,
         "score": "2-1",
-        "prob": 0.22
+        "prob": 0.23
       },
       {
         "home": 3,
@@ -1526,19 +1526,19 @@
         "home": 1,
         "away": 2,
         "score": "1-2",
-        "prob": 0.35
+        "prob": 0.37
       },
       {
         "home": 1,
         "away": 3,
         "score": "1-3",
-        "prob": 0.26
+        "prob": 0.24
       },
       {
         "home": 0,
         "away": 2,
         "score": "0-2",
-        "prob": 0.12
+        "prob": 0.11
       }
     ],
     "slot:R32-M5": [
@@ -1566,19 +1566,19 @@
         "home": 3,
         "away": 1,
         "score": "3-1",
-        "prob": 0.35
+        "prob": 0.37
       },
       {
         "home": 3,
         "away": 0,
         "score": "3-0",
-        "prob": 0.22
+        "prob": 0.21
       },
       {
         "home": 4,
         "away": 1,
         "score": "4-1",
-        "prob": 0.17
+        "prob": 0.16
       }
     ],
     "slot:R32-M8": [
@@ -1592,13 +1592,13 @@
         "home": 4,
         "away": 0,
         "score": "4-0",
-        "prob": 0.19
+        "prob": 0.18
       },
       {
         "home": 2,
         "away": 0,
         "score": "2-0",
-        "prob": 0.16
+        "prob": 0.17
       }
     ],
     "slot:R32-M10": [
@@ -1606,7 +1606,7 @@
         "home": 1,
         "away": 2,
         "score": "1-2",
-        "prob": 0.33
+        "prob": 0.34
       },
       {
         "home": 0,
@@ -1629,16 +1629,16 @@
         "prob": 0.36
       },
       {
-        "home": 2,
-        "away": 0,
-        "score": "2-0",
-        "prob": 0.17
-      },
-      {
         "home": 1,
         "away": 0,
         "score": "1-0",
         "prob": 0.16
+      },
+      {
+        "home": 2,
+        "away": 0,
+        "score": "2-0",
+        "prob": 0.15
       }
     ],
     "slot:R32-M12": [
@@ -1646,13 +1646,13 @@
         "home": 2,
         "away": 0,
         "score": "2-0",
-        "prob": 0.36
+        "prob": 0.38
       },
       {
         "home": 3,
         "away": 0,
         "score": "3-0",
-        "prob": 0.24
+        "prob": 0.23
       },
       {
         "home": 2,
@@ -1678,7 +1678,7 @@
         "home": 1,
         "away": 1,
         "score": "1-1",
-        "prob": 0.17
+        "prob": 0.19
       }
     ],
     "slot:R32-M13": [
@@ -1686,13 +1686,13 @@
         "home": 2,
         "away": 1,
         "score": "2-1",
-        "prob": 0.4
+        "prob": 0.41
       },
       {
         "home": 1,
         "away": 1,
         "score": "1-1",
-        "prob": 0.18
+        "prob": 0.19
       },
       {
         "home": 1,
@@ -1706,7 +1706,7 @@
         "home": 2,
         "away": 1,
         "score": "2-1",
-        "prob": 0.37
+        "prob": 0.38
       },
       {
         "home": 2,
@@ -1726,7 +1726,7 @@
         "home": 2,
         "away": 0,
         "score": "2-0",
-        "prob": 0.33
+        "prob": 0.34
       },
       {
         "home": 3,
@@ -1738,7 +1738,7 @@
         "home": 3,
         "away": 0,
         "score": "3-0",
-        "prob": 0.2
+        "prob": 0.19
       }
     ],
     "slot:R32-M15": [
@@ -1746,19 +1746,19 @@
         "home": 2,
         "away": 1,
         "score": "2-1",
-        "prob": 0.36
+        "prob": 0.37
       },
       {
         "home": 2,
         "away": 0,
         "score": "2-0",
-        "prob": 0.2
+        "prob": 0.19
       },
       {
         "home": 1,
         "away": 1,
         "score": "1-1",
-        "prob": 0.12
+        "prob": 0.13
       }
     ]
   }

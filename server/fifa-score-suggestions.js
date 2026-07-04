@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { GROUP, KNOCKOUT } = require('./data/wc2026-schedule');
 const { kickoffEt } = require('../shared/kickoff');
-const { matchLabelToBracketSlot } = require('./data/bracket-slots');
+const { matchLabelToBracketSlot, isKnockoutStage } = require('./data/bracket-slots');
 
 const FIFA_MATCH_STATS_URL = 'https://play.fifa.com/json/match_predictor/matchStats.json';
 const CACHE_FILE = path.join(__dirname, 'data/fifa-score-suggestions.json');
@@ -11,12 +11,8 @@ const CACHE_TTL_MS = 2 * 60 * 60 * 1000;
 const GROUP_MATCH_STATS_MAX = 72;
 const FIFA_KNOCKOUT_R32_START = 73;
 const FIFA_KNOCKOUT_R32_COUNT = 16;
-
-const ROUND_OF_16_FALLBACK_SUGGESTIONS = [
-  { home: 1, away: 0, score: '1-0', prob: 0.34 },
-  { home: 2, away: 1, score: '2-1', prob: 0.29 },
-  { home: 1, away: 1, score: '1-1', prob: 0.22 },
-];
+const FIFA_KNOCKOUT_R16_START = 89;
+const FIFA_KNOCKOUT_R16_COUNT = 8;
 
 const THIRD_PLACE_FALLBACK_SUGGESTIONS = [
   { home: 2, away: 1, score: '2-1', prob: 0.3 },
@@ -24,7 +20,7 @@ const THIRD_PLACE_FALLBACK_SUGGESTIONS = [
   { home: 1, away: 1, score: '1-1', prob: 0.2 },
 ];
 
-let cache = { at: 0, byKey: null };
+let cache = { at: 0, byKey: null, diskMtime: 0 };
 
 function suggestionKey(home, away, kickoffOrDate) {
   return `${home}|${away}|${String(kickoffOrDate || '').slice(0, 10)}`;
@@ -45,10 +41,9 @@ function sortScheduleEntries(entries) {
 }
 
 function knockoutFallbackForStage(stage) {
-  if (!stage || stage === 'group' || stage === 'round_of_32') return null;
-  if (stage === 'round_of_16') return ROUND_OF_16_FALLBACK_SUGGESTIONS;
+  if (!stage || stage === 'group' || stage === 'round_of_32' || stage === 'round_of_16') return null;
   if (stage === 'third_place') return THIRD_PLACE_FALLBACK_SUGGESTIONS;
-  // FIFA quick-picks are not available for the remaining knockout rounds yet.
+  // FIFA quick-picks are not available for QF, SF, or the final yet.
   return null;
 }
 
@@ -76,13 +71,27 @@ function loadOverrides() {
   }
 }
 
-function loadStaticCache() {
+function readStaticCacheFromDisk() {
   try {
-    if (!fs.existsSync(CACHE_FILE)) return {};
+    if (!fs.existsSync(CACHE_FILE)) return { byKey: {}, mtime: 0 };
+    const stat = fs.statSync(CACHE_FILE);
     const data = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
-    return data.byKey || data;
+    return { byKey: data.byKey || data, mtime: stat.mtimeMs };
   } catch {
-    return {};
+    return { byKey: {}, mtime: 0 };
+  }
+}
+
+function loadStaticCache() {
+  return readStaticCacheFromDisk().byKey;
+}
+
+function mergeCacheFromDisk() {
+  const { byKey, mtime } = readStaticCacheFromDisk();
+  if (!cache.byKey || mtime > cache.diskMtime) {
+    cache.byKey = { ...byKey, ...loadOverrides() };
+    cache.diskMtime = mtime;
+    cache.at = Date.now();
   }
 }
 
@@ -125,31 +134,41 @@ async function fetchFromFifa() {
     byKey[bracketSlotKey(slotId)] = suggestions;
   });
 
+  const sortedR16 = sortScheduleEntries(
+    KNOCKOUT.filter((entry) => entry[4] === 'round_of_16').slice(0, FIFA_KNOCKOUT_R16_COUNT)
+  );
+  sortedR16.forEach(({ entry }, r16Pos) => {
+    const matchLabel = entry[5];
+    const slotId = matchLabelToBracketSlot(matchLabel);
+    const suggestions = formatQuickPicks(stats[String(FIFA_KNOCKOUT_R16_START + r16Pos)]);
+    if (!suggestions || !slotId) return;
+    byKey[bracketSlotKey(slotId)] = suggestions;
+  });
+
   return byKey;
 }
 
 async function refreshCache({ persist = false } = {}) {
   const byKey = { ...await fetchFromFifa(), ...loadOverrides() };
-  cache = { at: Date.now(), byKey };
+  cache.byKey = byKey;
+  cache.at = Date.now();
 
   if (persist) {
     fs.writeFileSync(
       CACHE_FILE,
       JSON.stringify({ generatedAt: new Date().toISOString(), byKey }, null, 2)
     );
+    cache.diskMtime = fs.statSync(CACHE_FILE).mtimeMs;
   }
 
   return byKey;
 }
 
 async function ensureCache() {
+  mergeCacheFromDisk();
+
   if (cache.byKey && Date.now() - cache.at < CACHE_TTL_MS) {
     return cache.byKey;
-  }
-
-  if (!cache.byKey) {
-    cache.byKey = { ...loadStaticCache(), ...loadOverrides() };
-    cache.at = Date.now();
   }
 
   if (Date.now() - cache.at >= CACHE_TTL_MS) {
@@ -166,16 +185,18 @@ async function ensureCache() {
 function getSuggestionsForMatch(match, byKey) {
   if (!match) return null;
 
-  if (match.home_team && match.away_team && match.kickoff) {
-    const fromTeams = byKey[suggestionKey(match.home_team, match.away_team, match.kickoff)];
-    if (fromTeams) return fromTeams;
-  }
-
   const slotId = bracketSlotForMatch(match);
+  const knockout = isKnockoutStage(match.stage);
+
   if (slotId) {
     const fromSlot = byKey[bracketSlotKey(slotId)];
     if (fromSlot) return fromSlot;
-    return knockoutFallbackForStage(match.stage);
+    if (knockout) return knockoutFallbackForStage(match.stage);
+  }
+
+  if (!knockout && match.home_team && match.away_team && match.kickoff) {
+    const fromTeams = byKey[suggestionKey(match.home_team, match.away_team, match.kickoff)];
+    if (fromTeams) return fromTeams;
   }
 
   return null;
@@ -195,8 +216,7 @@ function startFifaScoreSuggestionsScheduler() {
   };
 
   if (hasStatic) {
-    cache.byKey = { ...loadStaticCache(), ...loadOverrides() };
-    cache.at = Date.now();
+    mergeCacheFromDisk();
   }
 
   setTimeout(run, 6000);

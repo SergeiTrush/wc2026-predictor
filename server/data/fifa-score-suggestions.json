@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-02T13:13:37.613Z",
+  "generatedAt": "2026-07-04T15:43:01.431Z",
   "byKey": {
     "Mexico|South Africa|2026-06-11": [
       {
@@ -1586,7 +1586,7 @@
         "home": 3,
         "away": 0,
         "score": "3-0",
-        "prob": 0.4
+        "prob": 0.41
       },
       {
         "home": 4,
@@ -1606,13 +1606,13 @@
         "home": 1,
         "away": 2,
         "score": "1-2",
-        "prob": 0.34
+        "prob": 0.36
       },
       {
         "home": 0,
         "away": 1,
         "score": "0-1",
-        "prob": 0.19
+        "prob": 0.18
       },
       {
         "home": 1,
@@ -1686,7 +1686,7 @@
         "home": 2,
         "away": 1,
         "score": "2-1",
-        "prob": 0.41
+        "prob": 0.42
       },
       {
         "home": 1,
@@ -1706,7 +1706,7 @@
         "home": 2,
         "away": 1,
         "score": "2-1",
-        "prob": 0.38
+        "prob": 0.39
       },
       {
         "home": 2,
@@ -1746,7 +1746,7 @@
         "home": 2,
         "away": 1,
         "score": "2-1",
-        "prob": 0.37
+        "prob": 0.38
       },
       {
         "home": 2,

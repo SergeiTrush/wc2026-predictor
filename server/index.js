@@ -48,7 +48,9 @@ const { isSquadEnabled, getLocalSquadsBulk, getTeamSquad, getMatchSquads } = req
 const { refreshIfStale, getLiveScoreForMatch, startLiveScoresScheduler } = require('./live-scores');
 const {
   getSuggestionsMap,
+  getSuggestionsMapSync,
   getSuggestionsForMatch,
+  scheduleSuggestionsRefreshIfStale,
   startFifaScoreSuggestionsScheduler,
 } = require('./fifa-score-suggestions');
 const { resolveAndApplyKnockoutTeams } = require('./resolve-knockout-teams');
@@ -630,10 +632,8 @@ function leaguePredictionsForMatch(leagueId, matchId) {
   ).all(leagueId, matchId, ...ids);
 }
 
-function friendPredictionsForMatch(leagueId, matchId, userId, match, liveScore = null, suggestionsMap = null) {
-  if (!isMatchLiveScoreBarVisible(match)) return null;
-
-  const rows = q(
+function friendPredictionsForMatch(leagueId, matchId, userId) {
+  return q(
     `SELECT u.id AS user_id, u.name, p.home_pred, p.away_pred, p.first_team, p.first_player, p.booster
      FROM predictions p
      INNER JOIN users u ON u.id = p.user_id
@@ -641,35 +641,9 @@ function friendPredictionsForMatch(leagueId, matchId, userId, match, liveScore =
      WHERE p.league_id = ? AND p.match_id = ? AND p.user_id != ?
        AND p.home_pred IS NOT NULL AND p.away_pred IS NOT NULL
      ORDER BY u.name COLLATE NOCASE`
-  ).all(leagueId, matchId, userId);
-
-  const feed = liveScore ?? getLiveScoreForMatch(match.id);
-  const scoreSource = resolveScoringActual(match, feed, {
-    matchHasResult: matchHasResult(match),
-    matchHasLiveManualScore,
-  });
-  const resolved = resolveLeaderboardMatchActual(match, liveScore);
-  const suggestions = suggestionsMap ? getSuggestionsForMatch(match, suggestionsMap) : null;
-
-  return rows.map((row) => {
-    const pred = {
-      home_pred: row.home_pred,
-      away_pred: row.away_pred,
-      first_team: row.first_team,
-      first_player: row.first_player,
-      booster: row.booster,
-    };
-    let points = null;
-    let pointsDetail = null;
-    let provisional = false;
-    if (scoreSource) {
-      const underdogBonus = suggestions ? computeUnderdogBonus(pred, scoreSource, suggestions) : 0;
-      const raw = breakdownMatchPoints(pred, scoreSource, { underdogBonus });
-      points = raw.total;
-      pointsDetail = formatPointsBreakdown(raw);
-      provisional = resolved?.provisional ?? false;
-    }
-    return {
+  )
+    .all(leagueId, matchId, userId)
+    .map((row) => ({
       userId: row.user_id,
       name: row.name,
       home_pred: row.home_pred,
@@ -677,11 +651,7 @@ function friendPredictionsForMatch(leagueId, matchId, userId, match, liveScore =
       first_team: row.first_team,
       first_player: row.first_player,
       booster: !!row.booster,
-      points,
-      pointsDetail,
-      provisional,
-    };
-  });
+    }));
 }
 
 // ——— Auth ———
@@ -1196,11 +1166,12 @@ async function sendFriendPredictions(req, res, leagueId, matchId) {
   refreshIfStale(db).catch(() => {});
   refreshResultsIfStale().catch(() => {});
   scheduleMatchScorersHydration([match]);
+  scheduleSuggestionsRefreshIfStale();
 
   const hasResult = matchHasResult(match);
   const liveScore = resolveLiveScoreForMatch(match);
-  const suggestionsMap = await getSuggestionsMap();
-  const predictions = friendPredictionsForMatch(lid, mid, req.user.id, match, liveScore, suggestionsMap);
+  const suggestionsMap = getSuggestionsMapSync();
+  const predictions = friendPredictionsForMatch(lid, mid, req.user.id);
 
   res.json({
     predictions,

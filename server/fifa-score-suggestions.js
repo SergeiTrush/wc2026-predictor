@@ -202,6 +202,22 @@ function getSuggestionsForMatch(match, byKey) {
   return null;
 }
 
+/** In-memory/disk cache only — never blocks on FIFA network. */
+function getSuggestionsMapSync() {
+  mergeCacheFromDisk();
+  return cache.byKey || {};
+}
+
+function scheduleSuggestionsRefreshIfStale() {
+  mergeCacheFromDisk();
+  if (cache.byKey && Date.now() - cache.at < CACHE_TTL_MS) return;
+  setImmediate(() => {
+    refreshCache().catch((err) => {
+      console.warn('FIFA score suggestions background refresh failed:', err.message);
+    });
+  });
+}
+
 async function getSuggestionsMap() {
   return ensureCache();
 }
@@ -231,6 +247,8 @@ module.exports = {
   fetchFromFifa,
   refreshCache,
   getSuggestionsMap,
+  getSuggestionsMapSync,
+  scheduleSuggestionsRefreshIfStale,
   getSuggestionsForMatch,
   knockoutFallbackForStage,
   startFifaScoreSuggestionsScheduler,

@@ -441,6 +441,99 @@ function loadLeagueMatchesContext(leagueId, userId) {
   return { userPredByMatchId, friendsCountByMatchId };
 }
 
+function predUserMatchKey(userId, matchId) {
+  return `${Number(userId)}:${Number(matchId)}`;
+}
+
+function loadLeaguePredictionsMap(leagueId) {
+  const rows = q('SELECT * FROM predictions WHERE league_id = ?').all(Number(leagueId));
+  const byUserMatch = new Map();
+  for (const pred of rows) {
+    byUserMatch.set(predUserMatchKey(pred.user_id, pred.match_id), pred);
+  }
+  return byUserMatch;
+}
+
+function loadBracketCompleteByUserId(leagueId) {
+  const rows = q('SELECT user_id, picks FROM bracket_picks WHERE league_id = ?').all(Number(leagueId));
+  const byUserId = new Map();
+  for (const row of rows) {
+    let complete = 0;
+    if (row.picks) {
+      try {
+        const picks = JSON.parse(row.picks);
+        if (picks.champion && Object.keys(picks.winners || {}).length >= 31) complete = 1;
+      } catch {
+        /* ignore malformed bracket JSON */
+      }
+    }
+    byUserId.set(Number(row.user_id), complete);
+  }
+  return byUserId;
+}
+
+function prepareScorableLeaderboardMatches(scopeMatches) {
+  const prepared = scopeMatches.map((match) => prepareMatchForScoringList(match));
+  const scorableMatches = [];
+  const liveScoreByMatchId = new Map();
+
+  for (const match of prepared) {
+    const liveScore = getLiveScoreForMatch(match.id);
+    liveScoreByMatchId.set(Number(match.id), liveScore);
+    if (isLeaderboardScorableMatch(match, liveScore)) {
+      scorableMatches.push(match);
+    }
+  }
+
+  scheduleMatchScorersHydration(scorableMatches);
+  return { scorableMatches, liveScoreByMatchId };
+}
+
+function computeMemberLeaderboardStats(
+  member,
+  scorableMatches,
+  liveScoreByMatchId,
+  predictionsByUserMatch,
+  suggestionsMap
+) {
+  let total = 0;
+  let provisionalPoints = 0;
+  let scoredMatches = 0;
+  let correctResults = 0;
+  let correctFirstTeam = 0;
+  let correctFirstPlayer = 0;
+
+  for (const match of scorableMatches) {
+    const pred = predictionsByUserMatch.get(predUserMatchKey(member.id, match.id));
+    if (!pred) continue;
+    const liveScore = liveScoreByMatchId.get(Number(match.id));
+    const bonus = underdogBonusForLeaderboard(pred, match, liveScore, suggestionsMap);
+    const { points, provisional, tiebreak } = matchPointsForLeaderboard(
+      pred,
+      match,
+      liveScore,
+      bonus
+    );
+    total += points;
+    if (provisional) provisionalPoints += points;
+    scoredMatches += 1;
+    if (tiebreak) {
+      correctResults += tiebreak.correctResults;
+      correctFirstTeam += tiebreak.correctFirstTeam;
+      correctFirstPlayer += tiebreak.correctFirstPlayer;
+    }
+  }
+
+  return {
+    total,
+    provisionalPoints,
+    scoredMatches,
+    correctResults,
+    correctFirstTeam,
+    correctFirstPlayer,
+  };
+}
+
 function matchPointsForLeaderboard(pred, match, liveScore, underdogBonus = 0) {
   const opts = { underdogBonus };
   const resolved = resolveLeaderboardMatchActual(match, liveScore);
@@ -850,8 +943,8 @@ app.get('/api/leagues/:id/leaderboard', authMiddleware, async (req, res) => {
   if (!requireActiveLeagueMember(leagueId, req.user.id, res)) return;
   const selectedMatchday = req.query.matchday ? String(req.query.matchday) : null;
 
-  await refreshIfStale(db);
-  await refreshResultsIfStale();
+  refreshIfStale(db).catch(() => {});
+  refreshResultsIfStale().catch(() => {});
 
   const members = q(
     `SELECT u.id, u.name, (l.owner_id = u.id) AS is_owner
@@ -863,66 +956,33 @@ app.get('/api/leagues/:id/leaderboard', authMiddleware, async (req, res) => {
   ).all(leagueId);
 
   const scopeMatches = matchesForLeaderboardScope(selectedMatchday);
-  const scorableMatches = scopeMatches.filter((match) =>
-    isLeaderboardScorableMatch(match, getLiveScoreForMatch(match.id))
-  );
-  await ensureMatchScorersHydrated(scorableMatches);
-
-  const getPred = q(
-    'SELECT * FROM predictions WHERE league_id = ? AND user_id = ? AND match_id = ?'
-  );
-
+  const { scorableMatches, liveScoreByMatchId } = prepareScorableLeaderboardMatches(scopeMatches);
+  const predictionsByUserMatch = loadLeaguePredictionsMap(leagueId);
+  const bracketCompleteByUserId = loadBracketCompleteByUserId(leagueId);
   const suggestionsMap = await getSuggestionsMap();
 
   const leaderboard = members.map((member) => {
-    let total = 0;
-    let provisionalPoints = 0;
-    let scoredMatches = 0;
-    let correctResults = 0;
-    let correctFirstTeam = 0;
-    let correctFirstPlayer = 0;
-    for (const match of scorableMatches) {
-      const pred = getPred.get(leagueId, member.id, match.id);
-      if (!pred) continue;
-      const liveScore = getLiveScoreForMatch(match.id);
-      const bonus = underdogBonusForLeaderboard(pred, match, liveScore, suggestionsMap);
-      const { points, provisional, tiebreak } = matchPointsForLeaderboard(pred, match, liveScore, bonus);
-      total += points;
-      if (provisional) provisionalPoints += points;
-      scoredMatches += 1;
-      if (tiebreak) {
-        correctResults += tiebreak.correctResults;
-        correctFirstTeam += tiebreak.correctFirstTeam;
-        correctFirstPlayer += tiebreak.correctFirstPlayer;
-      }
-    }
-    const brRow = q('SELECT picks FROM bracket_picks WHERE league_id = ? AND user_id = ?').get(
-      leagueId,
-      member.id
+    const stats = computeMemberLeaderboardStats(
+      member,
+      scorableMatches,
+      liveScoreByMatchId,
+      predictionsByUserMatch,
+      suggestionsMap
     );
-    let bracketComplete = 0;
-    if (brRow?.picks) {
-      try {
-        const p = JSON.parse(brRow.picks);
-        if (p.champion && Object.keys(p.winners || {}).length >= 31) bracketComplete = 1;
-      } catch {
-        /* ignore */
-      }
-    }
     return {
       userId: member.id,
       name: member.name,
       isOwner: !!member.is_owner,
-      points: total,
-      matchPoints: total,
-      provisionalPoints,
-      hasProvisional: provisionalPoints > 0,
-      scoredMatches,
+      points: stats.total,
+      matchPoints: stats.total,
+      provisionalPoints: stats.provisionalPoints,
+      hasProvisional: stats.provisionalPoints > 0,
+      scoredMatches: stats.scoredMatches,
       totalMatches: scorableMatches.length,
-      bracketComplete,
-      correctResults,
-      correctFirstTeam,
-      correctFirstPlayer,
+      bracketComplete: bracketCompleteByUserId.get(Number(member.id)) || 0,
+      correctResults: stats.correctResults,
+      correctFirstTeam: stats.correctFirstTeam,
+      correctFirstPlayer: stats.correctFirstPlayer,
     };
   });
 
@@ -942,8 +1002,8 @@ app.get('/api/leagues/:id/users/:userId/matchday-points', authMiddleware, async 
     return res.status(404).json({ error: 'Участник не найден в этой лиге' });
   }
 
-  await refreshIfStale(db);
-  await refreshResultsIfStale();
+  refreshIfStale(db).catch(() => {});
+  refreshResultsIfStale().catch(() => {});
 
   const days = q(
     `SELECT DISTINCT COALESCE(matchday, substr(kickoff, 1, 10)) AS day
@@ -951,28 +1011,46 @@ app.get('/api/leagues/:id/users/:userId/matchday-points', authMiddleware, async 
      ORDER BY day`
   ).all();
 
-  const getPred = q(
-    'SELECT * FROM predictions WHERE league_id = ? AND user_id = ? AND match_id = ?'
-  );
+  const allMatches = q('SELECT * FROM matches ORDER BY kickoff ASC').all();
+  const matchesByDay = new Map();
+  const liveScoreByMatchId = new Map();
+  const scorableByDay = new Map();
 
+  for (const raw of allMatches) {
+    const match = prepareMatchForScoringList(raw);
+    const day = matchdayKey(match);
+    if (!matchesByDay.has(day)) matchesByDay.set(day, []);
+    matchesByDay.get(day).push(match);
+
+    const liveScore = getLiveScoreForMatch(match.id);
+    liveScoreByMatchId.set(Number(match.id), liveScore);
+    if (isLeaderboardScorableMatch(match, liveScore)) {
+      if (!scorableByDay.has(day)) scorableByDay.set(day, []);
+      scorableByDay.get(day).push(match);
+    }
+  }
+
+  scheduleMatchScorersHydration([].concat(...scorableByDay.values()));
+
+  const predictionsByMatchId = new Map(
+    q('SELECT * FROM predictions WHERE league_id = ? AND user_id = ?')
+      .all(leagueId, userId)
+      .map((pred) => [Number(pred.match_id), pred])
+  );
   const suggestionsMap = await getSuggestionsMap();
 
   const pointsByDay = {};
   for (const row of days) {
     const day = row.day;
-    const dayMatches = matchesForLeaderboardScope(day);
-    const scorableMatches = dayMatches.filter((match) =>
-      isLeaderboardScorableMatch(match, getLiveScoreForMatch(match.id))
-    );
-    await ensureMatchScorersHydrated(scorableMatches);
+    const scorableMatches = scorableByDay.get(day) || [];
     let points = 0;
     let provisionalPoints = 0;
     let scoredMatches = 0;
 
     for (const match of scorableMatches) {
-      const pred = getPred.get(leagueId, userId, match.id);
+      const pred = predictionsByMatchId.get(Number(match.id));
       if (!pred) continue;
-      const liveScore = getLiveScoreForMatch(match.id);
+      const liveScore = liveScoreByMatchId.get(Number(match.id));
       const bonus = underdogBonusForLeaderboard(pred, match, liveScore, suggestionsMap);
       const result = matchPointsForLeaderboard(pred, match, liveScore, bonus);
       points += result.points;

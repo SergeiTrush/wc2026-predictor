@@ -643,13 +643,13 @@ function friendPredictionsForMatch(leagueId, matchId, userId, match, liveScore =
      ORDER BY u.name COLLATE NOCASE`
   ).all(leagueId, matchId, userId);
 
-  const hasResult = matchHasResult(match);
   const feed = liveScore ?? getLiveScoreForMatch(match.id);
   const scoreSource = resolveScoringActual(match, feed, {
-    matchHasResult,
+    matchHasResult: matchHasResult(match),
     matchHasLiveManualScore,
   });
   const resolved = resolveLeaderboardMatchActual(match, liveScore);
+  const suggestions = suggestionsMap ? getSuggestionsForMatch(match, suggestionsMap) : null;
 
   return rows.map((row) => {
     const pred = {
@@ -663,7 +663,6 @@ function friendPredictionsForMatch(leagueId, matchId, userId, match, liveScore =
     let pointsDetail = null;
     let provisional = false;
     if (scoreSource) {
-      const suggestions = suggestionsMap ? getSuggestionsForMatch(match, suggestionsMap) : null;
       const underdogBonus = suggestions ? computeUnderdogBonus(pred, scoreSource, suggestions) : 0;
       const raw = breakdownMatchPoints(pred, scoreSource, { underdogBonus });
       points = raw.total;
@@ -1184,22 +1183,25 @@ async function sendFriendPredictions(req, res, leagueId, matchId) {
   const mid = Number(matchId);
   if (!requireActiveLeagueMember(lid, req.user.id, res)) return;
 
-  const match = q('SELECT * FROM matches WHERE id = ?').get(mid);
-  if (!match) return res.status(404).json({ error: 'Матч не найден' });
+  const raw = q('SELECT * FROM matches WHERE id = ?').get(mid);
+  if (!raw) return res.status(404).json({ error: 'Матч не найден' });
 
+  const match = prepareMatchForScoringList(raw);
   if (!isMatchLiveScoreBarVisible(match)) {
     return res.status(403).json({
       error: 'Прогнозы друзей доступны после начала матча',
     });
   }
 
-  await refreshIfStale(db);
-  await refreshResultsIfStale();
-  await ensureMatchScorersHydrated([match]);
+  refreshIfStale(db).catch(() => {});
+  refreshResultsIfStale().catch(() => {});
+  scheduleMatchScorersHydration([match]);
+
   const hasResult = matchHasResult(match);
   const liveScore = resolveLiveScoreForMatch(match);
   const suggestionsMap = await getSuggestionsMap();
   const predictions = friendPredictionsForMatch(lid, mid, req.user.id, match, liveScore, suggestionsMap);
+
   res.json({
     predictions,
     match: {
@@ -1208,11 +1210,18 @@ async function sendFriendPredictions(req, res, leagueId, matchId) {
       away_team: match.away_team,
       home_score: match.home_score,
       away_score: match.away_score,
+      final_home_score: match.final_home_score,
+      final_away_score: match.final_away_score,
       hasResult,
+      isFinished: matchIsFinished(match),
       liveScore,
       stage: match.stage,
+      kickoff: match.kickoff,
       first_scorer_team: match.first_scorer_team,
       first_scorer_player: match.first_scorer_player,
+      first_scorer_player_team: match.first_scorer_player_team,
+      first_scorer_is_own_goal: match.first_scorer_is_own_goal,
+      suggestedScores: getSuggestionsForMatch(match, suggestionsMap),
     },
   });
 }

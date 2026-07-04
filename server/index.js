@@ -58,8 +58,10 @@ const {
   inferFirstScorerMeta,
   hydrateMatchScorerFromApi,
   needsScorerHydration,
+  prepareMatchForScoringList,
   repairMatchRegulationScores,
   resolveScoringActual,
+  storedRegulationLooksStale,
 } = require('./scoring-actual');
 const {
   GROUPS,
@@ -403,6 +405,40 @@ async function ensureMatchScorersHydrated(matches) {
       }
     }
   }
+}
+
+function scheduleMatchScorersHydration(matches) {
+  const pending = matches.filter(
+    (m) => needsScorerHydration(m) || storedRegulationLooksStale(m)
+  );
+  if (!pending.length) return;
+  setImmediate(() => {
+    ensureMatchScorersHydrated(pending).catch((err) => {
+      console.warn('Background scorer hydration:', err.message);
+    });
+  });
+}
+
+function loadLeagueMatchesContext(leagueId, userId) {
+  const lid = Number(leagueId);
+  const uid = Number(userId);
+
+  const userPreds = q('SELECT * FROM predictions WHERE league_id = ? AND user_id = ?').all(lid, uid);
+  const userPredByMatchId = new Map(userPreds.map((p) => [Number(p.match_id), p]));
+
+  const friendCounts = q(
+    `SELECT p.match_id, COUNT(*) AS cnt
+     FROM predictions p
+     INNER JOIN league_members lm
+       ON lm.user_id = p.user_id AND lm.league_id = p.league_id AND lm.suspended = 0
+     WHERE p.league_id = ? AND p.user_id != ?
+     GROUP BY p.match_id`
+  ).all(lid, uid);
+  const friendsCountByMatchId = new Map(
+    friendCounts.map((r) => [Number(r.match_id), Number(r.cnt)])
+  );
+
+  return { userPredByMatchId, friendsCountByMatchId };
 }
 
 function matchPointsForLeaderboard(pred, match, liveScore, underdogBonus = 0) {
@@ -984,55 +1020,57 @@ app.get('/api/matches', authMiddleware, async (req, res) => {
   // Skips matches where admin explicitly cleared the result (admin_cleared = 1).
   initStartedMatchScores();
 
-  await refreshIfStale(db);
-  await refreshResultsIfStale();
-
   const matches = q(query).all(...params);
-  await ensureMatchScorersHydrated(matches);
+  const bulkLoad = returnAll || matches.length > 24;
+
+  if (bulkLoad) {
+    refreshIfStale(db).catch(() => {});
+    refreshResultsIfStale().catch(() => {});
+  } else {
+    await refreshIfStale(db);
+    await refreshResultsIfStale();
+  }
+
+  for (let i = 0; i < matches.length; i++) {
+    matches[i] = prepareMatchForScoringList(matches[i]);
+  }
+  scheduleMatchScorersHydration(matches);
+
   const scoreSuggestionsByKey = await getSuggestionsMap();
 
-  const getPred = q(
-    'SELECT * FROM predictions WHERE league_id = ? AND user_id = ? AND match_id = ?'
-  );
   const lid = requireLeagueIdQuery(leagueId, req.user.id, res);
   if (lid === false) return;
 
+  const isMember = lid ? !!isActiveLeagueMember(lid, req.user.id) : false;
+  const leagueCtx =
+    lid && isMember ? loadLeagueMatchesContext(lid, req.user.id) : null;
+
   const enriched = matches.map((m) => {
     let prediction =
-      lid && isActiveLeagueMember(lid, req.user.id)
-        ? getPred.get(lid, req.user.id, m.id) || null
-        : null;
-    let friendsPredicted = 0;
+      leagueCtx ? leagueCtx.userPredByMatchId.get(Number(m.id)) || null : null;
+    const friendsPredicted = leagueCtx
+      ? leagueCtx.friendsCountByMatchId.get(Number(m.id)) || 0
+      : 0;
     let pointsDetail = null;
     const liveScore = resolveLiveScoreForMatch(m);
     const inPlay = matchIsInPlay(m, liveScore);
     const finished = matchIsFinished(m);
     const hasResult = finished && matchHasStoredScore(m);
-    if (lid && isActiveLeagueMember(lid, req.user.id)) {
-      const leaguePreds = leaguePredictionsForMatch(lid, m.id);
-      friendsPredicted = leaguePreds.filter(
-        (p) => Number(p.user_id) !== Number(req.user.id)
-      ).length;
-      if (prediction && (hasResult || matchHasLiveManualScore(m) || liveScore)) {
-        const actual = resolveScoringActual(m, liveScore, {
-          matchHasResult,
-          matchHasLiveManualScore,
-        });
-        if (actual) {
-          const underdogBonus = computeUnderdogBonusFromActual(prediction, actual, m, scoreSuggestionsByKey);
-          const raw = breakdownMatchPoints(prediction, actual, { underdogBonus });
-          pointsDetail = formatPointsBreakdown(raw);
-          if (underdogBonus) prediction = { ...prediction, underdogBonus };
-        }
+    if (leagueCtx && prediction && (hasResult || matchHasLiveManualScore(m) || liveScore)) {
+      const actual = resolveScoringActual(m, liveScore, {
+        matchHasResult,
+        matchHasLiveManualScore,
+      });
+      if (actual) {
+        const underdogBonus = computeUnderdogBonusFromActual(prediction, actual, m, scoreSuggestionsByKey);
+        const raw = breakdownMatchPoints(prediction, actual, { underdogBonus });
+        pointsDetail = formatPointsBreakdown(raw);
+        if (underdogBonus) prediction = { ...prediction, underdogBonus };
       }
     }
     const baseLock = matchLockState(m);
     const locked = baseLock.locked || !!liveScore;
     const lockReason = locked ? baseLock.lockReason || (liveScore ? 'started' : null) : null;
-    const friendPredictions =
-      lid && isActiveLeagueMember(lid, req.user.id)
-        ? friendPredictionsForMatch(lid, m.id, req.user.id, m, liveScore, scoreSuggestionsByKey)
-        : null;
     const scorerMeta = inferFirstScorerMeta(m);
     const firstScorerPlayerTeam =
       scorerMeta.first_scorer_player_team ?? m.first_scorer_player_team ?? null;
@@ -1047,7 +1085,7 @@ app.get('/api/matches', authMiddleware, async (req, res) => {
       lockReason,
       prediction,
       friendsPredicted,
-      friendPredictions,
+      friendPredictions: null,
       hasResult,
       isFinished: finished,
       isLive: inPlay,

@@ -297,6 +297,11 @@ function resolveScoringActual(match, liveScore = null, { matchHasResult, matchHa
   return null;
 }
 
+/** Fast in-memory prep for match lists (no external API). */
+function prepareMatchForScoringList(match) {
+  return hydrateScorerFromCache(applySyncRegulationRepair(match));
+}
+
 module.exports = {
   findPlayerSide,
   inferFirstScorerMeta,
@@ -308,4 +313,5 @@ module.exports = {
   repairMatchRegulationScores,
   enrichMatchForScoring,
   resolveScoringActual,
+  prepareMatchForScoringList,
 };

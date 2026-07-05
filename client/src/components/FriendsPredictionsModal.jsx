@@ -55,12 +55,13 @@ function resolvePredictionPoints(prediction, displayMatch, squadPlayers = null) 
 
 export { friendsLinkLabel };
 
-export default function FriendsPredictionsModal({ leagueId, match, onClose }) {
-  const [loading, setLoading] = useState(true);
+export default function FriendsPredictionsModal({ leagueId, match, initialData = null, onClose }) {
+  const hasPreloaded = initialData != null;
+  const [loading, setLoading] = useState(!hasPreloaded);
   const [error, setError] = useState('');
-  const [predictions, setPredictions] = useState([]);
-  const [matchInfo, setMatchInfo] = useState(null);
-  const [squadPlayers, setSquadPlayers] = useState([]);
+  const [predictions, setPredictions] = useState(initialData?.predictions ?? []);
+  const [matchInfo, setMatchInfo] = useState(initialData?.matchInfo ?? null);
+  const [squadPlayers, setSquadPlayers] = useState(initialData?.squadPlayers ?? []);
 
   const ownPrediction =
     match.prediction?.home_pred != null && match.prediction?.away_pred != null
@@ -68,6 +69,15 @@ export default function FriendsPredictionsModal({ leagueId, match, onClose }) {
       : null;
 
   useEffect(() => {
+    if (hasPreloaded) {
+      setPredictions(initialData.predictions ?? []);
+      setMatchInfo(initialData.matchInfo ?? null);
+      setSquadPlayers(initialData.squadPlayers ?? []);
+      setLoading(false);
+      setError('');
+      return undefined;
+    }
+
     if (match.friendPredictions != null) {
       setPredictions(match.friendPredictions);
       setMatchInfo(match);
@@ -95,11 +105,12 @@ export default function FriendsPredictionsModal({ leagueId, match, onClose }) {
     return () => {
       cancelled = true;
     };
-  }, [leagueId, match, match.id, match.friendPredictions]);
+  }, [hasPreloaded, initialData, leagueId, match, match.id, match.friendPredictions]);
 
   const displayMatch = matchInfo || match;
 
   useEffect(() => {
+    if (hasPreloaded || squadPlayers.length > 0) return undefined;
     if (!displayMatch?.home_team || !displayMatch?.away_team) {
       setSquadPlayers([]);
       return undefined;
@@ -117,7 +128,7 @@ export default function FriendsPredictionsModal({ leagueId, match, onClose }) {
     return () => {
       cancelled = true;
     };
-  }, [displayMatch?.home_team, displayMatch?.away_team]);
+  }, [hasPreloaded, displayMatch?.home_team, displayMatch?.away_team, squadPlayers.length]);
   const hasResult = matchHasResult(displayMatch);
   const isLive = matchIsLive(displayMatch);
   const liveScore = displayMatch.liveScore;
@@ -155,8 +166,9 @@ export default function FriendsPredictionsModal({ leagueId, match, onClose }) {
         {loading && <p className="empty-hint">Загрузка…</p>}
         {error && <p className="error-banner">{error}</p>}
 
+        {!loading && (
         <div className="friends-predictions-body">
-          {!loading && !error && predictions.length === 0 && !ownPrediction && (
+          {!error && predictions.length === 0 && !ownPrediction && (
             <p className="empty-hint">Пока нет прогнозов от других участников</p>
           )}
 
@@ -190,6 +202,7 @@ export default function FriendsPredictionsModal({ leagueId, match, onClose }) {
             </ul>
           </div>
         </div>
+        )}
       </div>
     </ModalOverlay>
   );

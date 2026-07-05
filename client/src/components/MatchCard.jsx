@@ -31,6 +31,8 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
   const isBoosterHere = Number(boosterMatchId) === Number(match.id);
   const [saved, setSaved] = useState(false);
   const [showFriendsPredictions, setShowFriendsPredictions] = useState(false);
+  const [friendsLoading, setFriendsLoading] = useState(false);
+  const [friendsModalData, setFriendsModalData] = useState(null);
   const [squadPlayers, setSquadPlayers] = useState(null);
   const [squadTeams, setSquadTeams] = useState(null);
   const [squadLoading, setSquadLoading] = useState(false);
@@ -216,6 +218,43 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
 
   const friends = match.friendsPredicted || 0;
   const canViewFriendsPredictions = friends > 0 && liveBarVisible && leagueId;
+
+  const openFriendsPredictions = async () => {
+    if (friendsLoading) return;
+
+    if (match.friendPredictions != null) {
+      setFriendsModalData({
+        predictions: match.friendPredictions,
+        matchInfo: match,
+        squadPlayers: squadPlayers ?? [],
+      });
+      setShowFriendsPredictions(true);
+      return;
+    }
+
+    setFriendsLoading(true);
+    try {
+      const [data, squads] = await Promise.all([
+        api.matchFriendPredictions(leagueId, match.id),
+        loadMatchSquads(match.home_team, match.away_team),
+      ]);
+      setFriendsModalData({
+        predictions: data.predictions || [],
+        matchInfo: { ...match, ...(data.match || {}) },
+        squadPlayers: squads.players || [],
+      });
+      setShowFriendsPredictions(true);
+    } catch (e) {
+      showAlert(e.message);
+    } finally {
+      setFriendsLoading(false);
+    }
+  };
+
+  const closeFriendsPredictions = () => {
+    setShowFriendsPredictions(false);
+    setFriendsModalData(null);
+  };
   const hasSavedPrediction = pred?.home_pred != null && pred?.away_pred != null;
   const hasLocalScore = home !== '' && away !== '';
 
@@ -531,9 +570,10 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
             <button
               type="button"
               className="friends-predictions-link"
-              onClick={() => setShowFriendsPredictions(true)}
+              disabled={friendsLoading}
+              onClick={openFriendsPredictions}
             >
-              {friendsLinkLabel(friends)}
+              {friendsLoading ? 'Загрузка…' : friendsLinkLabel(friends)}
             </button>
           ) : (
             footerText
@@ -547,11 +587,12 @@ export default function MatchCard({ match, leagueId, onSaved, boosterMatchId, bo
         </p>
       )}
 
-      {showFriendsPredictions && (
+      {showFriendsPredictions && friendsModalData && (
         <FriendsPredictionsModal
           leagueId={leagueId}
           match={match}
-          onClose={() => setShowFriendsPredictions(false)}
+          initialData={friendsModalData}
+          onClose={closeFriendsPredictions}
         />
       )}
     </article>

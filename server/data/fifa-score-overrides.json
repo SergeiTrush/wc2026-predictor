@@ -1,4 +1,44 @@
 {
+  "slot:QF2": [
+    {
+      "home": 2,
+      "away": 1,
+      "score": "2-1",
+      "prob": 0.33
+    },
+    {
+      "home": 2,
+      "away": 0,
+      "score": "2-0",
+      "prob": 0.28
+    },
+    {
+      "home": 1,
+      "away": 0,
+      "score": "1-0",
+      "prob": 0.12
+    }
+  ],
+  "slot:QF3": [
+    {
+      "home": 1,
+      "away": 2,
+      "score": "1-2",
+      "prob": 0.3
+    },
+    {
+      "home": 2,
+      "away": 1,
+      "score": "2-1",
+      "prob": 0.21
+    },
+    {
+      "home": 2,
+      "away": 2,
+      "score": "2-2",
+      "prob": 0.18
+    }
+  ],
   "slot:R16-M2": [
     {
       "home": 0,

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-08T08:09:28.796Z",
+  "generatedAt": "2026-07-12T19:55:46.863Z",
   "byKey": {
     "Mexico|South Africa|2026-06-11": [
       {
@@ -1926,19 +1926,19 @@
         "home": 2,
         "away": 1,
         "score": "2-1",
-        "prob": 0.42
+        "prob": 0.38
       },
       {
         "home": 3,
         "away": 1,
         "score": "3-1",
-        "prob": 0.2
+        "prob": 0.21
       },
       {
         "home": 2,
         "away": 0,
         "score": "2-0",
-        "prob": 0.14
+        "prob": 0.13
       }
     ],
     "slot:QF2": [
@@ -1986,7 +1986,7 @@
         "home": 2,
         "away": 1,
         "score": "2-1",
-        "prob": 0.31
+        "prob": 0.29
       },
       {
         "home": 2,
@@ -1998,7 +1998,47 @@
         "home": 3,
         "away": 1,
         "score": "3-1",
-        "prob": 0.16
+        "prob": 0.18
+      }
+    ],
+    "slot:SF1": [
+      {
+        "home": 2,
+        "away": 1,
+        "score": "2-1",
+        "prob": 0.44
+      },
+      {
+        "home": 3,
+        "away": 1,
+        "score": "3-1",
+        "prob": 0.12
+      },
+      {
+        "home": 1,
+        "away": 2,
+        "score": "1-2",
+        "prob": 0.11
+      }
+    ],
+    "slot:SF2": [
+      {
+        "home": 2,
+        "away": 1,
+        "score": "2-1",
+        "prob": 0.29
+      },
+      {
+        "home": 1,
+        "away": 2,
+        "score": "1-2",
+        "prob": 0.22
+      },
+      {
+        "home": 1,
+        "away": 1,
+        "score": "1-1",
+        "prob": 0.21
       }
     ]
   }

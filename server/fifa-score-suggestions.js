@@ -15,6 +15,8 @@ const FIFA_KNOCKOUT_R16_START = 89;
 const FIFA_KNOCKOUT_R16_COUNT = 8;
 const FIFA_KNOCKOUT_QF_START = 97;
 const FIFA_KNOCKOUT_QF_COUNT = 4;
+const FIFA_KNOCKOUT_SF_START = 101;
+const FIFA_KNOCKOUT_SF_COUNT = 2;
 
 const THIRD_PLACE_FALLBACK_SUGGESTIONS = [
   { home: 2, away: 1, score: '2-1', prob: 0.3 },
@@ -45,7 +47,7 @@ function sortScheduleEntries(entries) {
 function knockoutFallbackForStage(stage) {
   if (!stage || stage === 'group' || stage === 'round_of_32' || stage === 'round_of_16') return null;
   if (stage === 'third_place') return THIRD_PLACE_FALLBACK_SUGGESTIONS;
-  // FIFA quick-picks are not available for SF or the final yet.
+  // FIFA quick-picks are not available for the final yet.
   return null;
 }
 
@@ -154,6 +156,17 @@ async function fetchFromFifa() {
     const matchLabel = entry[5];
     const slotId = matchLabelToBracketSlot(matchLabel);
     const suggestions = formatQuickPicks(stats[String(FIFA_KNOCKOUT_QF_START + qfPos)]);
+    if (!suggestions || !slotId) return;
+    byKey[bracketSlotKey(slotId)] = suggestions;
+  });
+
+  const sortedSf = sortScheduleEntries(
+    KNOCKOUT.filter((entry) => entry[4] === 'semi_final').slice(0, FIFA_KNOCKOUT_SF_COUNT)
+  );
+  sortedSf.forEach(({ entry }, sfPos) => {
+    const matchLabel = entry[5];
+    const slotId = matchLabelToBracketSlot(matchLabel);
+    const suggestions = formatQuickPicks(stats[String(FIFA_KNOCKOUT_SF_START + sfPos)]);
     if (!suggestions || !slotId) return;
     byKey[bracketSlotKey(slotId)] = suggestions;
   });

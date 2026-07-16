@@ -17,11 +17,21 @@ const FIFA_KNOCKOUT_QF_START = 97;
 const FIFA_KNOCKOUT_QF_COUNT = 4;
 const FIFA_KNOCKOUT_SF_START = 101;
 const FIFA_KNOCKOUT_SF_COUNT = 2;
+const FIFA_KNOCKOUT_THIRD_START = 103;
+const FIFA_KNOCKOUT_THIRD_COUNT = 1;
+const FIFA_KNOCKOUT_FINAL_START = 104;
+const FIFA_KNOCKOUT_FINAL_COUNT = 1;
 
 const THIRD_PLACE_FALLBACK_SUGGESTIONS = [
   { home: 2, away: 1, score: '2-1', prob: 0.3 },
   { home: 2, away: 2, score: '2-2', prob: 0.25 },
   { home: 1, away: 1, score: '1-1', prob: 0.2 },
+];
+
+const FINAL_FALLBACK_SUGGESTIONS = [
+  { home: 2, away: 1, score: '2-1', prob: 0.33 },
+  { home: 1, away: 2, score: '1-2', prob: 0.18 },
+  { home: 1, away: 1, score: '1-1', prob: 0.13 },
 ];
 
 let cache = { at: 0, byKey: null, diskMtime: 0 };
@@ -47,7 +57,7 @@ function sortScheduleEntries(entries) {
 function knockoutFallbackForStage(stage) {
   if (!stage || stage === 'group' || stage === 'round_of_32' || stage === 'round_of_16') return null;
   if (stage === 'third_place') return THIRD_PLACE_FALLBACK_SUGGESTIONS;
-  // FIFA quick-picks are not available for the final yet.
+  if (stage === 'final') return FINAL_FALLBACK_SUGGESTIONS;
   return null;
 }
 
@@ -171,6 +181,28 @@ async function fetchFromFifa() {
     byKey[bracketSlotKey(slotId)] = suggestions;
   });
 
+  const sortedThird = sortScheduleEntries(
+    KNOCKOUT.filter((entry) => entry[4] === 'third_place').slice(0, FIFA_KNOCKOUT_THIRD_COUNT)
+  );
+  sortedThird.forEach(({ entry }, thirdPos) => {
+    const matchLabel = entry[5];
+    const slotId = matchLabelToBracketSlot(matchLabel);
+    const suggestions = formatQuickPicks(stats[String(FIFA_KNOCKOUT_THIRD_START + thirdPos)]);
+    if (!suggestions || !slotId) return;
+    byKey[bracketSlotKey(slotId)] = suggestions;
+  });
+
+  const sortedFinal = sortScheduleEntries(
+    KNOCKOUT.filter((entry) => entry[4] === 'final').slice(0, FIFA_KNOCKOUT_FINAL_COUNT)
+  );
+  sortedFinal.forEach(({ entry }, finalPos) => {
+    const matchLabel = entry[5];
+    const slotId = matchLabelToBracketSlot(matchLabel);
+    const suggestions = formatQuickPicks(stats[String(FIFA_KNOCKOUT_FINAL_START + finalPos)]);
+    if (!suggestions || !slotId) return;
+    byKey[bracketSlotKey(slotId)] = suggestions;
+  });
+
   return byKey;
 }
 
@@ -217,7 +249,11 @@ function getSuggestionsForMatch(match, byKey) {
   if (slotId) {
     const fromSlot = byKey[bracketSlotKey(slotId)];
     if (fromSlot) return fromSlot;
-    if (knockout) return knockoutFallbackForStage(match.stage);
+  }
+
+  if (knockout) {
+    const fallback = knockoutFallbackForStage(match.stage);
+    if (fallback) return fallback;
   }
 
   if (!knockout && match.home_team && match.away_team && match.kickoff) {

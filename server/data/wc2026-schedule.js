@@ -118,10 +118,10 @@ const KNOCKOUT = [
   ['Winner QF1', 'Winner QF2', '2026-07-14', '15:00', 'semi_final', 'SF1', 'AT&T Stadium'],
   ['Winner QF3', 'Winner QF4', '2026-07-15', '15:00', 'semi_final', 'SF2', 'Mercedes-Benz Stadium'],
   ['Loser SF1', 'Loser SF2', '2026-07-18', '16:00', 'third_place', '3rd place', 'Hard Rock Stadium'],
-  ['Winner SF1', 'Winner SF2', '2026-07-19', '16:00', 'final', 'Final', 'MetLife Stadium'],
+  ['Winner SF1', 'Winner SF2', '2026-07-19', '15:00', 'final', 'Final', 'MetLife Stadium'],
 ];
 
-const SCHEDULE_VERSION = 'fifa-wc2026-official-v10';
+const SCHEDULE_VERSION = 'fifa-wc2026-official-v11';
 
 const { buildScheduleKickoffs } = require('../../shared/schedule-kickoffs');
 const { computeMatchdayMeta, MATCHDAY_ORDER } = require('../../shared/matchday-meta');

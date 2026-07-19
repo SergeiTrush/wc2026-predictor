@@ -50,6 +50,36 @@ function fixtureKey(stage, groupName, home, away) {
   return `${stage}|${groupName ?? ''}|${teams}`;
 }
 
+function buildScheduleIndexes(matches) {
+  const byFixture = new Map();
+  const byBracketSlot = new Map();
+  const byMatchLabel = new Map();
+  for (const m of matches) {
+    byFixture.set(fixtureKey(m.stage, m.group_name, m.home_team, m.away_team), m);
+    if (m.bracket_slot_id) byBracketSlot.set(m.bracket_slot_id, m);
+    if (m.stage !== 'group' && m.match_label) {
+      byMatchLabel.set(`${m.stage}|${m.match_label}`, m);
+    }
+  }
+  return { byFixture, byBracketSlot, byMatchLabel };
+}
+
+/** Resolve schedule row by teams, then knockout bracket slot / match label (resolved teams). */
+function findScheduleRow(row, indexes) {
+  const byTeams = indexes.byFixture.get(
+    fixtureKey(row.stage, row.group_name, row.home_team, row.away_team)
+  );
+  if (byTeams) return byTeams;
+  if (row.bracket_slot_id) {
+    const bySlot = indexes.byBracketSlot.get(row.bracket_slot_id);
+    if (bySlot) return bySlot;
+  }
+  if (row.stage !== 'group' && row.match_label) {
+    return indexes.byMatchLabel.get(`${row.stage}|${row.match_label}`) ?? null;
+  }
+  return null;
+}
+
 function hasLegacyCalendarMatchdays(db) {
   const q = (sql) => prepare(db, sql);
   return q(`SELECT COUNT(*) AS n FROM matches WHERE matchday GLOB '2026-??-??'`).get().n > 0;
@@ -60,15 +90,22 @@ function kickoffMs(iso) {
   return Number.isNaN(t) ? null : t;
 }
 
-function rowMatchesSchedule(row, scheduleRow) {
+function metaMatchesSchedule(row, scheduleRow) {
   if (kickoffMs(row.kickoff) !== kickoffMs(scheduleRow.kickoff)) return false;
   if (row.matchday !== scheduleRow.matchday) return false;
   if (row.stage !== scheduleRow.stage) return false;
   if ((row.group_name ?? null) !== (scheduleRow.group_name ?? null)) return false;
   if (row.venue !== scheduleRow.venue) return false;
   if (row.match_label !== scheduleRow.match_label) return false;
-  if (row.home_team !== scheduleRow.home_team || row.away_team !== scheduleRow.away_team) return false;
   return true;
+}
+
+function teamsMatchSchedule(row, scheduleRow) {
+  return row.home_team === scheduleRow.home_team && row.away_team === scheduleRow.away_team;
+}
+
+function rowMatchesSchedule(row, scheduleRow) {
+  return metaMatchesSchedule(row, scheduleRow) && teamsMatchSchedule(row, scheduleRow);
 }
 
 function scheduleNeedsRepair(db) {
@@ -76,10 +113,7 @@ function scheduleNeedsRepair(db) {
   if (hasLegacyCalendarMatchdays(db)) return true;
 
   const scheduleRows = buildMatches();
-  const byFixture = new Map();
-  for (const m of scheduleRows) {
-    byFixture.set(fixtureKey(m.stage, m.group_name, m.home_team, m.away_team), m);
-  }
+  const indexes = buildScheduleIndexes(scheduleRows);
 
   const dbRows = q('SELECT * FROM matches').all();
   if (dbRows.length !== scheduleRows.length) return true;
@@ -89,8 +123,13 @@ function scheduleNeedsRepair(db) {
   if (md2 !== expectedMd2) return true;
 
   for (const row of dbRows) {
-    const expected = byFixture.get(fixtureKey(row.stage, row.group_name, row.home_team, row.away_team));
-    if (!expected || !rowMatchesSchedule(row, expected)) return true;
+    const expected = findScheduleRow(row, indexes);
+    if (!expected) return true;
+    if (teamsMatchSchedule(row, expected)) {
+      if (!rowMatchesSchedule(row, expected)) return true;
+    } else if (!metaMatchesSchedule(row, expected)) {
+      return true;
+    }
   }
 
   return false;
@@ -99,16 +138,19 @@ function scheduleNeedsRepair(db) {
 function applySchedule(db) {
   const q = (sql) => prepare(db, sql);
   const matches = buildMatches();
-  const byFixture = new Map();
-  for (const m of matches) {
-    byFixture.set(fixtureKey(m.stage, m.group_name, m.home_team, m.away_team), m);
-  }
+  const indexes = buildScheduleIndexes(matches);
 
-  const update = prepare(
+  const updateFull = prepare(
     db,
     `UPDATE matches
      SET home_team = ?, away_team = ?, kickoff = ?, matchday = ?, stage = ?, group_name = ?,
          venue = ?, match_label = ?
+     WHERE id = ?`
+  );
+  const updateMeta = prepare(
+    db,
+    `UPDATE matches
+     SET kickoff = ?, matchday = ?, stage = ?, group_name = ?, venue = ?, match_label = ?
      WHERE id = ?`
   );
 
@@ -116,20 +158,36 @@ function applySchedule(db) {
   let updated = 0;
   transaction(db, () => {
     for (const row of rows) {
-      const m = byFixture.get(fixtureKey(row.stage, row.group_name, row.home_team, row.away_team));
+      const m = findScheduleRow(row, indexes);
       if (!m) continue;
-      if (rowMatchesSchedule(row, m)) continue;
-      update.run(
-        m.home_team,
-        m.away_team,
-        m.kickoff,
-        m.matchday,
-        m.stage,
-        m.group_name,
-        m.venue,
-        m.match_label,
-        row.id
-      );
+
+      const sameTeams = teamsMatchSchedule(row, m);
+      if (sameTeams) {
+        if (rowMatchesSchedule(row, m)) continue;
+        updateFull.run(
+          m.home_team,
+          m.away_team,
+          m.kickoff,
+          m.matchday,
+          m.stage,
+          m.group_name,
+          m.venue,
+          m.match_label,
+          row.id
+        );
+      } else {
+        // Knockout teams already resolved — only sync schedule meta (kickoff, venue, …).
+        if (metaMatchesSchedule(row, m)) continue;
+        updateMeta.run(
+          m.kickoff,
+          m.matchday,
+          m.stage,
+          m.group_name,
+          m.venue,
+          m.match_label,
+          row.id
+        );
+      }
       updated += 1;
     }
     setMeta(q, 'schedule_version', SCHEDULE_VERSION);
@@ -176,4 +234,11 @@ function seedDatabase(db) {
   return { seeded: true, matchCount: matches.length };
 }
 
-module.exports = { seedDatabase, buildMatches, kickoffEt, SCHEDULE_VERSION, applySchedule, scheduleNeedsRepair };
+module.exports = {
+  seedDatabase,
+  buildMatches,
+  kickoffEt,
+  SCHEDULE_VERSION,
+  applySchedule,
+  scheduleNeedsRepair,
+};

@@ -121,7 +121,7 @@ const KNOCKOUT = [
   ['Winner SF1', 'Winner SF2', '2026-07-19', '15:00', 'final', 'Final', 'MetLife Stadium'],
 ];
 
-const SCHEDULE_VERSION = 'fifa-wc2026-official-v11';
+const SCHEDULE_VERSION = 'fifa-wc2026-official-v12';
 
 const { buildScheduleKickoffs } = require('../../shared/schedule-kickoffs');
 const { computeMatchdayMeta, MATCHDAY_ORDER } = require('../../shared/matchday-meta');
